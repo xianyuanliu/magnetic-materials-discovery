@@ -21,24 +21,27 @@ def importNovamag(root_dir):
     """
 
     X = pd.DataFrame()
-    ls = dict()
     failedfiles = []
 
     for dirName, subdirList, fileList in os.walk(root_dir):
         print('Found directory: %s' % dirName)
         for fname in fileList:
             if fname.endswith('.json'):
-                filepath = dirName + '/' + fname
+                filepath = os.path.join(dirName, fname)
                 try:
                     df = pd.read_json(filepath, encoding='Latin')
-                    ls = {**df.properties.chemistry,
-                          **df.properties.crystal,
-                          **df.properties.magnetics}
-                    X = X.append(pd.DataFrame.from_dict(ls))
-                except ValueError:
-                    print('Import failed')
+                    chemistry = df.get('properties', {}).get('chemistry', {})
+                    crystal = df.get('properties', {}).get('crystal', {})
+                    magnetics = df.get('properties', {}).get('magnetics', {})
+                    ls = {**chemistry, **crystal, **magnetics}
+                    X = pd.concat([X, pd.DataFrame([ls])], ignore_index=True)
+                except ValueError as e:
+                    print(f'Import failed for {filepath}: {e}')
                     failedfiles.append(filepath)
-    X.index = range(len(X))  # Fix the index
+                except Exception as e:
+                    print(f'Unexpected error for {filepath}: {e}')
+                    failedfiles.append(filepath)
+    # X.index = range(len(X))  # Fix the index
     return X
 
 
