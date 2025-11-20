@@ -66,6 +66,7 @@ def plot_permutation_importance(model, X_valid, y_valid, title: str = "", save_p
     if title:
         plt.title(title, fontsize=18)
     plt.tight_layout()
+
     if save_path:
         plt.savefig(save_path)
         plt.close()
@@ -83,6 +84,7 @@ def plot_shap_summary(model, X_train, X_valid, save_path: str = None):
     shap_values = explainer(X_valid, check_additivity=False)
 
     shap.summary_plot(shap_values, X_valid, feature_names=X_valid.columns, show=False)
+
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches="tight")
         plt.close()
@@ -287,8 +289,9 @@ def plot_novamag_case_studies(
     rf_model,
     xgb_model,
     ridge_model,
-    PT,
-    MM,
+    pt,
+    mm,
+    save_path = None,
 ):
     """
     Recreate the final three-panel figure from notebook cell 109 (the large-font version).
@@ -299,7 +302,7 @@ def plot_novamag_case_studies(
         xgbpreds_FeAl,
         ridgepreds_FeAl,
         Exp_FeAl,
-    ) = novamag_feal_case(novamag_feature_columns, rf_model, xgb_model, ridge_model, PT, MM)
+    ) = novamag_feal_case(novamag_feature_columns, rf_model, xgb_model, ridge_model, pt, mm)
 
     (
         at_FeCo_fraction,
@@ -307,7 +310,7 @@ def plot_novamag_case_studies(
         xgbpreds_FeCo,
         ridgepreds_FeCo,
         Exp_FeCo,
-    ) = novamag_feco_case(novamag_feature_columns, rf_model, xgb_model, ridge_model, PT, MM)
+    ) = novamag_feco_case(novamag_feature_columns, rf_model, xgb_model, ridge_model, pt, mm)
 
     (
         at_FeCr_fraction,
@@ -315,7 +318,7 @@ def plot_novamag_case_studies(
         xgbpreds_FeCr,
         ridgepreds_FeCr,
         Exp_FeCr,
-    ) = novamag_fecr_case(novamag_feature_columns, rf_model, xgb_model, ridge_model, PT, MM)
+    ) = novamag_fecr_case(novamag_feature_columns, rf_model, xgb_model, ridge_model, pt, mm)
 
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(20, 4))
 
@@ -327,12 +330,6 @@ def plot_novamag_case_studies(
     ax1.set_title("FeAl Case Study", fontsize=16)
     ax1.set_xlabel("Al content [atomic fraction]", fontsize=16)
     ax1.set_ylabel("Saturation Magnetisation [T]", fontsize=16)
-    legend1 = ax1.legend(
-        ["random forest", "xgboost", "ridge regression", "literature"],
-        loc="upper right",
-        fontsize=14,
-    )
-    legend1.get_frame().set_facecolor("white")
 
     # FeCo
     sns.scatterplot(x=at_FeCo_fraction["Co"], y=rfpreds_FeCo, ax=ax2)
@@ -355,12 +352,17 @@ def plot_novamag_case_studies(
     legend3 = ax3.legend(
         ["random forest", "xgboost", "ridge regression", "literature"],
         loc="upper right",
-        fontsize=14,
+        fontsize=12,
     )
     legend3.get_frame().set_facecolor("white")
 
     plt.tight_layout()
-    plt.show()
+
+    if save_path:
+        plt.savefig(save_path, dpi=300)
+        plt.close()
+    else:
+        plt.show()
 
 
 # ====== 4. MP FeAl case study (see notebook cell 113) ======
