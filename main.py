@@ -22,6 +22,7 @@ from evaluate import (
     plot_novamag_case_studies,
     mp_feal_case,
 )
+from visualize import plot_ms_distribution_by_tm, plot_violin_ms_by_tm, summarize_compound_radix
 
 
 def main():
@@ -29,10 +30,17 @@ def main():
     pt_path = "./data/Periodic-table/periodic_table.xlsx"
     mm_path = "./data/Miedema-model/Miedema-model-reduced.xlsx"
     plots_save_dir = "./plots/"
+    data_visualization = True
 
     # ====== 1. Load Novamag data and split ======
     X_raw = load_novamag_raw(novamag_dir)
     X_nv, y_nv, novamag_feature_columns, pt, mm = load_novamag_dataset(X_raw, pt_path, mm_path)
+
+    # Raw data visualizations
+    if data_visualization:
+        plot_ms_distribution_by_tm(X_raw)
+        plot_violin_ms_by_tm(X_raw)
+        summarize_compound_radix(X_raw, pt)
 
     # Split dataset
     X_train, X_valid, y_train, y_valid = split_dataset(X_nv, y_nv, train_size=0.8)
