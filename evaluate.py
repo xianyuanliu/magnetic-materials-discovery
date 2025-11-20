@@ -40,67 +40,9 @@ def print_regression_results(y_true, predictions: Dict[str, np.ndarray]):
         print(f"  MAE: {mae:.4f}")
         print(f"  R2:  {r2:.4f}")
 
-# def regression_metrics(y_true, y_pred) -> Dict[str, float]:
-#     """Compute MSE / MAE / R² and return them as a dictionary."""
-#     mse = mean_squared_error(y_true, y_pred)
-#     mae = mean_absolute_error(y_true, y_pred)
-#     r2 = r2_score(y_true, y_pred)
-#     return {"MSE": mse, "MAE": mae, "R2": r2}
-
-
-# def print_all_metrics(
-#     y_valid,
-#     rfpreds,
-#     xgbpreds,
-#     ridgepreds,
-#     # mp_y_valid,
-#     # mp_rfpreds,
-#     # mp_xgbpreds,
-#     # mp_ridgepreds,
-# ):
-#     """
-#     Matches notebook cells 96, 98, and 100.
-#     """
-#     # NOVAMAG
-#     print("NOVAMAG:")
-
-#     print("Mean Squared Error (MSE):")
-#     print("Random Forest Regression:", mean_squared_error(y_valid, rfpreds))
-#     print("XGBoost Regression:", mean_squared_error(y_valid, xgbpreds))
-#     print("Ridge Regression:", mean_squared_error(y_valid, ridgepreds))
-
-#     print("Mean Absolute Error (MAE):")
-#     print("Random Forest Regression:", mean_absolute_error(y_valid, rfpreds))
-#     print("XGBoost Regression:", mean_absolute_error(y_valid, xgbpreds))
-#     print("Ridge Regression:", mean_absolute_error(y_valid, ridgepreds))
-
-#     print("R-squared (R2) Score:")
-#     print("Random Forest Regression:", r2_score(y_valid, rfpreds))
-#     print("XGBoost Regression:", r2_score(y_valid, xgbpreds))
-#     print("Ridge Regression:", r2_score(y_valid, ridgepreds))
-
-#     # # MATERIALS PROJECT
-#     # print("\nMATERIALS PROJECT:")
-
-#     # print("Mean Squared Error (MSE):")
-#     # print("Random Forest Regression:", mean_squared_error(mp_y_valid, mp_rfpreds))
-#     # print("XGBoost Regression:", mean_squared_error(mp_y_valid, mp_xgbpreds))
-#     # print("Ridge Regression:", mean_squared_error(mp_y_valid, mp_ridgepreds))
-
-#     # print("Mean Absolute Error (MAE):")
-#     # print("Random Forest Regression:", mean_absolute_error(mp_y_valid, mp_rfpreds))
-#     # print("XGBoost Regression:", mean_absolute_error(mp_y_valid, mp_xgbpreds))
-#     # print("Ridge Regression:", mean_absolute_error(mp_y_valid, mp_ridgepreds))
-
-#     # print("R-squared (R2) Score:")
-#     # print("Random Forest Regression:", r2_score(mp_y_valid, mp_rfpreds))
-#     # print("XGBoost Regression:", r2_score(mp_y_valid, mp_xgbpreds))
-#     # print("Ridge Regression:", r2_score(mp_y_valid, mp_ridgepreds))
-
-
 # ====== 2. Permutation Feature Importance & SHAP ======
 
-def plot_permutation_importance(model, X_valid, y_valid, title: str = ""):
+def plot_permutation_importance(model, X_valid, y_valid, title: str = "", save_path: str = None):
     """
     Plot permutation importance for RFR / XGB / Ridge.
     Mirrors notebook cells 58, 71, 75, 86, 89, etc.
@@ -124,10 +66,14 @@ def plot_permutation_importance(model, X_valid, y_valid, title: str = ""):
     if title:
         plt.title(title, fontsize=18)
     plt.tight_layout()
-    plt.show()
+    if save_path:
+        plt.savefig(save_path)
+        plt.close()
+    else:
+        plt.show() 
 
 
-def plot_shap_summary(model, X_train, X_valid, title: str = ""):
+def plot_shap_summary(model, X_train, X_valid, save_path: str = None):
     """
     Render the SHAP summary plots used in the notebook:
     - Novamag: explainer = shap.Explainer(model, X_train)
@@ -136,11 +82,12 @@ def plot_shap_summary(model, X_train, X_valid, title: str = ""):
     explainer = shap.Explainer(model, X_train)
     shap_values = explainer(X_valid, check_additivity=False)
 
-    shap.summary_plot(shap_values, X_valid, feature_names=X_valid.columns)
-    if title:
-        plt.title(title)
-    plt.show()
-
+    shap.summary_plot(shap_values, X_valid, feature_names=X_valid.columns, show=False)
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+        plt.close()
+    else:
+        plt.show()
 
 # ====== 3. Novamag case studies: FeAl / FeCo / FeCr ======
 
@@ -336,7 +283,7 @@ def novamag_fecr_case(X_cols, rf_model, xgb_model, ridge_model, PT, MM):
 
 
 def plot_novamag_case_studies(
-    my_cols,
+    novamag_feature_columns,
     rf_model,
     xgb_model,
     ridge_model,
@@ -352,7 +299,7 @@ def plot_novamag_case_studies(
         xgbpreds_FeAl,
         ridgepreds_FeAl,
         Exp_FeAl,
-    ) = novamag_feal_case(my_cols, rf_model, xgb_model, ridge_model, PT, MM)
+    ) = novamag_feal_case(novamag_feature_columns, rf_model, xgb_model, ridge_model, PT, MM)
 
     (
         at_FeCo_fraction,
@@ -360,7 +307,7 @@ def plot_novamag_case_studies(
         xgbpreds_FeCo,
         ridgepreds_FeCo,
         Exp_FeCo,
-    ) = novamag_feco_case(my_cols, rf_model, xgb_model, ridge_model, PT, MM)
+    ) = novamag_feco_case(novamag_feature_columns, rf_model, xgb_model, ridge_model, PT, MM)
 
     (
         at_FeCr_fraction,
@@ -368,7 +315,7 @@ def plot_novamag_case_studies(
         xgbpreds_FeCr,
         ridgepreds_FeCr,
         Exp_FeCr,
-    ) = novamag_fecr_case(my_cols, rf_model, xgb_model, ridge_model, PT, MM)
+    ) = novamag_fecr_case(novamag_feature_columns, rf_model, xgb_model, ridge_model, PT, MM)
 
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(20, 4))
 
@@ -419,7 +366,7 @@ def plot_novamag_case_studies(
 # ====== 4. MP FeAl case study (see notebook cell 113) ======
 
 def mp_feal_case(
-    mp_cols,
+    mp_feature_columns,
     rf_model,
     xgb_model,
     ridge_model,
@@ -460,9 +407,9 @@ def mp_feal_case(
     Y_FeAl["valencew"] = mp_al.get_Valencew(PT, stoichiometric_array_FeAl)
     Y_FeAl["electronegw"] = mp_al.get_Electronegw(PT, stoichiometric_array_FeAl)
 
-    mp_rfpreds_FeAl = rf_model.predict(Y_FeAl[mp_cols])
-    mp_xgbpreds_FeAl = xgb_model.predict(Y_FeAl[mp_cols])
-    mp_ridgepreds_FeAl = ridge_model.predict(Y_FeAl[mp_cols])
+    mp_rfpreds_FeAl = rf_model.predict(Y_FeAl[mp_feature_columns])
+    mp_xgbpreds_FeAl = xgb_model.predict(Y_FeAl[mp_feature_columns])
+    mp_ridgepreds_FeAl = ridge_model.predict(Y_FeAl[mp_feature_columns])
 
     mp_at_FeAl_fraction = mp_al.get_AtomicFrac(stoichiometric_array_FeAl)
 
