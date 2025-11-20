@@ -14,7 +14,7 @@ from data import (
     load_novamag_raw,
     split_dataset,
 )
-from train import train_rf, train_ridge, train_xgb
+from train import train_rf, train_ridge, train_xgb, tune_rf_hyperparams, tune_ridge_hyperparams, tune_xgb_hyperparams
 from evaluate import (
     print_regression_results,
     plot_permutation_importance,
@@ -31,6 +31,7 @@ def main():
     mm_path = "./data/Miedema-model/Miedema-model-reduced.xlsx"
     plots_save_dir = "./plots/"
     data_visualization = True
+    hyperparameter_tuning = False
 
     # ====== 1. Load Novamag data and split ======
     X_raw = load_novamag_raw(novamag_dir)
@@ -38,8 +39,8 @@ def main():
 
     # Raw data visualizations
     if data_visualization:
-        plot_ms_distribution_by_tm(X_raw)
-        plot_violin_ms_by_tm(X_raw)
+        plot_ms_distribution_by_tm(X_raw, save_path=plots_save_dir + "novamag_ms_distribution_by_tm.png")
+        plot_violin_ms_by_tm(X_raw, save_path=plots_save_dir + "novamag_violin_ms_by_tm.png")
         summarize_compound_radix(X_raw, pt)
 
     # Split dataset
@@ -50,9 +51,19 @@ def main():
     X_valid = X_valid[novamag_feature_columns].copy()
 
     # ====== 2. Train the three models on Novamag ======
-    rf_model = train_rf(X_train, y_train)
-    xgb_model = train_xgb(X_train, y_train)
-    ridge_model = train_ridge(X_train, y_train)
+    # Hyperparameter tuning
+    if hyperparameter_tuning:
+        rf_best_params = tune_rf_hyperparams(X_train, y_train)
+        xgb_best_params = tune_xgb_hyperparams(X_train, y_train)
+        ridge_best_params = tune_ridge_hyperparams(X_train, y_train)
+    else:
+        rf_best_params = None
+        xgb_best_params = None
+        ridge_best_params = None
+
+    rf_model = train_rf(X_train, y_train, params=rf_best_params)
+    xgb_model = train_xgb(X_train, y_train, params=xgb_best_params)
+    ridge_model = train_ridge(X_train, y_train, params=ridge_best_params)
 
     # ====== 3. Predict on Novamag ======
     rfpreds = rf_model.predict(X_valid)
@@ -81,13 +92,14 @@ def main():
 
     # ====== 7a. Plot Novamag RF permutation importance ======
     plot_permutation_importance(rf_model, X_valid, y_valid, title="RF Permutation Importance (Novamag)", 
-                                save_path=plots_save_dir + "perm_importance_rf_novamag.png")
+                                save_path=plots_save_dir + "novamag_perm_importance_rf.png")
 
     # ====== 7b. Plot Novamag RF SHAP summary plot ======
-    plot_shap_summary(rf_model, X_train, X_valid, save_path=plots_save_dir + "shap_summary_rf_novamag.png")
+    plot_shap_summary(rf_model, X_train, X_valid, save_path=plots_save_dir + "novamag_shap_summary_rf.png")
 
     # ====== 8. Plot the three Novamag case-study panels ======
-    plot_novamag_case_studies(novamag_feature_columns, rf_model, xgb_model, ridge_model, pt, mm)
+    plot_novamag_case_studies(novamag_feature_columns, rf_model, xgb_model, ridge_model, pt, mm, 
+                              save_path=plots_save_dir + "novamag_case_studies.png")
 
     # # ====== 9. MP FeAl case study (compute data only, no plots) ======
     # mp_at_FeAl_fraction, mp_rfpreds_FeAl, mp_xgbpreds_FeAl, mp_ridgepreds_FeAl, mp_Exp_FeAl = mp_feal_case(

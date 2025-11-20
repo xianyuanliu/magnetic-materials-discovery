@@ -39,23 +39,26 @@ def tune_rf_hyperparams(X_train, y_train) -> Tuple[object, Dict]:
 
     print("RF Best Parameters:", best_params)
     print("RF Best Score (neg_mean_squared_error):", best_score)
-    return grid_search.best_estimator_, best_params
+    return best_params
 
 
-def train_rf(X_train, y_train):
+def train_rf(X_train, y_train, params: Dict = None):
     """
     Train with the notebook's selected best parameters:
     rf_model = RandomForestRegressor(n_estimators=200, random_state=0,
                                      max_depth=15, min_samples_leaf=1,
                                      min_samples_split=2)
     """
-    rf_model = build_rf_model(
-        n_estimators=200,
-        max_depth=15,
-        min_samples_leaf=1,
-        min_samples_split=2,
-        random_state=0,
-    )
+    if params is not None:
+        rf_model = build_rf_model(random_state=0, **params)     
+    else:
+        rf_model = build_rf_model(
+            n_estimators=200,
+            max_depth=15,
+            min_samples_leaf=1,
+            min_samples_split=2,
+            random_state=0,
+        )
     rf_model.fit(X_train, y_train)
     return rf_model
 
@@ -90,23 +93,26 @@ def tune_xgb_hyperparams(X_train, y_train):
 
     print("XGB Best Parameters:", best_params)
     print("XGB Best Score (neg_mean_squared_error):", best_score)
-    return grid_search.best_estimator_, best_params
+    return best_params
 
 
-def train_xgb(X_train, y_train):
+def train_xgb(X_train, y_train, params: Dict = None):
     """
     Train XGB with the manually selected near-optimal parameters from the notebook.
     Adjust them if later GridSearchCV results suggest improvements.
     """
-    xgb_model = build_xgb_model(
-        n_estimators=200,
-        learning_rate=0.05,
-        max_depth=7,
-        min_child_weight=1,
-        subsample=0.6,
-        colsample_bytree=0.8,
-        random_state=0,
-    )
+    if params is not None:
+        xgb_model = build_xgb_model(random_state=0, **params)
+    else:
+        xgb_model = build_xgb_model(
+            n_estimators=100,
+            learning_rate=0.1,
+            max_depth=7,
+            min_child_weight=1,
+            subsample=0.6,
+            colsample_bytree=0.8,
+            random_state=0,
+        )
     xgb_model.fit(X_train, y_train)
     return xgb_model
 
@@ -138,13 +144,16 @@ def tune_ridge_hyperparams(X_train, y_train):
 
     print("Ridge Best Parameters:", best_params)
     print("Ridge Best Score (neg_mean_squared_error):", best_score)
-    return grid_search.best_estimator_, best_params
+    return best_params
 
 
-def train_ridge(X_train, y_train):
+def train_ridge(X_train, y_train, params: Dict = None):
     """
     Train with the notebook's selected configuration of alpha=1 and solver='lsqr'.
     """
-    ridge_model = build_ridge_model(alpha=1.0, solver="lsqr")
+    if params is not None:
+        ridge_model = build_ridge_model(**params)
+    else:
+        ridge_model = build_ridge_model(alpha=1.0, solver="lsqr")
     ridge_model.fit(X_train, y_train)
     return ridge_model
