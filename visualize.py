@@ -75,7 +75,7 @@ def summarize_compound_radix(data, PT):
     """
 
     # Compute compound radix (number of unique elements in formula)
-    data['compoundradix'] = alloys.get_CompoundRadix(PT, data)
+    data['compoundradix'] = alloys.get_CompoundRadix(data)
 
     total_compound_radix = data['compoundradix'].value_counts().sort_index()
 

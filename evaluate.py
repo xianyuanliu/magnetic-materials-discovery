@@ -122,7 +122,7 @@ def novamag_feal_case(X_cols: List[str], rf_model, xgb_model, ridge_model, perio
 
     X_FeAl["stoicentw"] = al.get_StoicEntw(stoich_array_FeAl)
     X_FeAl["Zw"] = al.get_Zw(periodic_table, stoich_array_FeAl)
-    X_FeAl["compoundradix"] = al.get_CompoundRadix(periodic_table, X_FeAl)
+    X_FeAl["compoundradix"] = al.get_CompoundRadix(X_FeAl)
     X_FeAl["periodw"] = al.get_Periodw(periodic_table, stoich_array_FeAl)
     X_FeAl["groupw"] = al.get_Groupw(periodic_table, stoich_array_FeAl)
     X_FeAl["meltingTw"] = al.get_MeltingTw(periodic_table, stoich_array_FeAl)
@@ -199,7 +199,7 @@ def novamag_feco_case(X_cols, rf_model, xgb_model, ridge_model, periodic_table, 
 
     X_FeCo["stoicentw"] = al.get_StoicEntw(stoich_array_FeCo)
     X_FeCo["Zw"] = al.get_Zw(periodic_table, stoich_array_FeCo)
-    X_FeCo["compoundradix"] = al.get_CompoundRadix(periodic_table, X_FeCo)
+    X_FeCo["compoundradix"] = al.get_CompoundRadix(X_FeCo)
     X_FeCo["periodw"] = al.get_Periodw(periodic_table, stoich_array_FeCo)
     X_FeCo["groupw"] = al.get_Groupw(periodic_table, stoich_array_FeCo)
     X_FeCo["meltingTw"] = al.get_MeltingTw(periodic_table, stoich_array_FeCo)
@@ -261,7 +261,7 @@ def novamag_fecr_case(X_cols, rf_model, xgb_model, ridge_model, periodic_table, 
 
     X_FeCr["stoicentw"] = al.get_StoicEntw(stoich_array_FeCr)
     X_FeCr["Zw"] = al.get_Zw(periodic_table, stoich_array_FeCr)
-    X_FeCr["compoundradix"] = al.get_CompoundRadix(periodic_table, X_FeCr)
+    X_FeCr["compoundradix"] = al.get_CompoundRadix(X_FeCr)
     X_FeCr["periodw"] = al.get_Periodw(periodic_table, stoich_array_FeCr)
     X_FeCr["groupw"] = al.get_Groupw(periodic_table, stoich_array_FeCr)
     X_FeCr["meltingTw"] = al.get_MeltingTw(periodic_table, stoich_array_FeCr)

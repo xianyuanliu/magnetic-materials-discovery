@@ -75,12 +75,11 @@ def build_novamag_features(
 ) -> Tuple[pd.DataFrame, pd.Series, List[str]]:
     """
     Engineer features for Novamag and return X_feat, y, and the feature list.
-    Matches notebook cells 18, 36, 38, and 40.
     """
     data = raw_data.copy()
 
     # compoundradix: number of species in the compound (binary, ternary, etc.)
-    data["compoundradix"] = alloys.get_CompoundRadix(pt, data)
+    data["compoundradix"] = alloys.get_CompoundRadix(data)
 
     # stoichiometric array
     stoich_array = alloys.get_stoich_array(data, pt)
@@ -118,18 +117,17 @@ def build_novamag_features(
     # Drop alloys which are below magnetic cutoff (determined through prior model optimisation)
     data.drop(data[data["saturation magnetization"] < 0.18].index, axis=0, inplace=True)
 
-    # Round the saturation magnetization to 1.d.p
-    data["saturation magnetization"] = pd.to_numeric(
-        data["saturation magnetization"]
-    ).round(decimals=2)
+    # Round the saturation magnetization to two decimal places
+    data["saturation magnetization"] = pd.to_numeric(data["saturation magnetization"]).round(decimals=2)
 
-    # Group duplicates by chemical formula and replace values with median
+    # Collapse duplicate chemical formulas by taking the median feature values
     data = data.groupby(by="chemical formula").median()
     data.index = range(len(data))
 
-    # Define target and drop from data
+    # Extract target before narrowing the feature set
     ground_truth = data["saturation magnetization"]
     data.drop(["saturation magnetization"], axis=1, inplace=True)
+
     # Keep only the feature columns while preserving the column order
     data = data[novamag_feature_columns].copy()
     
