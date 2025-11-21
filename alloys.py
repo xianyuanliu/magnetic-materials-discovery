@@ -12,7 +12,7 @@ def _flatten(x):
         return x["value"]
     return x
 
-def _sorted_symbols(periodic_table):
+def _sorted_elements(periodic_table):
     """Return element symbols sorted by descending length."""
     symbols = periodic_table["symbol"].astype(str)
     order = symbols.str.len().sort_values(ascending=False).index
@@ -32,7 +32,7 @@ def _element_occurrence(df, periodic_table, formula_col, verbose=False):
         pd.DataFrame: Two-column DataFrame with element symbols and the number of compounds they occur in.
     """
     formulas = df[formula_col].copy()
-    symbols = _sorted_symbols(periodic_table)
+    symbols = _sorted_elements(periodic_table)
 
     # Calculate the occurance of each element
     n_el_rows = []
@@ -130,7 +130,7 @@ def get_stoich_array(x, pt):
 
     # Get a list of element symbols and sort in order of descending length
     # Need longest first as elements like S will be found within Si, As etc.
-    symbols = _sorted_symbols(pt)
+    symbols = _sorted_elements(pt)
 
     # Will encode chemical formula data in a large array
     stoich_array = pd.DataFrame(
@@ -284,7 +284,7 @@ def get_CompoundRadix(pt, X):
     # Make a new column for the compound index i.e. 2 = binary
     compoundradix = pd.Series(np.zeros(len(formulas)))
     # Get a list of symbols and sort in order of descending string length
-    symbols = _sorted_symbols(pt)
+    symbols = _sorted_elements(pt)
 
     for el in symbols:
         regex_list = formulas.str.extractall(pat=r"(?P<element>{0})(?P<digit>\d*)".format(el))
