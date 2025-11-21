@@ -262,8 +262,7 @@ def get_StoicEntw(stoich_array):
 def get_AtomicFrac(stoich_array):
     """Calculate atomic fractions of each element for every compound."""
     rows = []
-    for i in range(len(stoich_array)):
-        compound = stoich_array.iloc[i]  # take slice for each compound
+    for _, compound in stoich_array.iterrows():
         at_fraction, _ = _atomic_fraction(compound)
         rows.append(at_fraction)
     if not rows:

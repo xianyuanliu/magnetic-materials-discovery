@@ -97,6 +97,7 @@ def build_novamag_features(
 
     # Feature list kept consistent with the notebook
     novamag_feature_columns = [
+        "compoundradix",
         "stoicentw",
         "Zw",
         "periodw",
