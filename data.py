@@ -85,7 +85,7 @@ def build_novamag_features(
     stoich_array = alloys.get_stoich_array(data, pt)
 
     # Compute element-weighted features from the stoichiometric array
-    data["stoicentw"] = alloys.get_StoicEntw(stoich_array)          # mixing entropy
+    data["stoicentw"] = alloys.get_StoicEntw(stoich_array)           # mixing entropy
     data["Zw"] = alloys.get_Zw(pt, stoich_array)                     # atomic weight
     # data['compoundradix'] was computed above
     data["periodw"] = alloys.get_Periodw(pt, stoich_array)           # period
