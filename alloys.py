@@ -225,11 +225,10 @@ def get_MeltingTw(pt, stoich_array):
 
 def get_Valencew(pt, stoich_array):
     """Calculate element-weighted valence electron number."""
-    valencew = pd.Series(np.zeros(len(stoich_array)))
-    for i in range(len(stoich_array)):
-        compound = stoich_array.iloc[i]  # take slice for each compound
+    valencew = pd.Series(index=stoich_array.index, dtype=float)
+    for i, compound in stoich_array.iterrows():
         at_fraction, labels = _atomic_fraction(compound)
-        valencew.iloc[i] = np.dot(at_fraction, pt.loc[labels]["valence"])
+        valencew.loc[i] = np.dot(at_fraction, pt.loc[labels]["valence"])
     return valencew
 
 
