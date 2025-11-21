@@ -41,8 +41,9 @@ def load_novamag_raw(novamag_dir: str) -> pd.DataFrame:
 
     print(f"The total number of imported features is {len(data.columns)}")
 
-    # Fix the 'none' values
-    data = data.fillna(value=np.nan).copy()
+    # Fix the 'none' values without triggering fillna downcast warnings
+    data = data.replace({None: np.nan, "none": np.nan, "None": np.nan})
+    data = data.infer_objects(copy=False)
 
     # Find columns with missing values
     na_cols = [col for col in data.columns if data[col].isna().any()]

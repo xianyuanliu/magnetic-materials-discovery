@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 
 def _flatten(x):
+    # Flatten nested dicts with single 'value' entries
     if isinstance(x, dict) and "value" in x and len(x) == 1:
         return x["value"]
     return x
@@ -41,7 +42,7 @@ def importNovamag(root_dir):
                     print("Import failed", filepath)
                     failedfiles.append(filepath)
     X = pd.DataFrame(rows)
-    X = X.applymap(_flatten)
+    X = X.map(_flatten)
     return X
 
 
@@ -134,20 +135,23 @@ def get_element_occurance_mp(x, pt, verbose=False):
 
 def get_stoich_array(x, pt):
     # Create stoichiometry array from chemical formulas
-    if type(x) == pd.DataFrame:
+    if isinstance(x, pd.DataFrame):
         formulas = x["chemical formula"].copy()  # if user passes whole of Novamag
     else:
         formulas = pd.Series(x)  # if user passes a single chemical formula string
         print(formulas)
+
     # Get a list of element symbols and sort in order of descending length
     # Need longest first as elements like S will be found within Si, As etc.
     symbols = pt["symbol"].copy()
     s = symbols.str.len().sort_values(ascending=False).index
     symbols = symbols.reindex(s)
     # Will encode chemical formula data in a large array
-    stoich_array = pd.DataFrame(np.zeros([len(formulas), len(symbols)]))
-    stoich_array.columns = symbols.copy()
-    stoich_array.index = formulas.copy()
+    stoich_array = pd.DataFrame(
+        np.zeros([len(formulas), len(symbols)]),
+        index=formulas.index,
+        columns=symbols.copy(),
+    )
 
     for el in symbols:
         # Ensure each element in the chemical formula has an explicit digit (e.g., Fe1Co1 instead of FeCo)
@@ -157,7 +161,8 @@ def get_stoich_array(x, pt):
         count = len(regex_list)
         if count > 0:
             # add the number of atoms to the correct el col in the stoich array
-            stoich_array[el][regex_list.index] = regex_list.digit
+            digits = regex_list["digit"].replace("", "1").astype(float)
+            stoich_array.loc[regex_list.index, el] = digits
 
         # Remove the elements we have just found from the formulas list
         formulas[regex_list.index] = formulas[regex_list.index].replace(
@@ -167,9 +172,9 @@ def get_stoich_array(x, pt):
         )
 
     # Need to rewrite the string numbers as integers in our stoichiometry array
-    stoich_array = stoich_array.fillna(0)
-    for col in stoich_array.columns:
-        stoich_array[col] = stoich_array[col].astype(int)
+    stoich_array = stoich_array.fillna(0).astype(int)
+    # Restore index to formula strings for readability/access
+    stoich_array.index = formulas.values
 
     return stoich_array
 
