@@ -41,7 +41,7 @@ def load_novamag_raw(novamag_dir: str) -> pd.DataFrame:
 
     print(f"The total number of imported features is {len(data.columns)}")
 
-    # Fix the 'none' values without triggering fillna downcast warnings
+    # Normalise literal 'none' entries
     data = data.replace({None: np.nan, "none": np.nan, "None": np.nan})
     data = data.infer_objects(copy=False)
 
@@ -209,8 +209,6 @@ def load_mp_raw(csv_path: str) -> pd.DataFrame:
 
 
 # ====== Generic stoichiometric array builder (used for MP and case studies) ======
-
-# Note: mirrors the logic from notebook cell 45
 
 pattern = r"([A-Z][a-z]*)(\d*)"
 

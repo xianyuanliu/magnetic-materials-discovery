@@ -42,7 +42,7 @@ def _element_occurrence(df, periodic_table, formula_col, verbose=False):
     formulas = df[formula_col].copy()
     symbols = _sorted_elements(periodic_table)
 
-    # Calculate the occurance of each element
+    # Calculate the occurrence of each element
     n_el_rows = []
     for el in symbols:
         regex_list = formulas.str.extractall(pat=r"(?P<element>{0})(?P<digit>\d*)".format(el))
@@ -64,7 +64,7 @@ def importNovamag(root_dir):
     """
 
     rows = []
-    failedfiles = []
+    failed_files = []
 
     for dirName, subdirList, fileList in os.walk(root_dir):
         print("Found directory: %s" % dirName)
@@ -77,7 +77,7 @@ def importNovamag(root_dir):
                     rows.append(row)
                 except ValueError:
                     print("Import failed", filepath)
-                    failedfiles.append(filepath)
+                    failed_files.append(filepath)
     X = pd.DataFrame(rows)
     X = X.apply(lambda col: col.map(_flatten))
     return X
@@ -109,12 +109,12 @@ def get_K_mag(X):
     return X
 
 
-def get_element_occurance_novamag(x, pt, verbose=False):
+def get_element_occurrence_novamag(x, pt, verbose=False):
     """Novamag: use 'chemical formula' column."""
     return _element_occurrence(x, pt, "chemical formula", verbose=verbose)
 
 
-def get_element_occurance_mp(x, pt, verbose=False):
+def get_element_occurrence_mp(x, pt, verbose=False):
     """Materials Project: use 'composition' column."""
     return _element_occurrence(x, pt, "composition", verbose=verbose)
 

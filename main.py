@@ -24,7 +24,6 @@ from evaluate import (
 )
 from visualize import plot_ms_distribution_by_tm, plot_violin_ms_by_tm, summarize_compound_radix
 
-
 def main():
     novamag_dir = "./data/Novamag_Data_Files/"
     pt_path = "./data/Periodic-table/periodic_table.xlsx"
@@ -66,9 +65,9 @@ def main():
     ridge_model = train_ridge(X_train, y_train, params=ridge_best_params)
 
     # ====== 3. Predict on Novamag ======
-    rfpreds = rf_model.predict(X_valid)
-    xgbpreds = xgb_model.predict(X_valid)
-    ridgepreds = ridge_model.predict(X_valid)
+    rf_preds = rf_model.predict(X_valid)
+    xgb_preds = xgb_model.predict(X_valid)
+    ridge_preds = ridge_model.predict(X_valid)
 
     # # ====== 4. Load the MP data and split ======
     # X_mp, mp_y, mp_feature_columns, PT_mp, MM_mp = load_mp_dataset()
@@ -87,7 +86,7 @@ def main():
     # mp_ridgepreds = ridge_model.predict(mp_X_valid)
 
     # ====== 6. Print all metrics (notebook cells 96/98/100) ======
-    preds = {"Random Forest": rfpreds, "XGBoost": xgbpreds, "Ridge": ridgepreds,}
+    preds = {"Random Forest": rf_preds, "XGBoost": xgb_preds, "Ridge": ridge_preds,}
     print_regression_results(y_valid, preds)
 
     # ====== 7a. Plot Novamag RF permutation importance ======
