@@ -124,8 +124,10 @@ def get_stoich_array(x, pt):
     """Create stoichiometry array (element counts) from chemical formulas."""
     if isinstance(x, pd.DataFrame):
         formulas = x["chemical formula"].copy()  # if user passes whole of Novamag
+        index = x.index
     else:
         formulas = pd.Series(x)  # if user passes a single chemical formula string
+        index = formulas.index
         print(formulas)
 
     # Get a list of element symbols and sort in order of descending length
@@ -135,33 +137,20 @@ def get_stoich_array(x, pt):
     # Will encode chemical formula data in a large array
     stoich_array = pd.DataFrame(
         np.zeros([len(formulas), len(symbols)]),
-        index=formulas.index,
+        index=index,
         columns=symbols.copy(),
     )
 
-    for el in symbols:
-        # Ensure each element in the chemical formula has an explicit digit (e.g., Fe1Co1 instead of FeCo)
-        regex_list = formulas.str.extractall(pat=r"(?P<element>{0})(?P<digit>\d*)".format(el))
-        # drop the multi-indexing that 'extractall' creates
-        regex_list = regex_list.droplevel(level=1).copy()
-        count = len(regex_list)
-        if count > 0:
-            # add the number of atoms to the correct el col in the stoich array
-            digits = regex_list["digit"].replace("", "1").astype(float)
-            stoich_array.loc[regex_list.index, el] = digits
+    for idx, f in formulas.items():
+        if pd.isna(f):
+            continue
+        comp = Composition(str(f))
+        el_dict = comp.get_el_amt_dict()
+        for el, amt in el_dict.items():
+            if el in stoich_array.columns:
+                stoich_array.at[idx, el] = amt
 
-        # Remove the elements we have just found from the formulas list
-        formulas[regex_list.index] = formulas[regex_list.index].replace(
-            # to_replace=regex_list.element + regex_list.digit, value=None, regex=True
-            to_replace=regex_list.element + regex_list.digit,
-            regex=True,
-        )
-
-    # Need to rewrite the string numbers as integers in our stoichiometry array
-    stoich_array = stoich_array.fillna(0).astype(int)
-    # Restore index to formula strings for readability/access
-    stoich_array.index = formulas.values
-
+    stoich_array = stoich_array.astype(int)
     return stoich_array
 
 
@@ -246,11 +235,10 @@ def get_Miedemaw(mm, stoich_array):
 
 def get_StoicEntw(stoich_array):
     """Calculate stoichiometric (mixing) entropy."""
-    stoicentw = pd.Series(np.zeros(len(stoich_array)))
-    for i in range(len(stoich_array)):
-        compound = stoich_array.iloc[i]  # take slice for each compound
+    stoicentw = pd.Series(index=stoich_array.index, dtype=float)
+    for i, compound in stoich_array.iterrows():
         at_fraction, _ = _atomic_fraction(compound)
-        stoicentw.iloc[i] = -np.dot(at_fraction, np.log(at_fraction))
+        stoicentw.loc[i] = -np.dot(at_fraction, np.log(at_fraction))
     return stoicentw
 
 
