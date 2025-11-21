@@ -216,11 +216,10 @@ def get_Periodw(pt, stoich_array):
 
 def get_MeltingTw(pt, stoich_array):
     """Calculate element-weighted melting temperature."""
-    meltingTw = pd.Series(np.zeros(len(stoich_array)))
-    for i in range(len(stoich_array)):
-        compound = stoich_array.iloc[i]  # take slice for each compound
+    meltingTw = pd.Series(index=stoich_array.index, dtype=float)
+    for i, compound in stoich_array.iterrows():
         at_fraction, labels = _atomic_fraction(compound)
-        meltingTw.iloc[i] = np.dot(at_fraction, pt.loc[labels]["melting_point"])
+        meltingTw.loc[i] = np.dot(at_fraction, pt.loc[labels]["melting_point"])
     return meltingTw
 
 
