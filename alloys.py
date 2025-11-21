@@ -167,11 +167,10 @@ def get_Electronegw(pt, stoich_array):
 
 def get_Zw(pt, stoich_array):
     """Calculate element-weighted atomic weight."""
-    zw = pd.Series(np.zeros(len(stoich_array)))
-    for i in range(len(stoich_array)):
-        compound = stoich_array.iloc[i]  # take slice for each compound
+    zw = pd.Series(index=stoich_array.index, dtype=float)
+    for idx, compound in stoich_array.iterrows():
         at_fraction, labels = _atomic_fraction(compound)
-        zw.iloc[i] = np.dot(at_fraction, pt.loc[labels]["atomic_weight"])
+        zw.loc[idx] = np.dot(at_fraction, pt.loc[labels, "atomic_weight"])
     return zw
 
 
