@@ -12,6 +12,44 @@ def _flatten(x):
         return x["value"]
     return x
 
+def _sorted_symbols(periodic_table):
+    """Return element symbols sorted by descending length."""
+    symbols = periodic_table["symbol"].astype(str)
+    order = symbols.str.len().sort_values(ascending=False).index
+    return symbols.reindex(order)
+
+def _element_occurrence(df, periodic_table, formula_col, verbose=False):
+    """
+    Count the number of distinct compounds each element appears in across a dataset.
+
+    Args:
+        df (pd.DataFrame): DataFrame containing formula_col column with formula strings.
+        periodic_table (pd.DataFrame): DataFrame containing an element "symbol" column used to build regex matches.
+        formula_col (str): Name of the column in df that contains chemical formula strings.
+        verbose (bool, optional): If True, print the count per element during processing. Defaults to False.
+
+    Returns:
+        pd.DataFrame: Two-column DataFrame with element symbols and the number of compounds they occur in.
+    """
+    formulas = df[formula_col].copy()
+    symbols = _sorted_symbols(periodic_table)
+
+    # Calculate the occurance of each element
+    n_el_rows = []
+    for el in symbols:
+        regex_list = formulas.str.extractall(pat=r"(?P<element>{0})(?P<digit>\d*)".format(el))
+        # drop the multi-index that extractall creates
+        regex_list = regex_list.droplevel(level=1).copy()
+        count = len(regex_list)
+        n_el_rows.append({"element": el, "count": count})
+        if verbose is True:
+            print("Number of compounds containing {0} is {1}".format(el, count))
+        # Remove the elements we have just found from the formulas list
+        formulas[regex_list.index] = formulas[regex_list.index].replace(
+            to_replace=regex_list.element + regex_list.digit, value=None, regex=True
+        )
+    return pd.DataFrame(n_el_rows, columns=["element", "count"])
+
 def importNovamag(root_dir):
     """
     Auto import all json files in the Novamag database, creating a pandas dataframe object.
@@ -72,65 +110,14 @@ def get_K_mag(X):
     return X
 
 
-def get_element_occurance(x, pt, verbose=False):
-    """
-    Count the number of distinct compounds each element appears in across a dataset.
-
-    Args:
-        x (pd.DataFrame): DataFrame containing a "chemical formula" column with formula strings.
-        pt (pd.DataFrame): DataFrame containing an element "symbol" column used to build regex matches.
-        verbose (bool, optional): If True, print the count per element during processing. Defaults to False.
-
-    Returns:
-        pd.DataFrame: Two-column DataFrame with element symbols and the number of compounds they occur in.
-    """
-    # Get the number of compounds each element appears in
-    formulas = x["chemical formula"].copy()
-    # Get a list of element symbols, sort in order of descending string length
-    symbols = pt["symbol"].copy()
-    s = symbols.str.len().sort_values(ascending=False).index
-    symbols = symbols.reindex(s)
-
-    # Calculate the occurance of each element
-    n_el_rows = []
-    for el in symbols:
-        regex_list = formulas.str.extractall(pat=r"(?P<element>{0})(?P<digit>\d*)".format(el))
-        # drop the multi-index that extractall creates
-        regex_list = regex_list.droplevel(level=1).copy()
-        count = len(regex_list)
-        n_el_rows.append({"element": el, "count": count})
-        if verbose is True:
-            print("Number of compounds containing {0} is {1}".format(el, count))
-        # Remove the elements we have just found from the formulas list
-        formulas[regex_list.index] = formulas[regex_list.index].replace(
-            to_replace=regex_list.element + regex_list.digit, value=None, regex=True
-        )
-    return pd.DataFrame(n_el_rows, columns=["element", "count"])
+def get_element_occurance_novamag(x, pt, verbose=False):
+    """Novamag: use 'chemical formula' column."""
+    return _element_occurrence(x, pt, "chemical formula", verbose=verbose)
 
 
 def get_element_occurance_mp(x, pt, verbose=False):
-    # Get the number of compounds each element appears in MP dataset
-    formulas = x["composition"].copy()
-    # Get a list of element symbols, sort in order of descending string length
-    symbols = pt["symbol"].copy()
-    s = symbols.str.len().sort_values(ascending=False).index
-    symbols = symbols.reindex(s)
-
-    # Calculate the occurance of each element
-    n_el_rows = []
-    for el in symbols:
-        regex_list = formulas.str.extractall(pat=r"(?P<element>{0})(?P<digit>\d*)".format(el))
-        # drop the multi-index that extractall creates
-        regex_list = regex_list.droplevel(level=1).copy()
-        count = len(regex_list)
-        n_el_rows.append({"element": el, "count": count})
-        if verbose is True:
-            print("Number of compounds containing {0} is {1}".format(el, count))
-        # Remove the elements we have just found from the formulas list
-        formulas[regex_list.index] = formulas[regex_list.index].replace(
-            to_replace=regex_list.element + regex_list.digit, value=None, regex=True
-        )
-    return pd.DataFrame(n_el_rows, columns=["element", "count"])
+    """Materials Project: use 'composition' column."""
+    return _element_occurrence(x, pt, "composition", verbose=verbose)
 
 
 def get_stoich_array(x, pt):
@@ -143,9 +130,8 @@ def get_stoich_array(x, pt):
 
     # Get a list of element symbols and sort in order of descending length
     # Need longest first as elements like S will be found within Si, As etc.
-    symbols = pt["symbol"].copy()
-    s = symbols.str.len().sort_values(ascending=False).index
-    symbols = symbols.reindex(s)
+    symbols = _sorted_symbols(pt)
+
     # Will encode chemical formula data in a large array
     stoich_array = pd.DataFrame(
         np.zeros([len(formulas), len(symbols)]),
@@ -298,9 +284,7 @@ def get_CompoundRadix(pt, X):
     # Make a new column for the compound index i.e. 2 = binary
     compoundradix = pd.Series(np.zeros(len(formulas)))
     # Get a list of symbols and sort in order of descending string length
-    symbols = pt["symbol"].copy()
-    s = symbols.str.len().sort_values(ascending=False).index
-    symbols = symbols.reindex(s)
+    symbols = _sorted_symbols(pt)
 
     for el in symbols:
         regex_list = formulas.str.extractall(pat=r"(?P<element>{0})(?P<digit>\d*)".format(el))
