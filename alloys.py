@@ -156,12 +156,11 @@ def get_stoich_array(x, pt):
 
 def get_Electronegw(pt, stoich_array):
     """Calculate element-weighted electronegativity."""
-    electronegw = pd.Series(np.zeros(len(stoich_array)))
+    electronegw = pd.Series(index=stoich_array.index, dtype=float)
     en_list = pt["electronegativity"].str.extract(pat=r"(?P<digit>\d*\.\d+)").astype(float)
-    for i in range(len(stoich_array)):
-        compound = stoich_array.iloc[i]  # take slice for each compound
+    for i, compound in stoich_array.iterrows():
         at_fraction, labels = _atomic_fraction(compound)
-        electronegw.iloc[i] = np.dot(at_fraction, en_list.loc[labels])
+        electronegw.loc[i] = np.dot(at_fraction, en_list.loc[labels])
     return electronegw
 
 
