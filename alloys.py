@@ -2,6 +2,7 @@
 
 import os
 from itertools import combinations
+from pymatgen.core.composition import Composition
 
 import numpy as np
 import pandas as pd
@@ -265,29 +266,14 @@ def get_AtomicFrac(stoich_array):
     return pd.DataFrame(rows).reindex(columns=stoich_array.columns)
 
 
-def get_CompoundRadix(pt, X):
-    """Calculate compound radix (binary, ternary, quaternary etc.)"""
-    if type(X) == pd.DataFrame:
-        formulas = X["chemical formula"].copy()  # if user passes whole of Novamag
+def get_CompoundRadix(X):
+    """Calculate compound radix (number of distinct elements) for each formula."""
+    if isinstance(X, pd.DataFrame):
+        formulas = X["chemical formula"].copy()
     else:
-        formulas = pd.Series(X)  # if user passes a single chemical formula string
-        print(formulas)
-    # Make a new column for the compound index i.e. 2 = binary
-    compoundradix = pd.Series(np.zeros(len(formulas)))
-    # Get a list of symbols and sort in order of descending string length
-    symbols = _sorted_elements(pt)
+        formulas = pd.Series(X)
 
-    for el in symbols:
-        regex_list = formulas.str.extractall(pat=r"(?P<element>{0})(?P<digit>\d*)".format(el))
-        # drop the multi-indexing that 'extractall' creates
-        regex_list = regex_list.droplevel(level=1).copy()
-        # Remove the elements we have just found from the formulas list
-        formulas[regex_list.index] = formulas[regex_list.index].replace(
-            # to_replace=regex_list.element + regex_list.digit, value=None, regex=True
-            to_replace=regex_list.element + regex_list.digit,
-            regex=True,
-        )
+    # compound radix = number of distinct elements in the formula
+    radix = formulas.apply(lambda f: len(Composition(str(f)).get_el_amt_dict()))
 
-        # Use the regex indices to update the compound radix column
-        compoundradix[regex_list.index] += 1
-    return compoundradix
+    return radix
