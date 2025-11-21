@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 def _flatten(x):
-    # Flatten nested dicts with single 'value' entries
+    """Flatten nested dicts that only contain a single 'value' field."""
     if isinstance(x, dict) and "value" in x and len(x) == 1:
         return x["value"]
     return x
@@ -19,12 +19,7 @@ def _sorted_elements(periodic_table):
     return symbols.reindex(order)
 
 def _atomic_fraction(compound: pd.Series):
-    """
-    Compute atomic fraction for a stoichiometry Series.
-    Returns:
-        - Series of atomic fractions (float)
-        - Index of elements present
-    """
+    """Return atomic fractions and element labels for a stoichiometry row."""
     # mask of elements that appear in the compound
     mask = compound != 0
     subset = compound[mask]
@@ -43,18 +38,7 @@ def _atomic_fraction(compound: pd.Series):
     return af, af.index
 
 def _element_occurrence(df, periodic_table, formula_col, verbose=False):
-    """
-    Count the number of distinct compounds each element appears in across a dataset.
-
-    Args:
-        df (pd.DataFrame): DataFrame containing formula_col column with formula strings.
-        periodic_table (pd.DataFrame): DataFrame containing an element "symbol" column used to build regex matches.
-        formula_col (str): Name of the column in df that contains chemical formula strings.
-        verbose (bool, optional): If True, print the count per element during processing. Defaults to False.
-
-    Returns:
-        pd.DataFrame: Two-column DataFrame with element symbols and the number of compounds they occur in.
-    """
+    """Count how many compounds each element appears in for the given formula column."""
     formulas = df[formula_col].copy()
     symbols = _sorted_elements(periodic_table)
 
@@ -76,16 +60,7 @@ def _element_occurrence(df, periodic_table, formula_col, verbose=False):
 
 def importNovamag(root_dir):
     """
-    Auto import all json files in the Novamag database, creating a pandas dataframe object.
-    Parameters
-    ----------
-    root_dir : string
-        location of root directory where all the Novamag data is stored.
-
-    Returns
-    -------
-    X : dataframe
-        Output dataframe of the Novamag database.
+    Load all Novamag JSON files into a flat DataFrame of chemistry, crystal, and magnetic properties.
     """
 
     rows = []
@@ -109,14 +84,14 @@ def importNovamag(root_dir):
 
 
 def import_periodic_table(root_dir):
-    # Import Periodic Table
+    """Import the periodic table spreadsheet and index by symbol."""
     pt = pd.read_excel(root_dir)
     pt.index = pt["symbol"]
     return pt
 
 
 def import_miedema_weight(root_dir):
-    # Import Miedema model enthalpies
+    """Import Miedema model enthalpies spreadsheet and symmetrise it."""
     mm = pd.read_excel(root_dir, header=1, index_col=73, usecols=range(0, 74), nrows=73).fillna(0)
     mm_T = mm.transpose().fillna(0)
     mm = mm + mm_T
@@ -145,7 +120,7 @@ def get_element_occurance_mp(x, pt, verbose=False):
 
 
 def get_stoich_array(x, pt):
-    # Create stoichiometry array from chemical formulas
+    """Create stoichiometry array (element counts) from chemical formulas."""
     if isinstance(x, pd.DataFrame):
         formulas = x["chemical formula"].copy()  # if user passes whole of Novamag
     else:
@@ -190,7 +165,7 @@ def get_stoich_array(x, pt):
 
 
 def get_Electronegw(pt, stoich_array):
-    # Calculate weighted electronegativity
+    """Calculate element-weighted electronegativity."""
     electronegw = pd.Series(np.zeros(len(stoich_array)))
     en_list = pt["electronegativity"].str.extract(pat=r"(?P<digit>\d*\.\d+)").astype(float)
     for i in range(len(stoich_array)):
@@ -201,7 +176,7 @@ def get_Electronegw(pt, stoich_array):
 
 
 def get_Zw(pt, stoich_array):
-    # Calculate weighted atomic number
+    """Calculate element-weighted atomic weight."""
     zw = pd.Series(np.zeros(len(stoich_array)))
     for i in range(len(stoich_array)):
         compound = stoich_array.iloc[i]  # take slice for each compound
@@ -211,7 +186,7 @@ def get_Zw(pt, stoich_array):
 
 
 def get_Groupw(pt, stoich_array):
-    # Calculate weighted group number
+    """Calculate element-weighted group number."""
     groupw = pd.Series(np.zeros(len(stoich_array)))
     group_block = pt["group_block"].str.extract(pat=r"(\d+)").dropna()
     group_block = group_block.astype(int)
@@ -223,7 +198,7 @@ def get_Groupw(pt, stoich_array):
 
 
 def get_Periodw(pt, stoich_array):
-    # Calculate weighted period number
+    """Calculate element-weighted period number."""
     periodw = pd.Series(np.zeros(len(stoich_array)))
     for i in range(len(stoich_array)):
         compound = stoich_array.iloc[i]  # take slice for each compound
@@ -233,7 +208,7 @@ def get_Periodw(pt, stoich_array):
 
 
 def get_MeltingTw(pt, stoich_array):
-    # Calculate weighted melting temperature
+    """Calculate element-weighted melting temperature."""
     meltingTw = pd.Series(np.zeros(len(stoich_array)))
     for i in range(len(stoich_array)):
         compound = stoich_array.iloc[i]  # take slice for each compound
@@ -243,7 +218,7 @@ def get_MeltingTw(pt, stoich_array):
 
 
 def get_Valencew(pt, stoich_array):
-    # Calculate weighted valence electron number
+    """Calculate element-weighted valence electron number."""
     valencew = pd.Series(np.zeros(len(stoich_array)))
     for i in range(len(stoich_array)):
         compound = stoich_array.iloc[i]  # take slice for each compound
@@ -253,7 +228,7 @@ def get_Valencew(pt, stoich_array):
 
 
 def get_Miedemaw(mm, stoich_array):
-    # Calculate weighted Miedema enthalpy of formation
+    """Calculate weighted Miedema enthalpy of formation (pairwise sum over elements)."""
     miedemaw = pd.Series(np.zeros(len(stoich_array)))
     for i in range(len(stoich_array)):
         compound = stoich_array.iloc[i]  # take slice for each compound
@@ -269,7 +244,7 @@ def get_Miedemaw(mm, stoich_array):
 
 
 def get_StoicEntw(stoich_array):
-    # Calculate stoichiometric entropy
+    """Calculate stoichiometric (mixing) entropy."""
     stoicentw = pd.Series(np.zeros(len(stoich_array)))
     for i in range(len(stoich_array)):
         compound = stoich_array.iloc[i]  # take slice for each compound
@@ -279,7 +254,7 @@ def get_StoicEntw(stoich_array):
 
 
 def get_AtomicFrac(stoich_array):
-    # Calculate atomic fraction of each element in compound
+    """Calculate atomic fractions of each element for every compound."""
     rows = []
     for i in range(len(stoich_array)):
         compound = stoich_array.iloc[i]  # take slice for each compound
@@ -291,7 +266,7 @@ def get_AtomicFrac(stoich_array):
 
 
 def get_CompoundRadix(pt, X):
-    # Calculate compound radix (binary, ternary, quaternary etc.)
+    """Calculate compound radix (binary, ternary, quaternary etc.)"""
     if type(X) == pd.DataFrame:
         formulas = X["chemical formula"].copy()  # if user passes whole of Novamag
     else:
