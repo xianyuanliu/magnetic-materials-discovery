@@ -93,7 +93,7 @@ def plot_shap_summary(model, X_train, X_valid, save_path: str = None):
 
 # ====== 3. Novamag case studies: FeAl / FeCo / FeCr ======
 
-def novamag_feal_case(X_cols: List[str], rf_model, xgb_model, ridge_model, PT, MM):
+def novamag_feal_case(X_cols: List[str], rf_model, xgb_model, ridge_model, periodic_table, miedema_weight):
     """
     Reproduce the FeAl case from notebook cell 103 (and parts of 109):
     generate predictions and literature references only; plots live in multi_case_study_plot.
@@ -118,17 +118,17 @@ def novamag_feal_case(X_cols: List[str], rf_model, xgb_model, ridge_model, PT, M
         columns=["chemical formula"],
     )
 
-    stoich_array_FeAl = al.get_stoich_array(X_FeAl, PT)
+    stoich_array_FeAl = al.get_stoich_array(X_FeAl, periodic_table)
 
     X_FeAl["stoicentw"] = al.get_StoicEntw(stoich_array_FeAl)
-    X_FeAl["Zw"] = al.get_Zw(PT, stoich_array_FeAl)
-    X_FeAl["compoundradix"] = al.get_CompoundRadix(PT, X_FeAl)
-    X_FeAl["periodw"] = al.get_Periodw(PT, stoich_array_FeAl)
-    X_FeAl["groupw"] = al.get_Groupw(PT, stoich_array_FeAl)
-    X_FeAl["meltingTw"] = al.get_MeltingTw(PT, stoich_array_FeAl)
-    X_FeAl["miedemaH"] = al.get_Miedemaw(MM, stoich_array_FeAl)
-    X_FeAl["valencew"] = al.get_Valencew(PT, stoich_array_FeAl)
-    X_FeAl["electronegw"] = al.get_Electronegw(PT, stoich_array_FeAl)
+    X_FeAl["Zw"] = al.get_Zw(periodic_table, stoich_array_FeAl)
+    X_FeAl["compoundradix"] = al.get_CompoundRadix(periodic_table, X_FeAl)
+    X_FeAl["periodw"] = al.get_Periodw(periodic_table, stoich_array_FeAl)
+    X_FeAl["groupw"] = al.get_Groupw(periodic_table, stoich_array_FeAl)
+    X_FeAl["meltingTw"] = al.get_MeltingTw(periodic_table, stoich_array_FeAl)
+    X_FeAl["miedemaH"] = al.get_Miedemaw(miedema_weight, stoich_array_FeAl)
+    X_FeAl["valencew"] = al.get_Valencew(periodic_table, stoich_array_FeAl)
+    X_FeAl["electronegw"] = al.get_Electronegw(periodic_table, stoich_array_FeAl)
 
     rfpreds_FeAl = rf_model.predict(X_FeAl[X_cols])
     xgbpreds_FeAl = xgb_model.predict(X_FeAl[X_cols])
@@ -172,7 +172,7 @@ def novamag_feal_case(X_cols: List[str], rf_model, xgb_model, ridge_model, PT, M
     return at_FeAl_fraction, rfpreds_FeAl, xgbpreds_FeAl, ridgepreds_FeAl, Exp_FeAl
 
 
-def novamag_feco_case(X_cols, rf_model, xgb_model, ridge_model, PT, MM):
+def novamag_feco_case(X_cols, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight):
     """
     Matches notebook cell 105 for the FeCo case study.
     """
@@ -195,18 +195,17 @@ def novamag_feco_case(X_cols, rf_model, xgb_model, ridge_model, PT, MM):
         columns=["chemical formula"],
     )
 
-    stoich_array_FeCo = al.get_stoich_array(X_FeCo, PT)
+    stoich_array_FeCo = al.get_stoich_array(X_FeCo, periodic_table)
 
     X_FeCo["stoicentw"] = al.get_StoicEntw(stoich_array_FeCo)
-    X_FeCo["Zw"] = al.get_Zw(PT, stoich_array_FeCo)
-    X_FeCo["compoundradix"] = al.get_CompoundRadix(PT, X_FeCo)
-    X_FeCo["periodw"] = al.get_Periodw(PT, stoich_array_FeCo)
-    X_FeCo["groupw"] = al.get_Groupw(PT, stoich_array_FeCo)
-    X_FeCo["meltingTw"] = al.get_MeltingTw(PT, stoich_array_FeCo)
-    X_FeCo["miedemaH"] = al.get_Miedemaw(MM, stoich_array_FeCo)
-    X_FeCo["valencew"] = al.get_Valencew(PT, stoich_array_FeCo)
-    X_FeCo["electronegw"] = al.get_Electronegw(PT, stoich_array_FeCo)
-
+    X_FeCo["Zw"] = al.get_Zw(periodic_table, stoich_array_FeCo)
+    X_FeCo["compoundradix"] = al.get_CompoundRadix(periodic_table, X_FeCo)
+    X_FeCo["periodw"] = al.get_Periodw(periodic_table, stoich_array_FeCo)
+    X_FeCo["groupw"] = al.get_Groupw(periodic_table, stoich_array_FeCo)
+    X_FeCo["meltingTw"] = al.get_MeltingTw(periodic_table, stoich_array_FeCo)
+    X_FeCo["miedemaH"] = al.get_Miedemaw(miedema_weight, stoich_array_FeCo)
+    X_FeCo["valencew"] = al.get_Valencew(periodic_table, stoich_array_FeCo)
+    X_FeCo["electronegw"] = al.get_Electronegw(periodic_table, stoich_array_FeCo)
     rfpreds_FeCo = rf_model.predict(X_FeCo[X_cols])
     xgbpreds_FeCo = xgb_model.predict(X_FeCo[X_cols])
     ridgepreds_FeCo = ridge_model.predict(X_FeCo[X_cols])
@@ -235,7 +234,7 @@ def novamag_feco_case(X_cols, rf_model, xgb_model, ridge_model, PT, MM):
     return at_FeCo_fraction, rfpreds_FeCo, xgbpreds_FeCo, ridgepreds_FeCo, Exp_FeCo
 
 
-def novamag_fecr_case(X_cols, rf_model, xgb_model, ridge_model, PT, MM):
+def novamag_fecr_case(X_cols, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight):
     """
     Mirrors notebook cell 107 for the FeCr case study.
     """
@@ -258,17 +257,17 @@ def novamag_fecr_case(X_cols, rf_model, xgb_model, ridge_model, PT, MM):
         columns=["chemical formula"],
     )
 
-    stoich_array_FeCr = al.get_stoich_array(X_FeCr, PT)
+    stoich_array_FeCr = al.get_stoich_array(X_FeCr, periodic_table)
 
     X_FeCr["stoicentw"] = al.get_StoicEntw(stoich_array_FeCr)
-    X_FeCr["Zw"] = al.get_Zw(PT, stoich_array_FeCr)
-    X_FeCr["compoundradix"] = al.get_CompoundRadix(PT, X_FeCr)
-    X_FeCr["periodw"] = al.get_Periodw(PT, stoich_array_FeCr)
-    X_FeCr["groupw"] = al.get_Groupw(PT, stoich_array_FeCr)
-    X_FeCr["meltingTw"] = al.get_MeltingTw(PT, stoich_array_FeCr)
-    X_FeCr["miedemaH"] = al.get_Miedemaw(MM, stoich_array_FeCr)
-    X_FeCr["valencew"] = al.get_Valencew(PT, stoich_array_FeCr)
-    X_FeCr["electronegw"] = al.get_Electronegw(PT, stoich_array_FeCr)
+    X_FeCr["Zw"] = al.get_Zw(periodic_table, stoich_array_FeCr)
+    X_FeCr["compoundradix"] = al.get_CompoundRadix(periodic_table, X_FeCr)
+    X_FeCr["periodw"] = al.get_Periodw(periodic_table, stoich_array_FeCr)
+    X_FeCr["groupw"] = al.get_Groupw(periodic_table, stoich_array_FeCr)
+    X_FeCr["meltingTw"] = al.get_MeltingTw(periodic_table, stoich_array_FeCr)
+    X_FeCr["miedemaH"] = al.get_Miedemaw(miedema_weight, stoich_array_FeCr)
+    X_FeCr["valencew"] = al.get_Valencew(periodic_table, stoich_array_FeCr)
+    X_FeCr["electronegw"] = al.get_Electronegw(periodic_table, stoich_array_FeCr)
 
     rfpreds_FeCr = rf_model.predict(X_FeCr[X_cols])
     xgbpreds_FeCr = xgb_model.predict(X_FeCr[X_cols])
@@ -289,8 +288,8 @@ def plot_novamag_case_studies(
     rf_model,
     xgb_model,
     ridge_model,
-    pt,
-    mm,
+    periodic_table,
+    miedema_weight,
     save_path = None,
 ):
     """
@@ -302,7 +301,7 @@ def plot_novamag_case_studies(
         xgbpreds_FeAl,
         ridgepreds_FeAl,
         Exp_FeAl,
-    ) = novamag_feal_case(novamag_feature_columns, rf_model, xgb_model, ridge_model, pt, mm)
+    ) = novamag_feal_case(novamag_feature_columns, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight)
 
     (
         at_FeCo_fraction,
@@ -310,7 +309,7 @@ def plot_novamag_case_studies(
         xgbpreds_FeCo,
         ridgepreds_FeCo,
         Exp_FeCo,
-    ) = novamag_feco_case(novamag_feature_columns, rf_model, xgb_model, ridge_model, pt, mm)
+    ) = novamag_feco_case(novamag_feature_columns, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight)
 
     (
         at_FeCr_fraction,
@@ -318,7 +317,7 @@ def plot_novamag_case_studies(
         xgbpreds_FeCr,
         ridgepreds_FeCr,
         Exp_FeCr,
-    ) = novamag_fecr_case(novamag_feature_columns, rf_model, xgb_model, ridge_model, pt, mm)
+    ) = novamag_fecr_case(novamag_feature_columns, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight)
 
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(20, 4))
 
