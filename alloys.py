@@ -18,6 +18,30 @@ def _sorted_elements(periodic_table):
     order = symbols.str.len().sort_values(ascending=False).index
     return symbols.reindex(order)
 
+def _atomic_fraction(compound: pd.Series):
+    """
+    Compute atomic fraction for a stoichiometry Series.
+    Returns:
+        - Series of atomic fractions (float)
+        - Index of elements present
+    """
+    # mask of elements that appear in the compound
+    mask = compound != 0
+    subset = compound[mask]
+
+    if subset.empty:
+        # no elements → return empty atomic fraction
+        empty = pd.Series(dtype=float)
+        return empty, empty.index
+
+    total = subset.sum()
+    if total == 0:
+        empty = pd.Series(dtype=float)
+        return empty, empty.index
+
+    af = subset / total
+    return af, af.index
+
 def _element_occurrence(df, periodic_table, formula_col, verbose=False):
     """
     Count the number of distinct compounds each element appears in across a dataset.
@@ -80,7 +104,7 @@ def importNovamag(root_dir):
                     print("Import failed", filepath)
                     failedfiles.append(filepath)
     X = pd.DataFrame(rows)
-    X = X.map(_flatten)
+    X = X.apply(lambda col: col.map(_flatten))
     return X
 
 
@@ -171,9 +195,8 @@ def get_Electronegw(pt, stoich_array):
     en_list = pt["electronegativity"].str.extract(pat=r"(?P<digit>\d*\.\d+)").astype(float)
     for i in range(len(stoich_array)):
         compound = stoich_array.iloc[i]  # take slice for each compound
-        cols = compound.to_numpy().nonzero()  # nonzero elements columns
-        at_fraction = compound.iloc[cols] / sum(compound.iloc[cols])
-        electronegw.iloc[i] = np.dot(at_fraction, en_list.loc[compound.index[cols]])
+        at_fraction, labels = _atomic_fraction(compound)
+        electronegw.iloc[i] = np.dot(at_fraction, en_list.loc[labels])
     return electronegw
 
 
@@ -182,9 +205,8 @@ def get_Zw(pt, stoich_array):
     zw = pd.Series(np.zeros(len(stoich_array)))
     for i in range(len(stoich_array)):
         compound = stoich_array.iloc[i]  # take slice for each compound
-        cols = compound.to_numpy().nonzero()  # nonzero elements columns
-        at_fraction = compound.iloc[cols] / sum(compound.iloc[cols])
-        zw.iloc[i] = np.dot(at_fraction, pt.loc[compound.index[cols]]["atomic_weight"])
+        at_fraction, labels = _atomic_fraction(compound)
+        zw.iloc[i] = np.dot(at_fraction, pt.loc[labels]["atomic_weight"])
     return zw
 
 
@@ -195,9 +217,8 @@ def get_Groupw(pt, stoich_array):
     group_block = group_block.astype(int)
     for i in range(len(stoich_array)):
         compound = stoich_array.iloc[i]  # take slice for each compound
-        cols = compound.to_numpy().nonzero()  # nonzero elements columns
-        at_fraction = compound.iloc[cols] / sum(compound.iloc[cols])
-        groupw.iloc[i] = np.dot(at_fraction, group_block.loc[compound.index[cols]])
+        at_fraction, labels = _atomic_fraction(compound)
+        groupw.iloc[i] = np.dot(at_fraction, group_block.loc[labels])
     return groupw
 
 
@@ -206,9 +227,8 @@ def get_Periodw(pt, stoich_array):
     periodw = pd.Series(np.zeros(len(stoich_array)))
     for i in range(len(stoich_array)):
         compound = stoich_array.iloc[i]  # take slice for each compound
-        cols = compound.to_numpy().nonzero()  # nonzero elements columns
-        at_fraction = compound.iloc[cols] / sum(compound.iloc[cols])
-        periodw.iloc[i] = np.dot(at_fraction, pt.loc[compound.index[cols]]["period"])
+        at_fraction, labels = _atomic_fraction(compound)
+        periodw.iloc[i] = np.dot(at_fraction, pt.loc[labels]["period"])
     return periodw
 
 
@@ -217,9 +237,8 @@ def get_MeltingTw(pt, stoich_array):
     meltingTw = pd.Series(np.zeros(len(stoich_array)))
     for i in range(len(stoich_array)):
         compound = stoich_array.iloc[i]  # take slice for each compound
-        cols = compound.to_numpy().nonzero()  # nonzero elements columns
-        at_fraction = compound.iloc[cols] / sum(compound.iloc[cols])
-        meltingTw.iloc[i] = np.dot(at_fraction, pt.loc[compound.index[cols]]["melting_point"])
+        at_fraction, labels = _atomic_fraction(compound)
+        meltingTw.iloc[i] = np.dot(at_fraction, pt.loc[labels]["melting_point"])
     return meltingTw
 
 
@@ -228,9 +247,8 @@ def get_Valencew(pt, stoich_array):
     valencew = pd.Series(np.zeros(len(stoich_array)))
     for i in range(len(stoich_array)):
         compound = stoich_array.iloc[i]  # take slice for each compound
-        cols = compound.to_numpy().nonzero()  # nonzero elements columns
-        at_fraction = compound.iloc[cols] / sum(compound.iloc[cols])
-        valencew.iloc[i] = np.dot(at_fraction, pt.loc[compound.index[cols]]["valence"])
+        at_fraction, labels = _atomic_fraction(compound)
+        valencew.iloc[i] = np.dot(at_fraction, pt.loc[labels]["valence"])
     return valencew
 
 
@@ -239,8 +257,7 @@ def get_Miedemaw(mm, stoich_array):
     miedemaw = pd.Series(np.zeros(len(stoich_array)))
     for i in range(len(stoich_array)):
         compound = stoich_array.iloc[i]  # take slice for each compound
-        cols = compound.to_numpy().nonzero()
-        at_fraction = compound.iloc[cols] / sum(compound.iloc[cols])
+        at_fraction, _ = _atomic_fraction(compound)
         # Calculate Miedema enthalpy by summing all binary combinations
         comb = combinations(at_fraction.index, 2)
         for el in list(comb):
@@ -256,8 +273,7 @@ def get_StoicEntw(stoich_array):
     stoicentw = pd.Series(np.zeros(len(stoich_array)))
     for i in range(len(stoich_array)):
         compound = stoich_array.iloc[i]  # take slice for each compound
-        cols = compound.to_numpy().nonzero()  # nonzero elements columns
-        at_fraction = compound.iloc[cols] / sum(compound.iloc[cols])
+        at_fraction, _ = _atomic_fraction(compound)
         stoicentw.iloc[i] = -np.dot(at_fraction, np.log(at_fraction))
     return stoicentw
 
@@ -267,8 +283,8 @@ def get_AtomicFrac(stoich_array):
     rows = []
     for i in range(len(stoich_array)):
         compound = stoich_array.iloc[i]  # take slice for each compound
-        cols = compound.to_numpy().nonzero()
-        rows.append(compound.iloc[cols] / sum(compound.iloc[cols]))
+        at_fraction, _ = _atomic_fraction(compound)
+        rows.append(at_fraction)
     if not rows:
         return pd.DataFrame(columns=stoich_array.columns)
     return pd.DataFrame(rows).reindex(columns=stoich_array.columns)
