@@ -1,3 +1,5 @@
+# Adapted from https://github.com/rich970/ML-alloy-design/blob/master/alloys.py with modifications.
+
 import os
 from itertools import combinations
 
@@ -39,14 +41,14 @@ def importNovamag(root_dir):
     return X
 
 
-def importPT(root_dir):
+def import_periodic_table(root_dir):
     # Import Periodic Table
     pt = pd.read_excel(root_dir)
     pt.index = pt["symbol"]
     return pt
 
 
-def importMM(root_dir):
+def import_miedema_weight(root_dir):
     # Import Miedema model enthalpies
     mm = pd.read_excel(root_dir, header=1, index_col=73, usecols=range(0, 74), nrows=73).fillna(0)
     mm_T = mm.transpose().fillna(0)

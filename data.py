@@ -20,14 +20,14 @@ import mp_alloys  # only used in the MP case study
 
 # ====== Shared utilities: load element tables ======
 
-def load_periodic_tables(
+def load_elemental_data(
     pt_path: str = "./data/Periodic-table/periodic_table.xlsx",
     mm_path: str = "./data/Miedema-model/Miedema-model-reduced.xlsx",
 ):
-    """Load the periodic table PT and the Miedema model MM."""
-    pt = alloys.importPT(pt_path)
-    mm = alloys.importMM(mm_path)
-    return pt, mm
+    """Load the periodic table and the Miedema model."""
+    periodic_table = alloys.import_periodic_table(pt_path)
+    miedema_weight = alloys.import_miedema_weight(mm_path)
+    return periodic_table, miedema_weight
 
 
 # ====== Novamag section ======
@@ -51,7 +51,7 @@ def load_novamag_raw(novamag_dir: str) -> pd.DataFrame:
         f"{len(na_cols)}"
     )
 
-    # Drop colums with more than 10 NaN values
+    # Drop columns with more than 10 NaN values
     dropped_cols = []
     for col in na_cols:
         count = data[col].isna().sum()
@@ -143,7 +143,7 @@ def load_novamag_dataset(
     """
     Convenience wrapper for Novamag: load the data and engineer the features.
     """
-    pt, mm = load_periodic_tables(pt_path, mm_path)
+    pt, mm = load_elemental_data(pt_path, mm_path)
     data, ground_truth, novamag_feature_columns = build_novamag_features(raw_data, pt, mm)
     return data, ground_truth, novamag_feature_columns, pt, mm
 
@@ -319,10 +319,10 @@ def load_mp_dataset(
     """
     Convenience wrapper for Materials Project: load, clean, and engineer features.
     """
-    PT, MM = load_periodic_tables(pt_path, mm_path)
+    periodic_table, miedema_weight = load_elemental_data(pt_path, mm_path)
     Y_raw = load_mp_raw(csv_path)
-    X_mp, mp_y, mp_feature_columns = build_mp_features(Y_raw, PT, MM)
-    return X_mp, mp_y, mp_feature_columns, PT, MM
+    X_mp, mp_y, mp_feature_columns = build_mp_features(Y_raw, periodic_table, miedema_weight)
+    return X_mp, mp_y, mp_feature_columns, periodic_table, miedema_weight
 
 
 # ====== Generic train/validation split ======
