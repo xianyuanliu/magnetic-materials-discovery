@@ -168,21 +168,39 @@ def get_Electronegw(pt, stoich_array):
 def get_Zw(pt, stoich_array):
     """Calculate element-weighted atomic weight."""
     zw = pd.Series(index=stoich_array.index, dtype=float)
-    for idx, compound in stoich_array.iterrows():
+    for i, compound in stoich_array.iterrows():
         at_fraction, labels = _atomic_fraction(compound)
-        zw.loc[idx] = np.dot(at_fraction, pt.loc[labels, "atomic_weight"])
+        zw.loc[i] = np.dot(at_fraction, pt.loc[labels, "atomic_weight"])
     return zw
 
 
 def get_Groupw(pt, stoich_array):
     """Calculate element-weighted group number."""
-    groupw = pd.Series(np.zeros(len(stoich_array)))
-    group_block = pt["group_block"].str.extract(pat=r"(\d+)").dropna()
-    group_block = group_block.astype(int)
-    for i in range(len(stoich_array)):
-        compound = stoich_array.iloc[i]  # take slice for each compound
+    group_block = pt["group_block"].str.extract(r"(\d+)")[0]
+    group_block = group_block.astype(float)
+    groupw = pd.Series(index=stoich_array.index, dtype=float)
+    for i, compound in stoich_array.iterrows():
         at_fraction, labels = _atomic_fraction(compound)
-        groupw.iloc[i] = np.dot(at_fraction, group_block.loc[labels])
+        
+        # Handle case where no elements are found
+        if at_fraction.empty:
+            groupw.loc[i] = np.nan
+            continue
+
+        # Filter to only valid elements with group numbers
+        valid_labels = [
+            el for el in labels
+            if el in group_block.index and not pd.isna(group_block.loc[el])
+        ]
+        if not valid_labels:
+            groupw.loc[i] = np.nan
+            continue
+
+        # Re-normalise atomic fractions to only valid elements
+        af_sub = at_fraction.loc[valid_labels]
+        af_sub = af_sub / af_sub.sum()
+
+        groupw.loc[i] = np.dot(af_sub, group_block.loc[valid_labels])
     return groupw
 
 
