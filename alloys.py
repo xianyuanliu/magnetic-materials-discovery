@@ -188,11 +188,11 @@ def get_Groupw(pt, stoich_array):
 
 def get_Periodw(pt, stoich_array):
     """Calculate element-weighted period number."""
-    periodw = pd.Series(np.zeros(len(stoich_array)))
-    for i in range(len(stoich_array)):
-        compound = stoich_array.iloc[i]  # take slice for each compound
-        at_fraction, labels = _atomic_fraction(compound)
-        periodw.iloc[i] = np.dot(at_fraction, pt.loc[labels]["period"])
+    periodw = pd.Series(index=stoich_array.index, dtype=float)
+
+    for idx, compound in stoich_array.iterrows():
+        af, labels = _atomic_fraction(compound)
+        periodw.loc[idx] = np.dot(af, pt.loc[labels, "period"])
     return periodw
 
 
