@@ -235,17 +235,20 @@ def get_Valencew(pt, stoich_array):
 
 def get_Miedemaw(mm, stoich_array):
     """Calculate weighted Miedema enthalpy of formation (pairwise sum over elements)."""
-    miedemaw = pd.Series(np.zeros(len(stoich_array)))
-    for i in range(len(stoich_array)):
-        compound = stoich_array.iloc[i]  # take slice for each compound
-        at_fraction, _ = _atomic_fraction(compound)
-        # Calculate Miedema enthalpy by summing all binary combinations
-        comb = combinations(at_fraction.index, 2)
-        for el in list(comb):
+    miedemaw = pd.Series(index=stoich_array.index, dtype=float)
+    for i, compound in stoich_array.iterrows():
+        at_fraction, labels = _atomic_fraction(compound)
+
+        # Calculate pairwise contributions
+        H = 0
+        valid = True
+        for a, b in combinations(labels, 2):
             try:
-                miedemaw.iloc[i] += 4 * at_fraction[el[0]] * at_fraction[el[1]] * mm.loc[el[0]][el[1]]
+                H += 4 * at_fraction[a] * at_fraction[b] * mm.loc[a, b]
             except KeyError:
-                miedemaw.iloc[i] = np.nan
+                valid = False
+                break
+        miedemaw.loc[i] = H if valid else np.nan
     return miedemaw
 
 
