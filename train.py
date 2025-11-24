@@ -14,9 +14,7 @@ from models import build_rf_model, build_xgb_model, build_ridge_model
 # ====== Random Forest ======
 
 def tune_rf_hyperparams(X_train, y_train) -> Tuple[object, Dict]:
-    """
-    Replicates the GridSearchCV procedure from notebook cell 54.
-    """
+    """Run GridSearchCV to find strong RF hyperparameters."""
     param_grid = {
         "n_estimators": [100, 200, 300],
         "max_depth": [None, 5, 10, 15],
@@ -43,12 +41,7 @@ def tune_rf_hyperparams(X_train, y_train) -> Tuple[object, Dict]:
 
 
 def train_rf(X_train, y_train, params: Dict = None):
-    """
-    Train with the notebook's selected best parameters:
-    rf_model = RandomForestRegressor(n_estimators=200, random_state=0,
-                                     max_depth=15, min_samples_leaf=1,
-                                     min_samples_split=2)
-    """
+    """Train a random forest; defaults to the tuned parameters used in this project."""
     if params is not None:
         rf_model = build_rf_model(random_state=0, **params)     
     else:
@@ -66,9 +59,7 @@ def train_rf(X_train, y_train, params: Dict = None):
 # ====== XGBoost ======
 
 def tune_xgb_hyperparams(X_train, y_train):
-    """
-    Mirrors the GridSearchCV routine from notebook cell 68.
-    """
+    """Run GridSearchCV to search XGBoost hyperparameters."""
     param_grid = {
         "n_estimators": [100, 200, 300],
         "learning_rate": [0.05, 0.1, 0.2],
@@ -97,10 +88,7 @@ def tune_xgb_hyperparams(X_train, y_train):
 
 
 def train_xgb(X_train, y_train, params: Dict = None):
-    """
-    Train XGB with the manually selected near-optimal parameters from the notebook.
-    Adjust them if later GridSearchCV results suggest improvements.
-    """
+    """Train XGBoost with project defaults or provided parameters."""
     if params is not None:
         xgb_model = build_xgb_model(random_state=0, **params)
     else:
@@ -120,9 +108,7 @@ def train_xgb(X_train, y_train, params: Dict = None):
 # ====== Ridge ======
 
 def tune_ridge_hyperparams(X_train, y_train):
-    """
-    Matches the Ridge GridSearchCV detailed in notebook cell 81.
-    """
+    """Run GridSearchCV to search Ridge hyperparameters."""
     param_grid = {
         "alpha": [0.01, 0.1, 1.0, 10.0],
         "solver": ["auto", "svd", "cholesky", "lsqr", "sparse_cg", "sag", "saga"],
@@ -148,9 +134,7 @@ def tune_ridge_hyperparams(X_train, y_train):
 
 
 def train_ridge(X_train, y_train, params: Dict = None):
-    """
-    Train with the notebook's selected configuration of alpha=1 and solver='lsqr'.
-    """
+    """Train Ridge regression with project defaults or provided parameters."""
     if params is not None:
         ridge_model = build_ridge_model(**params)
     else:

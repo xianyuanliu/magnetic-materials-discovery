@@ -18,13 +18,7 @@ def build_rf_model(
     min_samples_leaf: int = 1,
     random_state: int = 0,
 ) -> RandomForestRegressor:
-    """
-    Mirrors the final RFR configuration used in the notebook:
-    rf_model = RandomForestRegressor(
-        n_estimators=200, random_state=0,
-        max_depth=15, min_samples_leaf=1, min_samples_split=2
-    )
-    """
+    """Construct a RandomForestRegressor with the project defaults."""
     return RandomForestRegressor(
         n_estimators=n_estimators,
         max_depth=max_depth,
@@ -43,9 +37,7 @@ def build_xgb_model(
     colsample_bytree: float = 0.8,
     random_state: int = 0,
 ) -> xgb.XGBRegressor:
-    """
-    Matches the XGBoost tuning outcome and manual settings from notebook cells 68 and 70.
-    """
+    """Construct an XGBRegressor with the project defaults."""
     return xgb.XGBRegressor(
         n_estimators=n_estimators,
         learning_rate=learning_rate,
@@ -58,8 +50,5 @@ def build_xgb_model(
 
 
 def build_ridge_model(alpha: float = 1.0, solver: str = "lsqr") -> Ridge:
-    """
-    Reflects the notebook's final setting:
-    ridge_model = Ridge(alpha=1, solver='lsqr')
-    """
+    """Construct a Ridge model with the project defaults."""
     return Ridge(alpha=alpha, solver=solver)

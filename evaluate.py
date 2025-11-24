@@ -42,10 +42,7 @@ def print_regression_results(y_true, predictions: Dict[str, np.ndarray]):
 # ====== 2. Permutation Feature Importance & SHAP ======
 
 def plot_permutation_importance(model, X_valid, y_valid, title: str = "", save_path: str = None):
-    """
-    Plot permutation importance for RFR / XGB / Ridge.
-    Mirrors notebook cells 58, 71, 75, 86, 89, etc.
-    """
+    """Plot permutation importance for RFR / XGB / Ridge."""
     perm_import = permutation_importance(
         model, X_valid, y_valid, n_repeats=10, random_state=0
     )
@@ -74,11 +71,7 @@ def plot_permutation_importance(model, X_valid, y_valid, title: str = "", save_p
 
 
 def plot_shap_summary(model, X_train, X_valid, save_path: str = None):
-    """
-    Render the SHAP summary plots used in the notebook:
-    - Novamag: explainer = shap.Explainer(model, X_train)
-    - MP: explainer = shap.Explainer(model, mp_X_train)
-    """
+    """Generate SHAP summary plots."""
     explainer = shap.Explainer(model, X_train)
     shap_values = explainer(X_valid, check_additivity=False)
 
@@ -93,10 +86,7 @@ def plot_shap_summary(model, X_train, X_valid, save_path: str = None):
 # ====== 3. Novamag case studies: FeAl / FeCo / FeCr ======
 
 def novamag_feal_case(X_cols: List[str], rf_model, xgb_model, ridge_model, periodic_table, miedema_weight):
-    """
-    Reproduce the FeAl case from notebook cell 103 (and parts of 109):
-    generate predictions and literature references only; plots live in multi_case_study_plot.
-    """
+    """Generate predictions and literature references for the FeAl case study (no plotting)."""
     # Chemical formulas we want predictions for
     X_FeAl = pd.DataFrame(
         [
@@ -172,9 +162,7 @@ def novamag_feal_case(X_cols: List[str], rf_model, xgb_model, ridge_model, perio
 
 
 def novamag_feco_case(X_cols, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight):
-    """
-    Matches notebook cell 105 for the FeCo case study.
-    """
+    """Generate predictions and literature references for the FeCo case study."""
     X_FeCo = pd.DataFrame(
         [
             "Fe100Co0",
@@ -234,9 +222,7 @@ def novamag_feco_case(X_cols, rf_model, xgb_model, ridge_model, periodic_table, 
 
 
 def novamag_fecr_case(X_cols, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight):
-    """
-    Mirrors notebook cell 107 for the FeCr case study.
-    """
+    """Generate predictions and literature references for the FeCr case study."""
     X_FeCr = pd.DataFrame(
         [
             "Fe99Cr1",
@@ -292,7 +278,7 @@ def plot_novamag_case_studies(
     save_path = None,
 ):
     """
-    Recreate the final three-panel figure from notebook cell 109 (the large-font version).
+    Plot three Novamag case studies (FeAl, FeCo, FeCr) side by side.
     """
     (
         at_FeAl_fraction,
@@ -363,7 +349,7 @@ def plot_novamag_case_studies(
         plt.show()
 
 
-# ====== 4. MP FeAl case study (see notebook cell 113) ======
+# ====== 4. MP FeAl case study ======
 
 def mp_feal_case(
     mp_feature_columns,
@@ -373,9 +359,7 @@ def mp_feal_case(
     PT,
     MM,
 ):
-    """
-    Materials Project FeAl case study that follows notebook cell 113 verbatim.
-    """
+    """Materials Project FeAl case study."""
     Y_FeAl = pd.DataFrame(
         [
             "Fe93Al2",
