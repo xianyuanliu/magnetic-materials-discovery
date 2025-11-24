@@ -28,46 +28,29 @@ def load_elemental_data(
     miedema_weight = alloys.import_miedema_weight(mm_path)
     return periodic_table, miedema_weight
 
-
-# ====== Novamag section ======
-
-def load_novamag_raw(novamag_dir: str) -> pd.DataFrame:
+def process_data(
+    raw_data,
+    pt_path: str,
+    mm_path: str,
+):
     """
-    Import the raw Novamag data, keeping only chemical formula and saturation magnetisation.
-    Matches notebook cells 7, 8, 9, and 10.
+    Convenience wrapper for Novamag: load the data and engineer the features.
     """
-    data = alloys.importNovamag(novamag_dir)
+    periodic_table, miedema_weight = load_elemental_data(pt_path, mm_path)
+    data, feature_columns = build_features(raw_data, periodic_table, miedema_weight)
 
-    print(f"The total number of imported features is {len(data.columns)}")
+    # Extract target before narrowing the feature set
+    data.index = range(len(data))  
+    ground_truth = data["saturation magnetization"]
+    data.drop(["saturation magnetization"], axis=1, inplace=True)
 
-    # Normalise literal 'none' entries
-    data = data.replace({None: np.nan, "none": np.nan, "None": np.nan})
-    data = data.infer_objects(copy=False)
+    # Keep only the feature columns while preserving the column order
+    data = data[feature_columns].copy()
 
-    # Find columns with missing values
-    na_cols = [col for col in data.columns if data[col].isna().any()]
-    print(
-        "The number of features with at least one NaN value is "
-        f"{len(na_cols)}"
-    )
-
-    # Drop columns with more than 10 NaN values
-    dropped_cols = []
-    for col in na_cols:
-        count = data[col].isna().sum()
-        print(f"Column '{col}' has {count} nan values")
-        if count > 10:
-            print(f"Dropping column '{col}'")
-            dropped_cols.append(col)
-            data = data.drop(col, axis=1).copy()
-    print(f"Number of dropped features is: {len(dropped_cols)}")
-
-    # Drop all columns except target and chemical formula
-    data = data[["chemical formula", "saturation magnetization"]]
-    return data
+    return data, ground_truth, feature_columns, periodic_table, miedema_weight
 
 
-def build_novamag_features(
+def build_features(
     raw_data: pd.DataFrame,
     pt: pd.DataFrame,
     mm: pd.DataFrame,
@@ -122,32 +105,47 @@ def build_novamag_features(
 
     # Collapse duplicate chemical formulas by taking the median feature values
     data = data.groupby(by="chemical formula").median()
-    data.index = range(len(data))
-
-    # Extract target before narrowing the feature set
-    ground_truth = data["saturation magnetization"]
-    data.drop(["saturation magnetization"], axis=1, inplace=True)
-
-    # Keep only the feature columns while preserving the column order
-    data = data[novamag_feature_columns].copy()
-    
-    return data, ground_truth, novamag_feature_columns
+   
+    return data, novamag_feature_columns
 
 
-def load_novamag_dataset(
-    raw_data,
-    pt_path: str,
-    mm_path: str,
-):
+# ====== Novamag section ======
+
+def load_novamag_raw(novamag_dir: str) -> pd.DataFrame:
     """
-    Convenience wrapper for Novamag: load the data and engineer the features.
+    Import the raw Novamag data, keeping only chemical formula and saturation magnetization.
+    Matches notebook cells 7, 8, 9, and 10.
     """
-    pt, mm = load_elemental_data(pt_path, mm_path)
-    data, ground_truth, novamag_feature_columns = build_novamag_features(raw_data, pt, mm)
-    return data, ground_truth, novamag_feature_columns, pt, mm
+    data = alloys.importNovamag(novamag_dir)
 
+    print(f"The total number of imported features is {len(data.columns)}")
 
-# ====== Materials Project section ======
+    # Normalize literal 'none' entries
+    data = data.replace({None: np.nan, "none": np.nan, "None": np.nan})
+    data = data.infer_objects(copy=False)
+
+    # Find columns with missing values
+    na_cols = [col for col in data.columns if data[col].isna().any()]
+    print(
+        "The number of features with at least one NaN value is "
+        f"{len(na_cols)}"
+    )
+
+    # Drop columns with more than 10 NaN values
+    dropped_cols = []
+    for col in na_cols:
+        count = data[col].isna().sum()
+        print(f"Column '{col}' has {count} nan values")
+        if count > 10:
+            print(f"Dropping column '{col}'")
+            dropped_cols.append(col)
+            data = data.drop(col, axis=1).copy()
+    print(f"Number of dropped features is: {len(dropped_cols)}")
+
+    # Drop all columns except target and chemical formula
+    data = data[["chemical formula", "saturation magnetization"]]
+    return data
+
 
 def load_mp_raw(csv_path: str) -> pd.DataFrame:
     """
@@ -165,7 +163,7 @@ def load_mp_raw(csv_path: str) -> pd.DataFrame:
     data["saturation magnetization"] = data["total_magnetization_normalized_vol"] * factor
 
     # Keep only magnetic systems
-    Y = Y[Y["is_magnetic"]]
+    data = data[data["is_magnetic"]]
 
     # Remove entries containing rare-earth elements
     rare_earth_elements = [
@@ -188,7 +186,7 @@ def load_mp_raw(csv_path: str) -> pd.DataFrame:
         "Yb",
     ]
     for element in rare_earth_elements:
-        Y = Y[~Y["composition_reduced"].str.contains(element)]
+        data = data[~data["chemical formula"].str.contains(element)]
 
     # Remove uncommon or commercially unavailable elements
     non_commercial_elements = [
@@ -209,10 +207,10 @@ def load_mp_raw(csv_path: str) -> pd.DataFrame:
         "Lr",
     ]
     for element in non_commercial_elements:
-        Y = Y[~Y["composition_reduced"].str.contains(element)]
+        data = data[~data["chemical formula"].str.contains(element)]
 
-    return Y
-
+    data = data[["chemical formula", "saturation magnetization"]]
+    return data
 
 # ====== Generic stoichiometric array builder (used for MP and case studies) ======
 
@@ -252,83 +250,6 @@ def build_stoichiometric_array(composition_column: pd.Series) -> pd.DataFrame:
             stoichiometric_df.at[i, element] = count
 
     return stoichiometric_df
-
-
-def build_mp_features(
-    Y_raw: pd.DataFrame,
-    PT: pd.DataFrame,
-    MM: pd.DataFrame,
-) -> Tuple[pd.DataFrame, pd.Series, List[str]]:
-    """
-    Construct features for the Materials Project dataset.
-    Matches notebook cells 45, 47, 49, and 51.
-    """
-    Y = Y_raw.copy()
-
-    # Build stoichiometric array
-    stoichiometric_array = build_stoichiometric_array(Y["composition"])
-
-    # Build element-weighted features via the alloys module (as in Novamag)
-    Y["stoicentw"] = alloys.get_StoicEntw(stoichiometric_array)
-    Y["Zw"] = alloys.get_Zw(PT, stoichiometric_array)
-    Y["periodw"] = alloys.get_Periodw(PT, stoichiometric_array)
-    Y["groupw"] = alloys.get_Groupw(PT, stoichiometric_array)
-    Y["meltingTw"] = alloys.get_MeltingTw(PT, stoichiometric_array)
-    Y["miedemaH"] = alloys.get_Miedemaw(MM, stoichiometric_array)
-    Y["valencew"] = alloys.get_Valencew(PT, stoichiometric_array)
-    Y["electronegw"] = alloys.get_Electronegw(PT, stoichiometric_array)
-    print("Finished building MP features")
-
-    mp_feature_columns = [
-        "stoicentw",
-        "Zw",
-        "periodw",
-        "groupw",
-        "meltingTw",
-        "miedemaH",
-        "valencew",
-        "electronegw",
-    ]
-
-    # Remove rows with missing target, separate target from predictors
-    Y.dropna(
-        axis=0,
-        subset=["total_magnetization_normalized_vol"] + mp_feature_columns,
-        inplace=True,
-    )
-
-    # Round the saturation magnetization to 1.d.p
-    Y["total_magnetization_normalized_vol"] = pd.to_numeric(
-        Y["total_magnetization_normalized_vol"]
-    ).round(decimals=2)
-
-    # Group duplicates by chemical formula and replace values with median
-    Y = Y.groupby(by="composition").median()
-    Y.index = range(len(Y))
-
-    # Define the target as the series 'mp_y' and drop this from the dataframe 'Y'
-    mp_y = Y["total_magnetization_normalized_vol"]
-    Y.drop(["total_magnetization_normalized_vol"], axis=1, inplace=True)
-
-    # Final feature matrix
-    mp_X = Y[mp_feature_columns].copy()
-
-    return mp_X, mp_y, mp_feature_columns
-
-
-def load_mp_dataset(
-    csv_path: str = "magnetism_completed - magnetism_completed.csv",
-    pt_path: str = "./data/Periodic-table/periodic_table.xlsx",
-    mm_path: str = "./data/Miedema-model/Miedema-model-reduced.xlsx",
-):
-    """
-    Convenience wrapper for Materials Project: load, clean, and engineer features.
-    """
-    periodic_table, miedema_weight = load_elemental_data(pt_path, mm_path)
-    Y_raw = load_mp_raw(csv_path)
-    X_mp, mp_y, mp_feature_columns = build_mp_features(Y_raw, periodic_table, miedema_weight)
-    return X_mp, mp_y, mp_feature_columns, periodic_table, miedema_weight
-
 
 # ====== Generic train/validation split ======
 
