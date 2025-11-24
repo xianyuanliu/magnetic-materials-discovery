@@ -83,8 +83,7 @@ def build_features(
     data["valencew"] = alloys.get_Valencew(pt, stoich_array)         # valence
     data["electronegw"] = alloys.get_Electronegw(pt, stoich_array)   # electronegativity
 
-    # Feature list kept consistent with the notebook
-    novamag_feature_columns = [
+    feature_columns = [
         "compoundradix",
         "stoicentw",
         "Zw",
@@ -99,11 +98,11 @@ def build_features(
     # Remove rows with missing target, separate target from predictors
     data.dropna(
         axis=0,
-        subset=["saturation magnetization"] + novamag_feature_columns,
+        subset=["saturation magnetization"] + feature_columns,
         inplace=True,
     )
 
-    # Drop alloys which are below magnetic cutoff (determined through prior model optimisation)
+    # Drop alloys which are below magnetic cutoff (determined through prior model optimization)
     data.drop(data[data["saturation magnetization"] < 0.18].index, axis=0, inplace=True)
 
     # Round the saturation magnetization to two decimal places
@@ -112,7 +111,7 @@ def build_features(
     # Collapse duplicate chemical formulas by taking the median feature values
     data = data.groupby(by="chemical formula").median()
    
-    return data, novamag_feature_columns
+    return data, feature_columns
 
 
 # ====== Raw data loaders with basic cleaning ======
@@ -156,16 +155,7 @@ def load_mp_raw_data(csv_path: str) -> pd.DataFrame:
     """
     data = pd.read_csv(csv_path)
     data = data.rename(columns={"composition": "chemical formula"})
-
     print(f"The total number of imported features is {len(data.columns)}")
-    na_cols = [col for col in data.columns if data[col].isna().any()]
-    print(
-        "The number of features with at least one NaN value is "
-        f"{len(na_cols)}"
-    )
-    for col in na_cols:
-        count = data[col].isna().sum()
-        print(f"Column '{col}' has {count} nan values")
 
     # Convert target to saturation magnetization, μB/Å^3 → A/m → μ_0 M（T）
     print("Converting total magnetization to saturation magnetization...")
@@ -230,7 +220,7 @@ def load_mp_raw_data(csv_path: str) -> pd.DataFrame:
     print(f"Removed non-commercial entries: {before_non_commercial - len(data)} rows dropped")
 
     data = data[["chemical formula", "saturation magnetization"]]
-    print(f"Final MP raw dataset size: {data.shape[0]} rows x {data.shape[1]} columns")
+    print(f"Final MP raw dataset size: {data.shape[0]} material samples x {data.shape[1]} features")
     return data
 
 # ====== Shared stoichiometric array builder ======
@@ -252,7 +242,6 @@ def extract_elements(compound: str):
 def build_stoichiometric_array(composition_column: pd.Series) -> pd.DataFrame:
     """
     Build the stoichiometric array for a composition column.
-    Matches notebook cell 45.
     """
     # Extract unique element symbols from all compositions
     all_elements = set()
@@ -282,7 +271,6 @@ def split_dataset(
 ):
     """
     Split any dataset into train and validation sets.
-    Matches notebook cells 42 and 51.
     """
     X_train, X_valid, y_train, y_valid = train_test_split(
         X,
