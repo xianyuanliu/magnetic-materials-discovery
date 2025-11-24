@@ -9,8 +9,8 @@ Run the magnetism pipeline for Novamag or Materials Project data:
 
 from data import (
     load_mp_raw_data,
-    process_data,
     load_novamag_raw_data,
+    process_data,
     split_dataset,
 )
 from train import train_rf, train_ridge, train_xgb, tune_rf_hyperparams, tune_ridge_hyperparams, tune_xgb_hyperparams
@@ -18,7 +18,7 @@ from evaluate import (
     print_regression_results,
     plot_permutation_importance,
     plot_shap_summary,
-    plot_novamag_case_studies,
+    plot_case_studies,
 )
 from visualize import plot_ms_distribution_by_tm, plot_violin_ms_by_tm, summarize_compound_radix
 
@@ -30,10 +30,10 @@ def main():
     mm_path = "./data/Miedema-model/Miedema-model-reduced.xlsx"
     plots_save_dir = "./plots/"
     data_visualization = True
-    hyperparameter_tuning = False
+    hyperparameter_tuning = True
 
-    dataset_name = "Novamag"
-    # dataset_name = "MP"
+    # dataset_name = "Novamag"
+    dataset_name = "MP"
 
     if dataset_name.lower() == "novamag":
         prefix = "novamag"
@@ -84,14 +84,14 @@ def main():
     print_regression_results(y_valid, preds)
 
     # 8) Plot permutation importance
-    plot_permutation_importance(rf_model, X_valid, y_valid, title="RF Permutation Importance (Novamag)", 
+    plot_permutation_importance(rf_model, X_valid, y_valid, title=f"RF Permutation Importance ({prefix})", 
                                 save_path=plots_save_dir + f"{prefix}_perm_importance_rf.png")
 
     # 9) Plot SHAP summary
     plot_shap_summary(rf_model, X_train, X_valid, save_path=plots_save_dir + f"{prefix}_shap_summary_rf.png")
 
     # 10) Plot case studies
-    plot_novamag_case_studies(feature_columns, rf_model, xgb_model, ridge_model, pt, mm, 
+    plot_case_studies(feature_columns, rf_model, xgb_model, ridge_model, pt, mm, 
                               save_path=plots_save_dir + f"{prefix}_case_studies.png")
 
 

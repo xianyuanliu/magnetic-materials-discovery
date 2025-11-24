@@ -83,9 +83,9 @@ def plot_shap_summary(model, X_train, X_valid, save_path: str = None):
     else:
         plt.show()
 
-# ====== 3. Novamag case studies: FeAl / FeCo / FeCr ======
+# ====== 3. Case studies: FeAl / FeCo / FeCr ======
 
-def novamag_feal_case(X_cols: List[str], rf_model, xgb_model, ridge_model, periodic_table, miedema_weight):
+def feal_case(X_cols: List[str], rf_model, xgb_model, ridge_model, periodic_table, miedema_weight):
     """Generate predictions and literature references for the FeAl case study (no plotting)."""
     # Chemical formulas we want predictions for
     X_FeAl = pd.DataFrame(
@@ -161,7 +161,7 @@ def novamag_feal_case(X_cols: List[str], rf_model, xgb_model, ridge_model, perio
     return at_FeAl_fraction, rfpreds_FeAl, xgbpreds_FeAl, ridgepreds_FeAl, Exp_FeAl
 
 
-def novamag_feco_case(X_cols, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight):
+def feco_case(X_cols, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight):
     """Generate predictions and literature references for the FeCo case study."""
     X_FeCo = pd.DataFrame(
         [
@@ -221,7 +221,7 @@ def novamag_feco_case(X_cols, rf_model, xgb_model, ridge_model, periodic_table, 
     return at_FeCo_fraction, rfpreds_FeCo, xgbpreds_FeCo, ridgepreds_FeCo, Exp_FeCo
 
 
-def novamag_fecr_case(X_cols, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight):
+def fecr_case(X_cols, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight):
     """Generate predictions and literature references for the FeCr case study."""
     X_FeCr = pd.DataFrame(
         [
@@ -268,8 +268,8 @@ def novamag_fecr_case(X_cols, rf_model, xgb_model, ridge_model, periodic_table, 
     return at_FeCr_fraction, rfpreds_FeCr, xgbpreds_FeCr, ridgepreds_FeCr, Exp_FeCr
 
 
-def plot_novamag_case_studies(
-    novamag_feature_columns,
+def plot_case_studies(
+    feature_columns,
     rf_model,
     xgb_model,
     ridge_model,
@@ -277,16 +277,14 @@ def plot_novamag_case_studies(
     miedema_weight,
     save_path = None,
 ):
-    """
-    Plot three Novamag case studies (FeAl, FeCo, FeCr) side by side.
-    """
+    """Plot three case studies (FeAl, FeCo, FeCr) side by side."""
     (
         at_FeAl_fraction,
         rfpreds_FeAl,
         xgbpreds_FeAl,
         ridgepreds_FeAl,
         Exp_FeAl,
-    ) = novamag_feal_case(novamag_feature_columns, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight)
+    ) = feal_case(feature_columns, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight)
 
     (
         at_FeCo_fraction,
@@ -294,7 +292,7 @@ def plot_novamag_case_studies(
         xgbpreds_FeCo,
         ridgepreds_FeCo,
         Exp_FeCo,
-    ) = novamag_feco_case(novamag_feature_columns, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight)
+    ) = feco_case(feature_columns, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight)
 
     (
         at_FeCr_fraction,
@@ -302,7 +300,7 @@ def plot_novamag_case_studies(
         xgbpreds_FeCr,
         ridgepreds_FeCr,
         Exp_FeCr,
-    ) = novamag_fecr_case(novamag_feature_columns, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight)
+    ) = fecr_case(feature_columns, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight)
 
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(20, 4))
 
@@ -347,87 +345,3 @@ def plot_novamag_case_studies(
         plt.close()
     else:
         plt.show()
-
-
-# ====== 4. MP FeAl case study ======
-
-def mp_feal_case(
-    mp_feature_columns,
-    rf_model,
-    xgb_model,
-    ridge_model,
-    PT,
-    MM,
-):
-    """Materials Project FeAl case study."""
-    Y_FeAl = pd.DataFrame(
-        [
-            "Fe93Al2",
-            "Fe96Al4",
-            "Fe94Al6",
-            "Fe93Al7",
-            "Fe90Al10",
-            "Fe88Al12",
-            "Fe85Al15",
-            "Fe82Al18",
-            "Fe78Al22",
-            "Fe75Al25",
-            "Fe72Al28",
-            "Fe68Al32",
-            "Fe66Al34",
-        ],
-        columns=["composition"],
-    )
-
-    stoichiometric_array_FeAl = build_stoichiometric_array(Y_FeAl["composition"])
-
-    Y_FeAl["stoicentw"] = mp_al.get_StoicEntw(stoichiometric_array_FeAl)
-    Y_FeAl["Zw"] = mp_al.get_Zw(PT, stoichiometric_array_FeAl)
-    Y_FeAl["compoundradix"] = mp_al.get_CompoundRadix(PT, Y_FeAl)
-    Y_FeAl["periodw"] = mp_al.get_Periodw(PT, stoichiometric_array_FeAl)
-    Y_FeAl["groupw"] = mp_al.get_Groupw(PT, stoichiometric_array_FeAl)
-    Y_FeAl["meltingTw"] = mp_al.get_MeltingTw(PT, stoichiometric_array_FeAl)
-    Y_FeAl["miedemaH"] = mp_al.get_Miedemaw(MM, stoichiometric_array_FeAl)
-    Y_FeAl["valencew"] = mp_al.get_Valencew(PT, stoichiometric_array_FeAl)
-    Y_FeAl["electronegw"] = mp_al.get_Electronegw(PT, stoichiometric_array_FeAl)
-
-    mp_rfpreds_FeAl = rf_model.predict(Y_FeAl[mp_feature_columns])
-    mp_xgbpreds_FeAl = xgb_model.predict(Y_FeAl[mp_feature_columns])
-    mp_ridgepreds_FeAl = ridge_model.predict(Y_FeAl[mp_feature_columns])
-
-    mp_at_FeAl_fraction = mp_al.get_AtomicFrac(stoichiometric_array_FeAl)
-
-    mp_Exp_FeAl = pd.Series(
-        data=[
-            2.14,
-            2.12,
-            2.09,
-            2.05,
-            2.01,
-            1.98,
-            1.92,
-            1.86,
-            1.80,
-            1.75,
-            1.69,
-            1.65,
-            1.60,
-        ],
-        index=[
-            0.02,
-            0.038,
-            0.058,
-            0.074,
-            0.099,
-            0.124,
-            0.152,
-            0.183,
-            0.219,
-            0.251,
-            0.281,
-            0.315,
-            0.341,
-        ],
-    )
-
-    return mp_at_FeAl_fraction, mp_rfpreds_FeAl, mp_xgbpreds_FeAl, mp_ridgepreds_FeAl, mp_Exp_FeAl
