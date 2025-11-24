@@ -13,7 +13,15 @@ from data import (
     process_data,
     split_dataset,
 )
-from train import train_rf, train_ridge, train_xgb, tune_rf_hyperparams, tune_ridge_hyperparams, tune_xgb_hyperparams
+from train import (
+    train_linear_regression, train_ridge, train_lasso, train_elasticnet,
+    train_rf, train_xgb, train_lightgbm, train_catboost,
+    train_svr, train_mlp,
+    tune_ridge_hyperparams, tune_lasso_hyperparams, tune_elasticnet_hyperparams,
+    tune_rf_hyperparams, tune_xgb_hyperparams, tune_lightgbm_hyperparams, tune_catboost_hyperparams,
+    tune_svr_hyperparams, tune_mlp_hyperparams,
+)
+
 from evaluate import (
     print_regression_results,
     plot_permutation_importance,
@@ -62,25 +70,46 @@ def main():
 
     # 5) Train the three models (optionally with hyperparameter tuning)
     if hyperparameter_tuning:
+        ridge_best_params = tune_ridge_hyperparams(X_train, y_train)
+        lasso_best_params = tune_lasso_hyperparams(X_train, y_train)
+        elasticnet_best_params = tune_elasticnet_hyperparams(X_train, y_train)
         rf_best_params = tune_rf_hyperparams(X_train, y_train)
         xgb_best_params = tune_xgb_hyperparams(X_train, y_train)
-        ridge_best_params = tune_ridge_hyperparams(X_train, y_train)
+        svr_best_params = tune_svr_hyperparams(X_train, y_train)
+        mlp_best_params = tune_mlp_hyperparams(X_train, y_train)
     else:
+        ridge_best_params = None
+        lasso_best_params = None
+        elasticnet_best_params = None
         rf_best_params = None
         xgb_best_params = None
-        ridge_best_params = None
+        svr_best_params = None
+        mlp_best_params = None
 
+    linear_model = train_linear_regression(X_train, y_train) 
+    ridge_model = train_ridge(X_train, y_train, params=ridge_best_params)
+    lasso_model = train_lasso(X_train, y_train, params=lasso_best_params)
+    elasticnet_model = train_elasticnet(X_train, y_train, params=elasticnet_best_params)
     rf_model = train_rf(X_train, y_train, params=rf_best_params)
     xgb_model = train_xgb(X_train, y_train, params=xgb_best_params)
-    ridge_model = train_ridge(X_train, y_train, params=ridge_best_params)
+    svr_model = train_svr(X_train, y_train, params=svr_best_params)
+    mlp_model = train_mlp(X_train, y_train, params=mlp_best_params)
 
     # 6) Predict on the validation set
+    linear_preds = linear_model.predict(X_valid)
+    ridge_preds = ridge_model.predict(X_valid)
+    lasso_preds = lasso_model.predict(X_valid)
+    elasticnet_preds = elasticnet_model.predict(X_valid)
     rf_preds = rf_model.predict(X_valid)
     xgb_preds = xgb_model.predict(X_valid)
-    ridge_preds = ridge_model.predict(X_valid)
+    svr_preds = svr_model.predict(X_valid)
+    mlp_preds = mlp_model.predict(X_valid)
 
     # 7) Report validation metrics
-    preds = {"Random Forest": rf_preds, "XGBoost": xgb_preds, "Ridge": ridge_preds,}
+    preds = {
+        "Linear Regression": linear_preds, "Ridge": ridge_preds, "Lasso": lasso_preds, "ElasticNet": elasticnet_preds,
+        "Random Forest": rf_preds, "XGBoost": xgb_preds, 
+        "SVR": svr_preds, "MLP": mlp_preds}
     print_regression_results(y_valid, preds)
 
     # 8) Plot permutation importance
