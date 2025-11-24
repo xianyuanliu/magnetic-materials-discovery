@@ -1,10 +1,10 @@
 # data.py
 """
-Data loading and feature engineering:
-- Novamag dataset: X, y
-- Materials Project dataset: mp_X, mp_y
+Data loading and feature engineering helpers for Novamag and Materials Project datasets:
+- Raw loaders with basic cleaning
+- Shared alloy feature engineering
 - Generic stoichiometric array builder
-- Generic dataset splitting helper
+- Train/validation split helper
 """
 
 import re
@@ -17,7 +17,7 @@ from sklearn.model_selection import train_test_split
 import alloys
 
 
-# ====== Shared utilities: load element tables ======
+# ====== Shared elemental data loader ======
 
 def load_elemental_data(
     pt_path: str = "./data/Periodic-table/periodic_table.xlsx",
@@ -28,13 +28,16 @@ def load_elemental_data(
     miedema_weight = alloys.import_miedema_weight(mm_path)
     return periodic_table, miedema_weight
 
+
+# ====== Shared feature engineering ======
+
 def process_data(
     raw_data,
     pt_path: str,
     mm_path: str,
 ):
     """
-    Convenience wrapper for Novamag: load the data and engineer the features.
+    Load elemental data and engineer alloy features for a raw magnetism dataset.
     """
     periodic_table, miedema_weight = load_elemental_data(pt_path, mm_path)
     data, feature_columns = build_features(raw_data, periodic_table, miedema_weight)
@@ -50,13 +53,15 @@ def process_data(
     return data, ground_truth, feature_columns, periodic_table, miedema_weight
 
 
+# ====== Shared alloy feature builder ======
+
 def build_features(
     raw_data: pd.DataFrame,
     pt: pd.DataFrame,
     mm: pd.DataFrame,
 ) -> Tuple[pd.DataFrame, pd.Series, List[str]]:
     """
-    Engineer features for Novamag and return X_feat, y, and the feature list.
+    Engineer alloy features shared across Novamag and Materials Project data.
     """
     data = raw_data.copy()
 
@@ -69,7 +74,6 @@ def build_features(
     # Compute element-weighted features from the stoichiometric array
     data["stoicentw"] = alloys.get_StoicEntw(stoich_array)           # mixing entropy
     data["Zw"] = alloys.get_Zw(pt, stoich_array)                     # atomic weight
-    # data['compoundradix'] was computed above
     data["periodw"] = alloys.get_Periodw(pt, stoich_array)           # period
     data["groupw"] = alloys.get_Groupw(pt, stoich_array)             # group
     data["meltingTw"] = alloys.get_MeltingTw(pt, stoich_array)       # melting point
@@ -109,16 +113,13 @@ def build_features(
     return data, novamag_feature_columns
 
 
-# ====== Novamag section ======
+# ====== Raw data loaders with basic cleaning ======
 
-def load_novamag_raw(novamag_dir: str) -> pd.DataFrame:
+def load_novamag_raw_data(novamag_dir: str) -> pd.DataFrame:
     """
-    Import the raw Novamag data, keeping only chemical formula and saturation magnetization.
-    Matches notebook cells 7, 8, 9, and 10.
+    Load and prune raw Novamag data to chemical formula and saturation magnetization.
     """
     data = alloys.importNovamag(novamag_dir)
-
-    print(f"The total number of imported features is {len(data.columns)}")
 
     # Normalize literal 'none' entries
     data = data.replace({None: np.nan, "none": np.nan, "None": np.nan})
@@ -147,9 +148,9 @@ def load_novamag_raw(novamag_dir: str) -> pd.DataFrame:
     return data
 
 
-def load_mp_raw(csv_path: str) -> pd.DataFrame:
+def load_mp_raw_data(csv_path: str) -> pd.DataFrame:
     """
-    Read the Materials Project CSV export.
+    Read the Materials Project CSV export, convert magnetization units, and filter invalid entries.
     """
     data = pd.read_csv(csv_path)
     data = data.rename(columns={"composition": "chemical formula"})
@@ -212,7 +213,7 @@ def load_mp_raw(csv_path: str) -> pd.DataFrame:
     data = data[["chemical formula", "saturation magnetization"]]
     return data
 
-# ====== Generic stoichiometric array builder (used for MP and case studies) ======
+# ====== Shared stoichiometric array builder ======
 
 pattern = r"([A-Z][a-z]*)(\d*)"
 
@@ -251,7 +252,7 @@ def build_stoichiometric_array(composition_column: pd.Series) -> pd.DataFrame:
 
     return stoichiometric_df
 
-# ====== Generic train/validation split ======
+# ====== Shared train/validation split ======
 
 def split_dataset(
     X: pd.DataFrame,
