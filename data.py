@@ -41,6 +41,8 @@ def process_data(
     """
     periodic_table, miedema_weight = load_elemental_data(pt_path, mm_path)
     data, feature_columns = build_features(raw_data, periodic_table, miedema_weight)
+    print(f"The total number of engineered features is {len(feature_columns)}")
+    print(f"The total number of samples after cleaning is {len(data)}")
 
     # Extract target before narrowing the feature set
     data.index = range(len(data))  
@@ -155,7 +157,18 @@ def load_mp_raw_data(csv_path: str) -> pd.DataFrame:
     data = pd.read_csv(csv_path)
     data = data.rename(columns={"composition": "chemical formula"})
 
+    print(f"The total number of imported features is {len(data.columns)}")
+    na_cols = [col for col in data.columns if data[col].isna().any()]
+    print(
+        "The number of features with at least one NaN value is "
+        f"{len(na_cols)}"
+    )
+    for col in na_cols:
+        count = data[col].isna().sum()
+        print(f"Column '{col}' has {count} nan values")
+
     # Convert target to saturation magnetization, μB/Å^3 → A/m → μ_0 M（T）
+    print("Converting total magnetization to saturation magnetization...")
     data["total_magnetization_normalized_vol"] = pd.to_numeric(data["total_magnetization_normalized_vol"], errors='coerce')
     mu_B = 9.274e-24  # A·m^2
     angstrom3_to_m3 = 1e-30 # m^3
@@ -164,7 +177,9 @@ def load_mp_raw_data(csv_path: str) -> pd.DataFrame:
     data["saturation magnetization"] = data["total_magnetization_normalized_vol"] * factor
 
     # Keep only magnetic systems
+    initial_rows = len(data)
     data = data[data["is_magnetic"]]
+    print(f"Filtered to magnetic systems: {len(data)} of {initial_rows} rows remaining")
 
     # Remove entries containing rare-earth elements
     rare_earth_elements = [
@@ -186,8 +201,10 @@ def load_mp_raw_data(csv_path: str) -> pd.DataFrame:
         "Ho",
         "Yb",
     ]
+    before_rare_earth = len(data)
     for element in rare_earth_elements:
         data = data[~data["chemical formula"].str.contains(element)]
+    print(f"Removed rare-earth entries: {before_rare_earth - len(data)} rows dropped")
 
     # Remove uncommon or commercially unavailable elements
     non_commercial_elements = [
@@ -207,10 +224,13 @@ def load_mp_raw_data(csv_path: str) -> pd.DataFrame:
         "No",
         "Lr",
     ]
+    before_non_commercial = len(data)
     for element in non_commercial_elements:
         data = data[~data["chemical formula"].str.contains(element)]
+    print(f"Removed non-commercial entries: {before_non_commercial - len(data)} rows dropped")
 
     data = data[["chemical formula", "saturation magnetization"]]
+    print(f"Final MP raw dataset size: {data.shape[0]} rows x {data.shape[1]} columns")
     return data
 
 # ====== Shared stoichiometric array builder ======
