@@ -23,7 +23,6 @@ from data import (
     build_stoichiometric_array,
 )
 import alloys as al
-import mp_alloys as mp_al
 
 
 # ====== 1. Quantitative metrics ======

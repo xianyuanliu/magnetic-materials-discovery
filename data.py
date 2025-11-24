@@ -15,7 +15,6 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 
 import alloys
-import mp_alloys  # only used in the MP case study
 
 
 # ====== Shared utilities: load element tables ======
