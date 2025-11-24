@@ -152,9 +152,17 @@ def load_novamag_dataset(
 def load_mp_raw(csv_path: str) -> pd.DataFrame:
     """
     Read the Materials Project CSV export.
-    Matches notebook cells 21 and 23.
     """
-    Y = pd.read_csv(csv_path)
+    data = pd.read_csv(csv_path)
+    data = data.rename(columns={"composition": "chemical formula"})
+
+    # Convert target to saturation magnetization, μB/Å^3 → A/m → μ_0 M（T）
+    data["total_magnetization_normalized_vol"] = pd.to_numeric(data["total_magnetization_normalized_vol"], errors='coerce')
+    mu_B = 9.274e-24  # A·m^2
+    angstrom3_to_m3 = 1e-30 # m^3
+    mu_0 = 4 * np.pi * 1e-7  # T·m/A
+    factor = (mu_B / angstrom3_to_m3) * mu_0  # ~= 11.65 T per (μB/Å^3)
+    data["saturation magnetization"] = data["total_magnetization_normalized_vol"] * factor
 
     # Keep only magnetic systems
     Y = Y[Y["is_magnetic"]]
