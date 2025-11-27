@@ -1,11 +1,10 @@
-# evaluate.py
 """
-Evaluation and visualisation:
+Evaluation and visualization:
 - Quantitative metrics (MSE / MAE / R²)
 - Permutation importance
 - SHAP
-- FeAl / FeCo / FeCr case studies (Novamag + MP)
-- Optional Novamag / MP Ms histograms and violin plots
+- FeAl / FeCo / FeCr case studies
+- Optional dataset distributions - Ms histograms and violin plots
 """
 
 from typing import Dict, List

@@ -1,4 +1,3 @@
-# main.py
 """
 Run the magnetism pipeline for Novamag or Materials Project data:
 - Load and clean the chosen dataset
@@ -15,10 +14,10 @@ from data import (
 )
 from train import (
     train_linear_regression, train_ridge, train_lasso, train_elasticnet,
-    train_rf, train_xgb, train_lightgbm, train_catboost,
+    train_rf, train_xgb,
     train_svr, train_mlp,
     tune_ridge_hyperparams, tune_lasso_hyperparams, tune_elasticnet_hyperparams,
-    tune_rf_hyperparams, tune_xgb_hyperparams, tune_lightgbm_hyperparams, tune_catboost_hyperparams,
+    tune_rf_hyperparams, tune_xgb_hyperparams,
     tune_svr_hyperparams, tune_mlp_hyperparams,
 )
 
@@ -43,6 +42,8 @@ def main():
     # dataset_name = "Novamag"
     dataset_name = "MP"
 
+    models = ["linear", "ridge", "lasso", "elasticnet", "rf", "xgb", "svr", "mlp"]
+
     if dataset_name.lower() == "novamag":
         prefix = "novamag"
         X_raw = load_novamag_raw_data(novamag_dir)
@@ -51,6 +52,7 @@ def main():
         X_raw = load_mp_raw_data(mp_dir)
     else:
         raise ValueError("Invalid dataset name. Choose either 'Novamag' or 'Materials Project'.")
+
 
     # 1) Load, clean, and engineer features for the chosen dataset
     X, y, feature_columns, pt, mm = process_data(X_raw, pt_path, mm_path)
