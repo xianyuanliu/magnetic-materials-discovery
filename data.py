@@ -95,7 +95,7 @@ def build_features(
         "electronegw",
     ]
 
-    # Remove rows with missing target, separate target from predictors
+    # Remove rows with missing target
     data.dropna(
         axis=0,
         subset=["saturation magnetization"] + feature_columns,
@@ -126,23 +126,23 @@ def load_novamag_raw_data(novamag_dir: str) -> pd.DataFrame:
     data = data.replace({None: np.nan, "none": np.nan, "None": np.nan})
     data = data.infer_objects(copy=False)
 
-    # Find columns with missing values
-    na_cols = [col for col in data.columns if data[col].isna().any()]
-    print(
-        "The number of features with at least one NaN value is "
-        f"{len(na_cols)}"
-    )
+    # # Find columns with missing values
+    # na_cols = [col for col in data.columns if data[col].isna().any()]
+    # print(
+    #     "The number of features with at least one NaN value is "
+    #     f"{len(na_cols)}"
+    # )
 
-    # Drop columns with more than 10 NaN values
-    dropped_cols = []
-    for col in na_cols:
-        count = data[col].isna().sum()
-        print(f"Column '{col}' has {count} nan values")
-        if count > 10:
-            print(f"Dropping column '{col}'")
-            dropped_cols.append(col)
-            data = data.drop(col, axis=1).copy()
-    print(f"Number of dropped features is: {len(dropped_cols)}")
+    # # Drop columns with more than 10 NaN values
+    # dropped_cols = []
+    # for col in na_cols:
+    #     count = data[col].isna().sum()
+    #     print(f"Column '{col}' has {count} nan values")
+    #     if count > 10:
+    #         print(f"Dropping column '{col}'")
+    #         dropped_cols.append(col)
+    #         data = data.drop(col, axis=1).copy()
+    # print(f"Number of dropped features is: {len(dropped_cols)}")
 
     # Drop all columns except target and chemical formula
     data = data[["chemical formula", "saturation magnetization"]]
