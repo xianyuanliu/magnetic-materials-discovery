@@ -7,6 +7,7 @@ Run the magnetism pipeline for Novamag or Materials Project data:
 """
 
 import argparse
+import yaml
 
 from data import (
     load_mp_raw_data,
@@ -24,27 +25,43 @@ from evaluate import (
 )
 from visualize import plot_ms_distribution_by_tm, plot_violin_ms_by_tm, summarize_compound_radix
 
-def main():
-    novamag_dir = "./data/Novamag_Data_Files/"
-    mp_dir = "./data/mp-data.csv"
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Train ML models for material property prediction"
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="./configs/novamag.yaml",
+        # default="./configs/mp.yaml",
+        help="Path to YAML configuration file"
+    )
+    return parser.parse_args()
 
+def load_config(path: str):
+    with open(path, "r") as f:
+        return yaml.safe_load(f)
+
+def main():
     pt_path = "./data/Periodic-table/periodic_table.xlsx"
     mm_path = "./data/Miedema-model/Miedema-model-reduced.xlsx"
     plots_save_dir = "./plots/"
-    data_visualization = True
-    hyperparameter_tuning = True
 
-    dataset_name = "Novamag"
-    # dataset_name = "MP"
+    args = parse_args()
+    cfg = load_config(args.config)
 
-    models = ["linear", "ridge", "lasso", "elasticnet", "rf", "xgb", "svr", "mlp"]
-
+    dataset_name = cfg["dataset"]
+    dataset_path = cfg["dataset_path"]
+    data_visualization = cfg["data_visualization"]
+    hyperparameter_tuning = cfg["hyperparameter_tuning"]
+    models = cfg["models"]
+    
     if dataset_name.lower() == "novamag":
         prefix = "novamag"
-        X_raw = load_novamag_raw_data(novamag_dir)
+        X_raw = load_novamag_raw_data(dataset_path)
     elif dataset_name.lower() == "mp":
         prefix = "mp"
-        X_raw = load_mp_raw_data(mp_dir)
+        X_raw = load_mp_raw_data(dataset_path)
     else:
         raise ValueError("Invalid dataset name. Choose either 'Novamag' or 'Materials Project'.")
 
