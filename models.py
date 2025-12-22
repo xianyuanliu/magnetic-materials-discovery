@@ -7,7 +7,6 @@ from sklearn.svm import SVR
 from sklearn.neural_network import MLPRegressor
 from sklearn.linear_model import LinearRegression, Lasso, Ridge, ElasticNet
 import xgboost as xgb
-import lightgbm as lgb
 from catboost import CatBoostRegressor
 
 

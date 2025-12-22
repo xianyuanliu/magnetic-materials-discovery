@@ -204,7 +204,7 @@ def tune_mlp_hyperparams(X_train, y_train) -> Dict:
 
 # 4) Training linear models
 
-def train_linear_regression(X_train, y_train):
+def train_linear_regression(X_train, y_train, params: Dict = None):
     """Train Linear Regression (no hyperparameters)."""
     model = build_linear_regression_model()
     model.fit(X_train, y_train)
@@ -300,3 +300,18 @@ def train_mlp(X_train, y_train, params: Dict = None):
         )
     mlp_model.fit(X_train, y_train)
     return mlp_model
+
+
+MODEL_REGISTRY = {
+    "linear": {"name": "Linear Regression", "train": train_linear_regression, "tune": None},
+
+    "ridge": {"name": "Ridge", "train": train_ridge, "tune": tune_ridge_hyperparams},
+    "lasso": {"name": "Lasso", "train": train_lasso, "tune": tune_lasso_hyperparams},
+    "elasticnet": {"name": "ElasticNet", "train": train_elasticnet, "tune": tune_elasticnet_hyperparams},
+
+    "rf": {"name": "Random Forest", "train": train_rf, "tune": tune_rf_hyperparams},
+    "xgb": {"name": "XGBoost", "train": train_xgb, "tune": tune_xgb_hyperparams},
+
+    "svr": {"name": "SVR", "train": train_svr, "tune": tune_svr_hyperparams},
+    "mlp": {"name": "MLP", "train": train_mlp, "tune": tune_mlp_hyperparams},
+}
