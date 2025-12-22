@@ -14,15 +14,7 @@ from data import (
     process_data,
     split_dataset,
 )
-from train import (
-    MODEL_REGISTRY,
-    train_linear_regression, train_ridge, train_lasso, train_elasticnet,
-    train_rf, train_xgb,
-    train_svr, train_mlp,
-    tune_ridge_hyperparams, tune_lasso_hyperparams, tune_elasticnet_hyperparams,
-    tune_rf_hyperparams, tune_xgb_hyperparams,
-    tune_svr_hyperparams, tune_mlp_hyperparams,
-)
+from train import MODEL_REGISTRY
 
 from evaluate import (
     print_regression_results,
@@ -74,23 +66,6 @@ def main():
     X_valid = X_valid[feature_columns].copy()
 
     # 5) Train the three models (optionally with hyperparameter tuning)
-    # if hyperparameter_tuning:
-    #     ridge_best_params = tune_ridge_hyperparams(X_train, y_train)
-    #     lasso_best_params = tune_lasso_hyperparams(X_train, y_train)
-    #     elasticnet_best_params = tune_elasticnet_hyperparams(X_train, y_train)
-    #     rf_best_params = tune_rf_hyperparams(X_train, y_train)
-    #     xgb_best_params = tune_xgb_hyperparams(X_train, y_train)
-    #     svr_best_params = tune_svr_hyperparams(X_train, y_train)
-    #     mlp_best_params = tune_mlp_hyperparams(X_train, y_train)
-    # else:
-    #     ridge_best_params = None
-    #     lasso_best_params = None
-    #     elasticnet_best_params = None
-    #     rf_best_params = None
-    #     xgb_best_params = None
-    #     svr_best_params = None
-    #     mlp_best_params = None
-
     best_params = {}
     trained_models = {}
     preds = {}
@@ -101,53 +76,30 @@ def main():
 
         model_cfg = MODEL_REGISTRY[key]
 
+        # Check if hyperparameter tuning is needed
         params = None
         if hyperparameter_tuning and model_cfg["tune"] is not None:
             params = model_cfg["tune"](X_train, y_train)
 
+        # Train the model with the tuned or default hyperparameters
         model = model_cfg["train"](X_train, y_train, params=params)
         trained_models[key] = model
         best_params[key] = params
         preds[model_cfg["name"]] = model.predict(X_valid)
 
+    # 6) Report validation metrics
     print_regression_results(y_valid, preds)
 
-    # linear_model = train_linear_regression(X_train, y_train) 
-    # ridge_model = train_ridge(X_train, y_train, params=ridge_best_params)
-    # lasso_model = train_lasso(X_train, y_train, params=lasso_best_params)
-    # elasticnet_model = train_elasticnet(X_train, y_train, params=elasticnet_best_params)
-    # rf_model = train_rf(X_train, y_train, params=rf_best_params)
-    # xgb_model = train_xgb(X_train, y_train, params=xgb_best_params)
-    # svr_model = train_svr(X_train, y_train, params=svr_best_params)
-    # mlp_model = train_mlp(X_train, y_train, params=mlp_best_params)
-
-    # # 6) Predict on the validation set
-    # linear_preds = linear_model.predict(X_valid)
-    # ridge_preds = ridge_model.predict(X_valid)
-    # lasso_preds = lasso_model.predict(X_valid)
-    # elasticnet_preds = elasticnet_model.predict(X_valid)
-    # rf_preds = rf_model.predict(X_valid)
-    # xgb_preds = xgb_model.predict(X_valid)
-    # svr_preds = svr_model.predict(X_valid)
-    # mlp_preds = mlp_model.predict(X_valid)
-
-    # # 7) Report validation metrics
-    # preds = {
-    #     "Linear Regression": linear_preds, "Ridge": ridge_preds, "Lasso": lasso_preds, "ElasticNet": elasticnet_preds,
-    #     "Random Forest": rf_preds, "XGBoost": xgb_preds, 
-    #     "SVR": svr_preds, "MLP": mlp_preds}
-    # print_regression_results(y_valid, preds)
-
-    # 8) Plot permutation importance
+    # 7) Plot permutation importance
     if "rf" in trained_models:
         plot_permutation_importance(trained_models["rf"], X_valid, y_valid, title=f"RF Permutation Importance ({prefix})", 
                                     save_path=plots_save_dir + f"{prefix}_perm_importance_rf.png")
 
-    # 9) Plot SHAP summary
+    # 8) Plot SHAP summary
     if "rf" in trained_models:
         plot_shap_summary(trained_models["rf"], X_train, X_valid, save_path=plots_save_dir + f"{prefix}_shap_summary_rf.png")
 
-    # 10) Plot case studies
+    # 9) Plot case studies
     if "rf" in trained_models and "xgb" in trained_models and "ridge" in trained_models:
         plot_case_studies(feature_columns, trained_models["rf"], trained_models["xgb"], trained_models["ridge"], pt, mm, 
                               save_path=plots_save_dir + f"{prefix}_case_studies.png")
