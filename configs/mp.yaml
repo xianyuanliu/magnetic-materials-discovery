@@ -1,0 +1,15 @@
+dataset: MP
+dataset_path: data/mp-magnetism.csv
+
+models:
+  - linear
+  - ridge
+  - lasso
+  - elasticnet
+  - rf
+  - xgb
+  - svr
+  - mlp
+
+enable_data_visualization: true
+enable_hyperparameter_tuning: true

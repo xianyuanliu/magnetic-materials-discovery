@@ -9,12 +9,9 @@ Run the magnetism pipeline for Novamag or Materials Project data:
 import argparse
 import yaml
 
-from data import (
-    load_mp_raw_data,
-    load_novamag_raw_data,
-    process_data,
-    split_dataset,
-)
+from data import load_data, split_dataset
+from preprocess_data import load_novamag_raw_data, load_mp_raw_data
+
 from train import MODEL_REGISTRY
 
 from evaluate import (
@@ -32,8 +29,8 @@ def parse_args():
     parser.add_argument(
         "--config",
         type=str,
-        default="./configs/novamag.yaml",
-        # default="./configs/mp.yaml",
+        # default="./configs/novamag.yaml",
+        default="./configs/mp.yaml",
         help="Path to YAML configuration file"
     )
     return parser.parse_args()
@@ -51,29 +48,23 @@ def main():
     cfg = load_config(args.config)
 
     dataset_name = cfg["dataset"]
-    dataset_path = cfg["dataset_path"]
-    data_visualization = cfg["data_visualization"]
-    hyperparameter_tuning = cfg["hyperparameter_tuning"]
+    data_path = cfg["data_path"]
+    data_visualization = cfg["enable_data_visualization"]
+    hyperparameter_tuning = cfg["enable_hyperparameter_tuning"]
     models = cfg["models"]
     
     if dataset_name.lower() == "novamag":
         prefix = "novamag"
-        X_raw = load_novamag_raw_data(dataset_path)
     elif dataset_name.lower() == "mp":
         prefix = "mp"
-        X_raw = load_mp_raw_data(dataset_path)
     else:
         raise ValueError("Invalid dataset name. Choose either 'Novamag' or 'Materials Project'.")
 
+    # 0) Load raw data
+    X, y = load_data(data_path)
 
     # 1) Load, clean, and engineer features for the chosen dataset
     X, y, feature_columns, pt, mm = process_data(X_raw, pt_path, mm_path)
-
-    # 2) Optional raw data visualizations
-    if data_visualization:
-        plot_ms_distribution_by_tm(X_raw, save_path=plots_save_dir + f"{prefix}_ms_distribution_by_tm.png")
-        plot_violin_ms_by_tm(X_raw, save_path=plots_save_dir + f"{prefix}_violin_ms_by_tm.png")
-        summarize_compound_radix(X_raw, pt)
 
     # 3) Split dataset
     X_train, X_valid, y_train, y_valid = split_dataset(X, y, train_size=0.8)
@@ -106,6 +97,12 @@ def main():
 
     # 6) Report validation metrics
     print_regression_results(y_valid, preds)
+
+    # 2) Optional raw data visualizations
+    if data_visualization:
+        plot_ms_distribution_by_tm(X_raw, save_path=plots_save_dir + f"{prefix}_ms_distribution_by_tm.png")
+        plot_violin_ms_by_tm(X_raw, save_path=plots_save_dir + f"{prefix}_violin_ms_by_tm.png")
+        summarize_compound_radix(X_raw, pt)
 
     # 7) Plot permutation importance
     if "rf" in trained_models:
