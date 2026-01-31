@@ -17,9 +17,7 @@ from evaluate import (
 from visualize import plot_ms_distribution_by_tm, plot_violin_ms_by_tm, summarize_compound_radix
 
 def parse_args():
-    parser = argparse.ArgumentParser(
-        description="Train ML models for material property prediction"
-    )
+    parser = argparse.ArgumentParser(description="Train ML models for material property prediction")
     parser.add_argument(
         "--config",
         type=str,
@@ -45,6 +43,7 @@ def main():
     dataset_path = cfg["dataset_path"]
     data_visualization = cfg["enable_data_visualization"]
     hyperparameter_tuning = cfg["enable_hyperparameter_tuning"]
+    ablation_study = cfg["enable_ablation_study"]
     models = cfg["models"]
     
     if dataset_name.lower() == "novamag":
@@ -93,18 +92,21 @@ def main():
         plot_violin_ms_by_tm(X_raw, save_path=plots_save_dir + f"{prefix}_violin_ms_by_tm.png")
         summarize_compound_radix(X_raw, pt)
 
-    # 5) Permutation importance
-    if "rf" in trained_models:
-        plot_permutation_importance(trained_models["rf"], X_valid, y_valid, title=f"RF Permutation Importance ({prefix})", 
+    # 5) Model interpretability and ablation analyses
+    if ablation_study:
+
+        # Permutation feature importance evaluated on the validation set (Random Forest)
+        if "rf" in trained_models:
+            plot_permutation_importance(trained_models["rf"], X_valid, y_valid, title=f"RF Permutation Importance ({prefix})", 
                                     save_path=plots_save_dir + f"{prefix}_perm_importance_rf.png")
 
-    # 6) SHAP summary
-    if "rf" in trained_models:
-        plot_shap_summary(trained_models["rf"], X_train, X_valid, save_path=plots_save_dir + f"{prefix}_shap_summary_rf.png")
+        # SHAP summary plot for global feature attribution (Random Forest)
+        if "rf" in trained_models:
+            plot_shap_summary(trained_models["rf"], X_train, X_valid, save_path=plots_save_dir + f"{prefix}_shap_summary_rf.png")
 
-    # 7) Case studies
-    if "rf" in trained_models and "xgb" in trained_models and "ridge" in trained_models:
-        plot_case_studies(feature_columns, trained_models["rf"], trained_models["xgb"], trained_models["ridge"], pt, mm, 
+        # Comparative case studies across models (RF, XGBoost, and Ridge)
+        if "rf" in trained_models and "xgb" in trained_models and "ridge" in trained_models:
+            plot_case_studies(feature_columns, trained_models["rf"], trained_models["xgb"], trained_models["ridge"], pt, mm, 
                               save_path=plots_save_dir + f"{prefix}_case_studies.png")
 
 

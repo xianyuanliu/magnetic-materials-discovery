@@ -13,3 +13,4 @@ models:
 
 enable_data_visualization: true
 enable_hyperparameter_tuning: true
+enable_ablation_study: true
