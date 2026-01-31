@@ -1,16 +1,10 @@
-"""
-Run the magnetism pipeline for Novamag or Materials Project data:
-- Load and clean the chosen dataset
-- Engineer alloy features and split into train/validation
-- Train machine learning models
-- Report metrics and generate plots (distributions, SHAP, permutation importance, case studies)
-"""
+"""Run the magnetism pipeline for Novamag or Materials Project data."""
 
 import argparse
 import yaml
 
-from data import load_data, split_dataset
-from preprocess_data import load_novamag_raw_data, load_mp_raw_data
+from data import load_features_and_target, load_raw_data, split_dataset
+from preprocess_data import load_elemental_data, load_novamag_raw_data, load_mp_raw_data
 
 from train import MODEL_REGISTRY
 
@@ -48,7 +42,7 @@ def main():
     cfg = load_config(args.config)
 
     dataset_name = cfg["dataset"]
-    data_path = cfg["data_path"]
+    dataset_path = cfg["dataset_path"]
     data_visualization = cfg["enable_data_visualization"]
     hyperparameter_tuning = cfg["enable_hyperparameter_tuning"]
     models = cfg["models"]
@@ -60,20 +54,14 @@ def main():
     else:
         raise ValueError("Invalid dataset name. Choose either 'Novamag' or 'Materials Project'.")
 
-    # 0) Load raw data
-    X, y = load_data(data_path)
+    # 0) Load data and elemental tables
+    X, y, feature_columns = load_features_and_target(dataset_path)
+    pt, mm = load_elemental_data(pt_path, mm_path)
 
-    # 1) Load, clean, and engineer features for the chosen dataset
-    X, y, feature_columns, pt, mm = process_data(X_raw, pt_path, mm_path)
-
-    # 3) Split dataset
+    # 1) Train/validation split
     X_train, X_valid, y_train, y_valid = split_dataset(X, y, train_size=0.8)
 
-    # 4) Only retain the feature columns as a safeguard
-    X_train = X_train[feature_columns].copy()
-    X_valid = X_valid[feature_columns].copy()
-
-    # 5) Train the three models (optionally with hyperparameter tuning)
+    # 2) Train models (optionally tuned)
     best_params = {}
     trained_models = {}
     preds = {}
@@ -95,25 +83,26 @@ def main():
         best_params[key] = params
         preds[model_cfg["name"]] = model.predict(X_valid)
 
-    # 6) Report validation metrics
+    # 3) Report validation metrics
     print_regression_results(y_valid, preds)
 
-    # 2) Optional raw data visualizations
+    # 4) Data visualization
     if data_visualization:
+        X_raw = load_raw_data(dataset_path)
         plot_ms_distribution_by_tm(X_raw, save_path=plots_save_dir + f"{prefix}_ms_distribution_by_tm.png")
         plot_violin_ms_by_tm(X_raw, save_path=plots_save_dir + f"{prefix}_violin_ms_by_tm.png")
         summarize_compound_radix(X_raw, pt)
 
-    # 7) Plot permutation importance
+    # 5) Permutation importance
     if "rf" in trained_models:
         plot_permutation_importance(trained_models["rf"], X_valid, y_valid, title=f"RF Permutation Importance ({prefix})", 
                                     save_path=plots_save_dir + f"{prefix}_perm_importance_rf.png")
 
-    # 8) Plot SHAP summary
+    # 6) SHAP summary
     if "rf" in trained_models:
         plot_shap_summary(trained_models["rf"], X_train, X_valid, save_path=plots_save_dir + f"{prefix}_shap_summary_rf.png")
 
-    # 9) Plot case studies
+    # 7) Case studies
     if "rf" in trained_models and "xgb" in trained_models and "ridge" in trained_models:
         plot_case_studies(feature_columns, trained_models["rf"], trained_models["xgb"], trained_models["ridge"], pt, mm, 
                               save_path=plots_save_dir + f"{prefix}_case_studies.png")

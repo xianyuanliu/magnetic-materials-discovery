@@ -18,11 +18,7 @@ import shap
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.inspection import permutation_importance
 
-from data import (
-    build_stoichiometric_array,
-)
 import alloys as al
-
 
 # ====== 1. Quantitative metrics ======
 
