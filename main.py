@@ -3,7 +3,12 @@
 import argparse
 import yaml
 
-from data import load_features_and_target, load_raw_data, split_dataset
+from data import (
+    load_features_and_target,
+    load_raw_data,
+    split_dataset,
+    load_train_test_features_and_target,
+)
 from preprocess_data import load_elemental_data
 
 from train import MODEL_REGISTRY
@@ -42,7 +47,9 @@ def main():
     cfg = load_config(args.config)
 
     dataset_name = cfg["dataset"].lower()
-    dataset_path = cfg["dataset_path"]
+    dataset_path = cfg.get("dataset_path")
+    train_dataset_path = cfg.get("train_dataset_path")
+    test_dataset_path = cfg.get("test_dataset_path")
     data_visualization = cfg["enable_data_visualization"]
     hyperparameter_tuning = cfg["enable_hyperparameter_tuning"]
     ablation_study = cfg["enable_ablation_study"]
@@ -53,9 +60,14 @@ def main():
     cv_shuffle = cfg["cv_shuffle"]
     cv_random_state = cfg["cv_random_state"]
 
-    if evaluation_mode not in {"holdout", "cross_validation"}:
-        raise ValueError("Invalid evaluation_mode. Choose either 'holdout' or 'cross_validation'.")
+    if evaluation_mode not in {"holdout", "cross_validation", "ood"}:
+        raise ValueError("Invalid evaluation_mode. Choose 'holdout', 'cross_validation', or 'ood'.")
     need_cross_validation = evaluation_mode == "cross_validation"
+    need_ood = evaluation_mode == "ood"
+    if need_ood and (not train_dataset_path or not test_dataset_path):
+        raise ValueError("OOD mode requires train_dataset_path and test_dataset_path in the config.")
+    if not need_ood and not dataset_path:
+        raise ValueError("dataset_path is required for holdout or cross_validation modes.")
     
     if dataset_name.lower() == "novamag":
         prefix = "novamag"
@@ -65,17 +77,34 @@ def main():
         raise ValueError("Invalid dataset name. Choose either 'Novamag' or 'Materials Project'.")
 
     # 0) Load data and elemental tables
-    X, y, feature_columns = load_features_and_target(dataset_path)
-    pt, mm = load_elemental_data(pt_path, mm_path)
-
     best_params = {}
     trained_models = {}
     preds = {}
-    X_train = X_valid = y_train = y_valid = None
 
     # 1) Train/validation split (always needed for holdout metrics or ablation)
-    if not need_cross_validation:
-        X_train, X_valid, y_train, y_valid = split_dataset(X, y, train_size=0.8)
+    if need_cross_validation:
+        X, y, feature_columns = load_features_and_target(dataset_path)
+        cv_results = cross_validate_models(
+            X,
+            y,
+            models,
+            MODEL_REGISTRY,
+            hyperparameter_tuning=hyperparameter_tuning,
+            cv_folds=cv_folds,
+            shuffle=cv_shuffle,
+            random_state=cv_random_state,
+        )
+        print_cv_results(cv_results)
+
+    else:
+        if need_ood:
+            X_train, y_train, X_valid, y_valid, feature_columns = load_train_test_features_and_target(
+            train_dataset_path,
+            test_dataset_path,
+        )
+        else:
+            X, y, feature_columns = load_features_and_target(dataset_path)
+            X_train, X_valid, y_train, y_valid = split_dataset(X, y, train_size=0.8)
 
         # 2) Train models (optionally tuned)
         for key in models:
@@ -96,23 +125,13 @@ def main():
             preds[model_cfg["name"]] = model.predict(X_valid)
 
         # 3) Report validation metrics
-            print_holdout_results(y_valid, preds)
+        print_holdout_results(y_valid, preds)
 
-    else:
-        cv_results = cross_validate_models(
-            X,
-            y,
-            models,
-            MODEL_REGISTRY,
-            hyperparameter_tuning=hyperparameter_tuning,
-            cv_folds=cv_folds,
-            shuffle=cv_shuffle,
-            random_state=cv_random_state,
-        )
-        print_cv_results(cv_results)
+
 
     # 4) Data visualization
-    if data_visualization:
+    pt, mm = load_elemental_data(pt_path, mm_path)
+    if data_visualization and not need_ood:
         X_raw = load_raw_data(dataset_path)
         plot_ms_distribution_by_tm(X_raw, save_path=plots_save_dir + f"{prefix}_ms_distribution_by_tm.png")
         plot_violin_ms_by_tm(X_raw, save_path=plots_save_dir + f"{prefix}_violin_ms_by_tm.png")

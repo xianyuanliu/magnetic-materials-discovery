@@ -18,6 +18,29 @@ def load_features_and_target(path, target_column="saturation magnetization"):
     return data, ground_truth, feature_columns
 
 
+def load_train_test_features_and_target(
+    train_path,
+    test_path,
+    target_column="saturation magnetization",
+):
+    """Load train/test CSVs and align feature columns."""
+    train_data = pd.read_csv(train_path).reset_index(drop=True)
+    test_data = pd.read_csv(test_path).reset_index(drop=True)
+
+    train_y = train_data[target_column]
+    test_y = test_data[target_column]
+
+    feature_columns = train_data.columns.drop([target_column, "chemical formula"])
+    missing_features = set(feature_columns) - set(test_data.columns)
+    if missing_features:
+        missing_str = ", ".join(sorted(missing_features))
+        raise ValueError(f"Test data missing features: {missing_str}")
+
+    X_train = train_data[feature_columns].copy()
+    X_test = test_data[feature_columns].copy()
+    return X_train, train_y, X_test, test_y, feature_columns
+
+
 def load_raw_data(path):
     """Load raw dataset from a CSV."""
     data = pd.read_csv(path).reset_index(drop=True)

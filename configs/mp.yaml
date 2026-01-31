@@ -14,3 +14,12 @@ models:
 enable_data_visualization: true
 enable_hyperparameter_tuning: true
 enable_ablation_study: true
+
+# evaluation_mode: holdout # or cross_validation or ood
+evaluation_mode: cross_validation
+# train_dataset_path: data/mp-train.csv
+# test_dataset_path: data/mp-test.csv
+
+cv_folds: 5
+cv_shuffle: true
+cv_random_state: 0
