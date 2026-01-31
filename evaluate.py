@@ -15,14 +15,62 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import shap
 
+from sklearn.model_selection import KFold
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.inspection import permutation_importance
 
 import alloys as al
 
-# ====== 1. Quantitative metrics ======
 
-def print_regression_results(y_true, predictions: Dict[str, np.ndarray]):
+def cross_validate_models(
+    X: pd.DataFrame,
+    y: pd.Series,
+    model_keys: List[str],
+    model_registry: Dict,
+    hyperparameter_tuning: bool = False,
+    cv_folds: int = 5,
+    shuffle: bool = True,
+    random_state: int = 0,
+):
+    """Run K-fold cross-validation for the requested models."""
+    results = {}
+    for key in model_keys:
+        if key not in model_registry:
+            raise ValueError(f"Unknown model key: {key}")
+        name = model_registry[key]["name"]
+        results[name] = {"mse": [], "mae": [], "r2": []}
+
+    kf = KFold(
+        n_splits=cv_folds,
+        shuffle=shuffle,
+        random_state=random_state if shuffle else None,
+    )
+
+    for train_idx, valid_idx in kf.split(X):
+        X_train = X.iloc[train_idx]
+        X_valid = X.iloc[valid_idx]
+        y_train = y.iloc[train_idx]
+        y_valid = y.iloc[valid_idx]
+
+        for key in model_keys:
+            model_cfg = model_registry[key]
+            params = None
+            if hyperparameter_tuning and model_cfg["tune"] is not None:
+                params = model_cfg["tune"](X_train, y_train)
+            model = model_cfg["train"](X_train, y_train, params=params)
+            y_pred = model.predict(X_valid)
+
+            name = model_cfg["name"]
+            results[name]["mse"].append(mean_squared_error(y_valid, y_pred))
+            results[name]["mae"].append(mean_absolute_error(y_valid, y_pred))
+            results[name]["r2"].append(r2_score(y_valid, y_pred))
+
+    return results
+
+
+# ====== Quantitative metrics ======
+
+def print_holdout_results(y_true, predictions: Dict[str, np.ndarray]):
     """Print MSE, MAE, and R² for multiple regression models."""
     print("Regression Metrics:")
     for name, y_pred in predictions.items():
@@ -34,7 +82,23 @@ def print_regression_results(y_true, predictions: Dict[str, np.ndarray]):
         print(f"  MAE: {mae:.4f}")
         print(f"  R2:  {r2:.4f}")
 
-# ====== 2. Permutation Feature Importance & SHAP ======
+def print_cv_results(results: Dict[str, Dict[str, List[float]]]):
+    """Print mean ± std metrics for cross-validation results."""
+    print("Cross-Validation Metrics (mean ± std):")
+    for name, scores in results.items():
+        mse_mean = np.mean(scores["mse"])
+        mse_std = np.std(scores["mse"])
+        mae_mean = np.mean(scores["mae"])
+        mae_std = np.std(scores["mae"])
+        r2_mean = np.mean(scores["r2"])
+        r2_std = np.std(scores["r2"])
+
+        print(f"\n{name}:")
+        print(f"  MSE: {mse_mean:.4f} ± {mse_std:.4f}")
+        print(f"  MAE: {mae_mean:.4f} ± {mae_std:.4f}")
+        print(f"  R2:  {r2_mean:.4f} ± {r2_std:.4f}")
+
+# ====== Permutation Feature Importance & SHAP ======
 
 def plot_permutation_importance(model, X_valid, y_valid, title: str = "", save_path: str = None):
     """Plot permutation importance for RFR / XGB / Ridge."""
@@ -78,7 +142,7 @@ def plot_shap_summary(model, X_train, X_valid, save_path: str = None):
     else:
         plt.show()
 
-# ====== 3. Case studies: FeAl / FeCo / FeCr ======
+# ====== Case studies: FeAl / FeCo / FeCr ======
 
 def feal_case(X_cols: List[str], rf_model, xgb_model, ridge_model, periodic_table, miedema_weight):
     """Generate predictions and literature references for the FeAl case study (no plotting)."""

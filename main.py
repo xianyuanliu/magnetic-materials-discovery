@@ -4,12 +4,14 @@ import argparse
 import yaml
 
 from data import load_features_and_target, load_raw_data, split_dataset
-from preprocess_data import load_elemental_data, load_novamag_raw_data, load_mp_raw_data
+from preprocess_data import load_elemental_data
 
 from train import MODEL_REGISTRY
 
 from evaluate import (
-    print_regression_results,
+    print_holdout_results,
+    cross_validate_models,
+    print_cv_results,
     plot_permutation_importance,
     plot_shap_summary,
     plot_case_studies,
@@ -21,8 +23,8 @@ def parse_args():
     parser.add_argument(
         "--config",
         type=str,
-        # default="./configs/novamag.yaml",
-        default="./configs/mp.yaml",
+        default="./configs/novamag.yaml",
+        # default="./configs/mp.yaml",
         help="Path to YAML configuration file"
     )
     return parser.parse_args()
@@ -39,12 +41,21 @@ def main():
     args = parse_args()
     cfg = load_config(args.config)
 
-    dataset_name = cfg["dataset"]
+    dataset_name = cfg["dataset"].lower()
     dataset_path = cfg["dataset_path"]
     data_visualization = cfg["enable_data_visualization"]
     hyperparameter_tuning = cfg["enable_hyperparameter_tuning"]
     ablation_study = cfg["enable_ablation_study"]
     models = cfg["models"]
+    
+    evaluation_mode = cfg["evaluation_mode"].lower()
+    cv_folds = cfg["cv_folds"]
+    cv_shuffle = cfg["cv_shuffle"]
+    cv_random_state = cfg["cv_random_state"]
+
+    if evaluation_mode not in {"holdout", "cross_validation"}:
+        raise ValueError("Invalid evaluation_mode. Choose either 'holdout' or 'cross_validation'.")
+    need_cross_validation = evaluation_mode == "cross_validation"
     
     if dataset_name.lower() == "novamag":
         prefix = "novamag"
@@ -57,33 +68,48 @@ def main():
     X, y, feature_columns = load_features_and_target(dataset_path)
     pt, mm = load_elemental_data(pt_path, mm_path)
 
-    # 1) Train/validation split
-    X_train, X_valid, y_train, y_valid = split_dataset(X, y, train_size=0.8)
-
-    # 2) Train models (optionally tuned)
     best_params = {}
     trained_models = {}
     preds = {}
+    X_train = X_valid = y_train = y_valid = None
 
-    for key in models:
-        if key not in MODEL_REGISTRY:
-            raise ValueError(f"Unknown model key: {key}")
+    # 1) Train/validation split (always needed for holdout metrics or ablation)
+    if not need_cross_validation:
+        X_train, X_valid, y_train, y_valid = split_dataset(X, y, train_size=0.8)
 
-        model_cfg = MODEL_REGISTRY[key]
+        # 2) Train models (optionally tuned)
+        for key in models:
+            if key not in MODEL_REGISTRY:
+                raise ValueError(f"Unknown model key: {key}")
 
-        # Check if hyperparameter tuning is needed
-        params = None
-        if hyperparameter_tuning and model_cfg["tune"] is not None:
-            params = model_cfg["tune"](X_train, y_train)
+            model_cfg = MODEL_REGISTRY[key]
 
-        # Train the model with the tuned or default hyperparameters
-        model = model_cfg["train"](X_train, y_train, params=params)
-        trained_models[key] = model
-        best_params[key] = params
-        preds[model_cfg["name"]] = model.predict(X_valid)
+            # Check if hyperparameter tuning is needed
+            params = None
+            if hyperparameter_tuning and model_cfg["tune"] is not None:
+                params = model_cfg["tune"](X_train, y_train)
 
-    # 3) Report validation metrics
-    print_regression_results(y_valid, preds)
+            # Train the model with the tuned or default hyperparameters
+            model = model_cfg["train"](X_train, y_train, params=params)
+            trained_models[key] = model
+            best_params[key] = params
+            preds[model_cfg["name"]] = model.predict(X_valid)
+
+        # 3) Report validation metrics
+            print_holdout_results(y_valid, preds)
+
+    else:
+        cv_results = cross_validate_models(
+            X,
+            y,
+            models,
+            MODEL_REGISTRY,
+            hyperparameter_tuning=hyperparameter_tuning,
+            cv_folds=cv_folds,
+            shuffle=cv_shuffle,
+            random_state=cv_random_state,
+        )
+        print_cv_results(cv_results)
 
     # 4) Data visualization
     if data_visualization:
@@ -93,7 +119,7 @@ def main():
         summarize_compound_radix(X_raw, pt)
 
     # 5) Model interpretability and ablation analyses
-    if ablation_study:
+    if ablation_study and not need_cross_validation:
 
         # Permutation feature importance evaluated on the validation set (Random Forest)
         if "rf" in trained_models:
