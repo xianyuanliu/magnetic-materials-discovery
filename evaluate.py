@@ -9,6 +9,7 @@ Evaluation and visualization:
 
 from typing import Dict, List
 
+import math
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -87,16 +88,135 @@ def print_cv_results(results: Dict[str, Dict[str, List[float]]]):
     print("Cross-Validation Metrics (mean ± std):")
     for name, scores in results.items():
         mse_mean = np.mean(scores["mse"])
-        mse_std = np.std(scores["mse"])
+        mse_std = np.std(scores["mse"], ddof=1)
         mae_mean = np.mean(scores["mae"])
-        mae_std = np.std(scores["mae"])
+        mae_std = np.std(scores["mae"], ddof=1)
         r2_mean = np.mean(scores["r2"])
-        r2_std = np.std(scores["r2"])
+        r2_std = np.std(scores["r2"], ddof=1)
 
         print(f"\n{name}:")
         print(f"  MSE: {mse_mean:.4f} ± {mse_std:.4f}")
         print(f"  MAE: {mae_mean:.4f} ± {mae_std:.4f}")
         print(f"  R2:  {r2_mean:.4f} ± {r2_std:.4f}")
+
+# ====== Statistical tests ======
+# Minimal paired t-test (normal approximation) + Wilcoxon signed-rank (normal approximation)
+
+def _norm_cdf(z: float) -> float:
+    return 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))
+
+
+def paired_ttest_pvalue(x: List[float], y: List[float]) -> float:
+    if len(x) != len(y):
+        raise ValueError("x and y must have the same length")
+    n = len(x)
+    if n < 2:
+        return 1.0
+
+    d = np.asarray(x, dtype=float) - np.asarray(y, dtype=float)
+    d_mean = float(np.mean(d))
+    d_std = float(np.std(d, ddof=1))
+    # If identical across folds -> no evidence of difference
+    if d_std == 0.0:
+        return 1.0
+
+    t = d_mean / (d_std / math.sqrt(n))
+    # Normal approximation for two-sided p-valu
+    p = 2.0 * (1.0 - _norm_cdf(abs(t)))
+    return float(max(0.0, min(1.0, p)))
+
+
+def wilcoxon_signed_rank_pvalue(x: List[float], y: List[float]) -> float:
+    """
+    Two-sided Wilcoxon signed-rank test p-value (normal approximation, no scipy).
+    - Drops zero differences
+    - Uses average ranks for ties in |diff|
+    - Continuity correction included
+    """
+    if len(x) != len(y):
+        raise ValueError("x and y must have the same length")
+
+    d = np.asarray(x, dtype=float) - np.asarray(y, dtype=float)
+    d = d[d != 0.0]
+    n = int(d.size)
+    if n == 0:
+        return 1.0
+
+    abs_d = np.abs(d)
+    signs = np.sign(d)
+    # Rank |d| with average ranks for ties (1..n)
+    order = np.argsort(abs_d)
+    ranks = np.empty(n, dtype=float)
+
+    i = 0
+    while i < n:
+        j = i
+        while j + 1 < n and abs_d[order[j + 1]] == abs_d[order[i]]:
+            j += 1
+        avg_rank = 0.5 * ((i + 1) + (j + 1))
+        ranks[order[i : j + 1]] = avg_rank
+        i = j + 1
+
+    w_plus = float(np.sum(ranks[signs > 0]))
+    w_minus = float(np.sum(ranks[signs < 0]))
+    w = min(w_plus, w_minus)
+
+    # Normal approximation parameters
+    mu = n * (n + 1) / 4.0
+    sigma = math.sqrt(n * (n + 1) * (2 * n + 1) / 24.0)
+    if sigma == 0.0:
+        return 1.0
+
+    # Continuity correction (two-sided)
+    z = (w - mu + 0.5) / sigma
+    p = 2.0 * (1.0 - _norm_cdf(abs(z)))
+    return float(max(0.0, min(1.0, p)))
+
+
+def print_significance_tests(
+    results: Dict[str, Dict[str, List[float]]],
+    metric: str = "mse",
+    baseline: str = None,
+) -> None:
+    """
+    Prints paired t-test + Wilcoxon p-values comparing each model to a baseline
+    using per-fold CV scores stored in `results[name][metric]`.
+
+    If baseline is None, chooses the best model by mean(metric) (lower is better for mse/mae,
+    higher is better for r2).
+    """
+    if metric not in {"mse", "mae", "r2"}:
+        raise ValueError("metric must be one of: 'mse', 'mae', 'r2'")
+
+    names = list(results.keys())
+    if not names:
+        print("No CV results.")
+        return
+
+    # Choose baseline if not provided
+    if baseline is None:
+        means = {n: float(np.mean(results[n][metric])) for n in names}
+        baseline = min(means, key=means.get) if metric in {"mse", "mae"} else max(means, key=means.get)
+
+    if baseline not in results:
+        raise ValueError(f"Baseline '{baseline}' not found")
+
+    base = results[baseline][metric]
+
+    print(f"\nSignificance tests vs baseline: {baseline} (metric={metric})")
+    for name in names:
+        if name == baseline:
+            continue
+
+        other = results[name][metric]
+        other_mean = float(np.mean(other))
+
+        # Tests are on paired folds (same KFold split order), so list order matters.
+        p_t = paired_ttest_pvalue(base, other)
+        p_w = wilcoxon_signed_rank_pvalue(base, other)
+
+        print(f"{name}: mean={other_mean:.4f}  p_t={p_t:.4g}  p_w={p_w:.4g}")
+       
 
 # ====== Permutation Feature Importance & SHAP ======
 
