@@ -17,6 +17,7 @@ from evaluate import (
     print_holdout_results,
     cross_validate_models,
     print_cv_results,
+    print_significance_tests,
     plot_permutation_importance,
     plot_shap_summary,
     plot_case_studies,
@@ -95,6 +96,7 @@ def main():
             random_state=cv_random_state,
         )
         print_cv_results(cv_results)
+        print_significance_tests(cv_results, metric="mse")
 
     else:
         if need_ood:
