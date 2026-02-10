@@ -47,7 +47,11 @@ def cross_validate_models(
         random_state=random_state if shuffle else None,
     )
 
-    for train_idx, valid_idx in kf.split(X):
+    # --- Fold-by-fold RF vs XGB tracking (minimal addition) ---
+    rf_fold_mse = []
+    xgb_fold_mse = []
+
+    for fold_id, (train_idx, valid_idx) in enumerate(kf.split(X), start=1):
         X_train = X.iloc[train_idx]
         X_valid = X.iloc[valid_idx]
         y_train = y.iloc[train_idx]
@@ -58,15 +62,50 @@ def cross_validate_models(
             params = None
             if hyperparameter_tuning and model_cfg["tune"] is not None:
                 params = model_cfg["tune"](X_train, y_train)
+
             model = model_cfg["train"](X_train, y_train, params=params)
             y_pred = model.predict(X_valid)
 
+            mse = mean_squared_error(y_valid, y_pred)
+            mae = mean_absolute_error(y_valid, y_pred)
+            r2 = r2_score(y_valid, y_pred)
+
             name = model_cfg["name"]
-            results[name]["mse"].append(mean_squared_error(y_valid, y_pred))
-            results[name]["mae"].append(mean_absolute_error(y_valid, y_pred))
-            results[name]["r2"].append(r2_score(y_valid, y_pred))
+            results[name]["mse"].append(mse)
+            results[name]["mae"].append(mae)
+            results[name]["r2"].append(r2)
+
+            # record fold MSE for RF/XGB only
+            if key == "rf":
+                rf_fold_mse.append(mse)
+            elif key == "xgb":
+                xgb_fold_mse.append(mse)
+
+    # --- Fold-by-fold comparison RF vs XGB (supervisor request) ---
+    if len(rf_fold_mse) == cv_folds and len(xgb_fold_mse) == cv_folds:
+        wins_rf = 0
+        wins_xgb = 0
+        ties = 0
+
+        print("\nFold-by-fold comparison (metric=MSE): Random Forest vs XGBoost")
+        for i, (m_rf, m_xgb) in enumerate(zip(rf_fold_mse, xgb_fold_mse), start=1):
+            if m_rf < m_xgb:
+                wins_rf += 1
+                winner = "RF"
+            elif m_xgb < m_rf:
+                wins_xgb += 1
+                winner = "XGB"
+            else:
+                ties += 1
+                winner = "Tie"
+            print(f"  Fold {i}: RF={m_rf:.6f}  XGB={m_xgb:.6f}  -> {winner}")
+
+        print(f"Summary: RF wins {wins_rf}/{cv_folds}, XGB wins {wins_xgb}/{cv_folds}, ties {ties}")
+    else:
+        print("\nFold-by-fold RF vs XGB: skipped (need both 'rf' and 'xgb' in models list).")
 
     return results
+
 
 
 # ====== Quantitative metrics ======
