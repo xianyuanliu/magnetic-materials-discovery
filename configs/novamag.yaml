@@ -20,6 +20,6 @@ evaluation_mode: cross_validation
 # train_dataset_path: data/novamag-train.csv
 # test_dataset_path: data/novamag-test.csv
 
-cv_folds: 5
+cv_folds: 10
 cv_shuffle: true
 cv_random_state: 0
