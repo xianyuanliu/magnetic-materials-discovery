@@ -51,7 +51,7 @@ def cross_validate_models(
     rf_fold_mse = []
     xgb_fold_mse = []
 
-    for fold_id, (train_idx, valid_idx) in enumerate(kf.split(X), start=1):
+    for train_idx, valid_idx in kf.split(X):
         X_train = X.iloc[train_idx]
         X_valid = X.iloc[valid_idx]
         y_train = y.iloc[train_idx]
