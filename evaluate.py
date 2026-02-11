@@ -31,6 +31,7 @@ def cross_validate_models(
     cv_folds: int = 5,
     shuffle: bool = True,
     random_state: int = 0,
+    report_rf_xgb: bool = True,
 ):
     """Run K-fold cross-validation for the requested models."""
     results = {}
@@ -46,6 +47,11 @@ def cross_validate_models(
         random_state=random_state if shuffle else None,
     )
 
+    # Track RF vs XGB per-fold MSE (only if requested and both models exist)
+    track_rf_xgb = report_rf_xgb and ("rf" in model_keys) and ("xgb" in model_keys)
+    rf_fold_mse = []
+    xgb_fold_mse = []
+
     for train_idx, valid_idx in kf.split(X):
         X_train = X.iloc[train_idx]
         X_valid = X.iloc[valid_idx]
@@ -57,16 +63,37 @@ def cross_validate_models(
             params = None
             if hyperparameter_tuning and model_cfg["tune"] is not None:
                 params = model_cfg["tune"](X_train, y_train)
+
             model = model_cfg["train"](X_train, y_train, params=params)
             y_pred = model.predict(X_valid)
 
+            mse = mean_squared_error(y_valid, y_pred)
+            mae = mean_absolute_error(y_valid, y_pred)
+            r2 = r2_score(y_valid, y_pred)
+
             name = model_cfg["name"]
-            results[name]["mse"].append(mean_squared_error(y_valid, y_pred))
-            results[name]["mae"].append(mean_absolute_error(y_valid, y_pred))
-            results[name]["r2"].append(r2_score(y_valid, y_pred))
+            results[name]["mse"].append(mse)
+            results[name]["mae"].append(mae)
+            results[name]["r2"].append(r2)
+
+            if track_rf_xgb:
+                if key == "rf":
+                    rf_fold_mse.append(mse)
+                elif key == "xgb":
+                    xgb_fold_mse.append(mse)
+
+    # how many times RF outperforms XGB
+    if track_rf_xgb and len(rf_fold_mse) == cv_folds and len(xgb_fold_mse) == cv_folds:
+        wins_rf = sum(m_rf < m_xgb for m_rf, m_xgb in zip(rf_fold_mse, xgb_fold_mse))
+        wins_xgb = sum(m_xgb < m_rf for m_rf, m_xgb in zip(rf_fold_mse, xgb_fold_mse))
+        ties = cv_folds - wins_rf - wins_xgb
+
+        print("\nFold-by-fold win count (metric=MSE): Random Forest vs XGBoost")
+        print(f"  RF wins:  {wins_rf}/{cv_folds}")
+        print(f"  XGB wins: {wins_xgb}/{cv_folds}")
+        print(f"  Ties:     {ties}/{cv_folds}")
 
     return results
-
 
 # ====== Quantitative metrics ======
 
