@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+from scipy import stats
 import shap
 
 from sklearn.model_selection import KFold
@@ -20,7 +21,6 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.inspection import permutation_importance
 
 import alloys as al
-
 
 def cross_validate_models(
     X: pd.DataFrame,
@@ -124,6 +124,48 @@ def print_cv_results(results: Dict[str, Dict[str, List[float]]]):
         print(f"  MSE: {mse_mean:.4f} ± {mse_std:.4f}")
         print(f"  MAE: {mae_mean:.4f} ± {mae_std:.4f}")
         print(f"  R2:  {r2_mean:.4f} ± {r2_std:.4f}")
+
+def compare_models_significance(
+    results: Dict[str, Dict[str, List[float]]],
+    model_a: str,
+    model_b: str,
+    metric: str = "mse",
+):
+    """
+    Significance tests comparing two models using per-fold CV scores.
+
+    - Paired t-test: stats.ttest_rel
+    - Wilcoxon signed-rank: stats.wilcoxon (non-parametric)
+
+    NOTE: Uses per-fold scores as paired samples.
+    """
+    if model_a not in results or model_b not in results:
+        raise ValueError(f"Model names not found in results: {model_a}, {model_b}")
+
+    a = np.array(results[model_a][metric], dtype=float)
+    b = np.array(results[model_b][metric], dtype=float)
+
+    if len(a) != len(b):
+        raise ValueError(f"Fold count mismatch: {model_a} has {len(a)}, {model_b} has {len(b)}")
+
+    diff = a - b  # positive means A worse than B for MSE/MAE (lower is better)
+
+    # Paired t-test
+    t_stat, t_p = stats.ttest_rel(a, b, nan_policy="omit")
+
+    # Wilcoxon signed-rank (requires non-zero diffs)
+    nonzero = diff[diff != 0]
+    if len(nonzero) < 1:
+        w_stat, w_p = np.nan, np.nan
+    else:
+        # Two-sided by default
+        w_stat, w_p = stats.wilcoxon(a, b, zero_method="wilcox")
+
+    print(f"\nSignificance tests (paired) on CV folds — metric={metric}")
+    print(f"  Comparing: {model_a} vs {model_b}")
+    print(f"  Paired t-test:     t={t_stat:.4f}, p={t_p:.6g}")
+    print(f"  Wilcoxon signed-rank: W={w_stat}, p={w_p:.6g}")
+
 
 # ====== Permutation Feature Importance & SHAP ======
 
