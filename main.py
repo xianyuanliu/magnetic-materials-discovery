@@ -17,8 +17,8 @@ from evaluate import (
     print_holdout_results,
     cross_validate_models,
     print_cv_results,
-    print_significance_tests,
     plot_permutation_importance,
+    compare_models_significance, 
     plot_shap_summary,
     plot_case_studies,
 )
@@ -82,6 +82,7 @@ def main():
     trained_models = {}
     preds = {}
 
+    
     # 1) Train/validation split (always needed for holdout metrics or ablation)
     if need_cross_validation:
         X, y, feature_columns = load_features_and_target(dataset_path)
@@ -96,14 +97,24 @@ def main():
             random_state=cv_random_state,
         )
         print_cv_results(cv_results)
-        print_significance_tests(cv_results, metric="mse")
 
+        # --- Significance tests (paired t-test + Wilcoxon) ---
+        def _name_for_key(model_key: str) -> str:
+            return MODEL_REGISTRY[model_key]["name"]
+
+        if "rf" in models and "xgb" in models:
+            compare_models_significance(
+                cv_results,
+                _name_for_key("rf"),
+                _name_for_key("xgb"),
+                metric="mse",
+            )
     else:
         if need_ood:
             X_train, y_train, X_valid, y_valid, feature_columns = load_train_test_features_and_target(
-            train_dataset_path,
-            test_dataset_path,
-        )
+                train_dataset_path,
+                test_dataset_path,
+            )
         else:
             X, y, feature_columns = load_features_and_target(dataset_path)
             X_train, X_valid, y_train, y_valid = split_dataset(X, y, train_size=0.8)
@@ -115,16 +126,15 @@ def main():
 
             model_cfg = MODEL_REGISTRY[key]
 
-            # Check if hyperparameter tuning is needed
             params = None
             if hyperparameter_tuning and model_cfg["tune"] is not None:
                 params = model_cfg["tune"](X_train, y_train)
 
-            # Train the model with the tuned or default hyperparameters
             model = model_cfg["train"](X_train, y_train, params=params)
             trained_models[key] = model
             best_params[key] = params
             preds[model_cfg["name"]] = model.predict(X_valid)
+
 
         # 3) Report validation metrics
         print_holdout_results(y_valid, preds)
