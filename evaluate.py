@@ -22,6 +22,11 @@ from sklearn.inspection import permutation_importance
 
 import alloys as al
 
+def mean_relative_error(y_true: np.ndarray, y_pred: np.ndarray, eps: float = 1e-8) -> float:
+    y_true = np.asarray(y_true, dtype=float)
+    y_pred = np.asarray(y_pred, dtype=float)
+    return float(np.mean(np.abs(y_true - y_pred) / (np.abs(y_true) + eps)))
+
 def cross_validate_models(
     X: pd.DataFrame,
     y: pd.Series,
@@ -39,7 +44,7 @@ def cross_validate_models(
         if key not in model_registry:
             raise ValueError(f"Unknown model key: {key}")
         name = model_registry[key]["name"]
-        results[name] = {"mse": [], "mae": [], "r2": []}
+        results[name] = {"mse": [], "mae": [], "mre": [], "r2": []}
 
     kf = KFold(
         n_splits=cv_folds,
@@ -70,10 +75,12 @@ def cross_validate_models(
             mse = mean_squared_error(y_valid, y_pred)
             mae = mean_absolute_error(y_valid, y_pred)
             r2 = r2_score(y_valid, y_pred)
+            mre = mean_relative_error(y_valid.to_numpy(), np.asarray(y_pred), eps=1e-8)
 
             name = model_cfg["name"]
             results[name]["mse"].append(mse)
             results[name]["mae"].append(mae)
+            results[name]["mre"].append(mre)
             results[name]["r2"].append(r2)
 
             if track_rf_xgb:
@@ -114,15 +121,18 @@ def print_cv_results(results: Dict[str, Dict[str, List[float]]]):
     print("Cross-Validation Metrics (mean ± std):")
     for name, scores in results.items():
         mse_mean = np.mean(scores["mse"])
-        mse_std = np.std(scores["mse"])
+        mse_std = np.std(scores["mse"], ddof=1)
         mae_mean = np.mean(scores["mae"])
-        mae_std = np.std(scores["mae"])
+        mae_std = np.std(scores["mae"], ddof=1)
+        mre_mean = np.mean(scores["mre"])
+        mre_std = np.std(scores["mre"], ddof=1)
         r2_mean = np.mean(scores["r2"])
-        r2_std = np.std(scores["r2"])
+        r2_std = np.std(scores["r2"], ddof=1)
 
         print(f"\n{name}:")
         print(f"  MSE: {mse_mean:.4f} ± {mse_std:.4f}")
         print(f"  MAE: {mae_mean:.4f} ± {mae_std:.4f}")
+        print(f"  MRE: {mre_mean:.6f} ± {mre_std:.6f}")
         print(f"  R2:  {r2_mean:.4f} ± {r2_std:.4f}")
 
 def compare_models_significance(
@@ -166,6 +176,7 @@ def compare_models_significance(
     print(f"  Paired t-test:     t={t_stat:.4f}, p={t_p:.6g}")
     print(f"  Wilcoxon signed-rank: W={w_stat}, p={w_p:.6g}")
 
+    return float(t_stat), float(t_p), float(w_stat), float(w_p)
 
 # ====== Permutation Feature Importance & SHAP ======
 

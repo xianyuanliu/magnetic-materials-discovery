@@ -2,6 +2,7 @@
 
 import argparse
 import yaml
+import os
 
 from data import (
     load_features_and_target,
@@ -17,8 +18,8 @@ from evaluate import (
     print_holdout_results,
     cross_validate_models,
     print_cv_results,
+    compare_models_significance,
     plot_permutation_importance,
-    compare_models_significance, 
     plot_shap_summary,
     plot_case_studies,
 )
@@ -60,6 +61,7 @@ def main():
     cv_folds = cfg["cv_folds"]
     cv_shuffle = cfg["cv_shuffle"]
     cv_random_state = cfg["cv_random_state"]
+    cv_seeds = cfg.get("cv_seeds", [cv_random_state])
 
     if evaluation_mode not in {"holdout", "cross_validation", "ood"}:
         raise ValueError("Invalid evaluation_mode. Choose 'holdout', 'cross_validation', or 'ood'.")
@@ -83,32 +85,49 @@ def main():
     preds = {}
 
     
-    # 1) Train/validation split (always needed for holdout metrics or ablation)
+    # 1) Train/validation split 
     if need_cross_validation:
-        X, y, feature_columns = load_features_and_target(dataset_path)
-        cv_results = cross_validate_models(
-            X,
-            y,
-            models,
-            MODEL_REGISTRY,
-            hyperparameter_tuning=hyperparameter_tuning,
-            cv_folds=cv_folds,
-            shuffle=cv_shuffle,
-            random_state=cv_random_state,
-        )
-        print_cv_results(cv_results)
+        # run multiple CV runs with different seeds (e.g. 0,5,10,15,20)
+        if len(cv_seeds) < 1:
+            raise ValueError("cv_seeds must contain at least one seed.")
 
-        # --- Significance tests (paired t-test + Wilcoxon) ---
+        # Load once
+        X, y, feature_columns = load_features_and_target(dataset_path)
+
         def _name_for_key(model_key: str) -> str:
             return MODEL_REGISTRY[model_key]["name"]
 
-        if "rf" in models and "xgb" in models:
-            compare_models_significance(
-                cv_results,
-                _name_for_key("rf"),
-                _name_for_key("xgb"),
-                metric="mse",
+        rf_name = _name_for_key("rf") if "rf" in models else None
+        xgb_name = _name_for_key("xgb") if "xgb" in models else None
+
+        # Run CV for each seed
+        for run_i, seed in enumerate(cv_seeds, start=1):
+            seed = int(seed)
+
+            print(f"\n==============================")
+            print(f"=== CV Run {run_i}/{len(cv_seeds)} (seed={seed}) ===")
+            print(f"==============================")
+
+            cv_results = cross_validate_models(
+                X,
+                y,
+                models,
+                MODEL_REGISTRY,
+                hyperparameter_tuning=hyperparameter_tuning,
+                cv_folds=cv_folds,
+                shuffle=cv_shuffle,
+                random_state=seed,
             )
+
+            # Print per-model mean ± std across folds
+            print_cv_results(cv_results)
+
+            # p-values for RF vs XGB using paired tests across folds
+            if rf_name is not None and xgb_name is not None:
+                print("\n--- RF vs XGB significance (paired across folds) ---")
+                compare_models_significance(cv_results, rf_name, xgb_name, metric="mse")
+                compare_models_significance(cv_results, rf_name, xgb_name, metric="mae")
+
     else:
         if need_ood:
             X_train, y_train, X_valid, y_valid, feature_columns = load_train_test_features_and_target(
