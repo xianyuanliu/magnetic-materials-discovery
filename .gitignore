@@ -4,3 +4,8 @@ __pycache__/
 # Editor settings
 .vscode/
 .idea/
+
+# results
+results/
+*.csv
+plots/

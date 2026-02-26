@@ -23,3 +23,5 @@ evaluation_mode: cross_validation
 cv_folds: 10
 cv_shuffle: true
 cv_random_state: 0
+cv_seeds: [0, 5]
+report_dir: "./results/"
