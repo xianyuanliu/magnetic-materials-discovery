@@ -2,7 +2,7 @@
 
 import argparse
 import yaml
-import os
+
 
 from data import (
     load_features_and_target,
