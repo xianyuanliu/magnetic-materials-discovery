@@ -1,0 +1,26 @@
+dataset: Novamag
+evaluation_mode: ood
+
+train_dataset_path: data/novamag-magnetism.csv
+test_dataset_path: data/novamag-magnetism.csv   # same file is OK now
+
+models:
+  - rf
+  - xgb
+
+enable_data_visualization: false
+enable_hyperparameter_tuning: false
+enable_ablation_study: false
+
+cv_folds: 10
+cv_shuffle: true
+cv_random_state: 0
+
+# OOD settings
+target_column: saturation magnetization
+formula_column: chemical formula
+
+ood_mode: all
+ood_max_splits: 10
+ood_k: 10
+ood_seed: 0
