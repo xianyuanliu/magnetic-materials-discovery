@@ -3,7 +3,7 @@ OOD evaluation orchestration.
 
 Design goals:
 
-- deterministic given seed
+- uses a configurable random seed for OOD split generation
 
 - reads train/test CSVs (fixed split) and runs extra OOD stress tests on FULL data
 """
@@ -31,6 +31,8 @@ from ood_splits import (
     build_period_splits,
     build_group_splits,
     build_kmeans_cluster_splits,
+    build_sparsex_splits,
+    build_sparsey_splits,
 )
 
 # These should already exist from your PR5 utilities commit
@@ -57,6 +59,10 @@ class OODConfig:
     ood_seed: int = 0
     ood_max_splits: int = 10
     ood_targets: Optional[Sequence[Any]] = None  # list of elements OR periods OR groups (depending on mode)
+    ood_fractions: Sequence[float] = (0.1, 0.2)
+    sparsex_neighbors: int = 5
+    sparsey_center: str = "median"
+    cv_seeds: Optional[Sequence[int]] = None
 
     # strict settings for period/group (optional)
     period_strict: bool = False
@@ -136,6 +142,10 @@ def _load_ood_cfg(cfg: dict, default_seed: int) -> OODConfig:
         ood_seed=int(cfg.get("ood_seed", default_seed)),
         ood_max_splits=int(cfg.get("ood_max_splits", 10)),
         ood_targets=cfg.get("ood_targets"),
+        ood_fractions=tuple(cfg.get("ood_fractions", [0.1, 0.2])),
+        sparsex_neighbors=int(cfg.get("sparsex_neighbors", 5)),
+        sparsey_center=str(cfg.get("sparsey_center", "median")),
+        cv_seeds=cfg.get("cv_seeds"),
         period_strict=bool(cfg.get("ood_period_strict", False)),
         group_strict=bool(cfg.get("ood_group_strict", False)),
         output_dir=str(cfg.get("ood_output_dir", "./results/ood")),
@@ -211,17 +221,25 @@ def run_ood_evaluation(
 
     # ---------- Decide what to run ----------
     mode = ood_cfg.ood_mode
+    supported_modes = {"element", "period", "group", "cluster", "cluster10", "sparsex", "sparsey", "all"}
+    if mode not in supported_modes:
+        raise ValueError(
+            f"Invalid ood_mode '{mode}'. Supported values are: {sorted(supported_modes)}"
+        )
+
     run_element = mode in {"element", "all"}
     run_period = mode in {"period", "all"}
     run_group = mode in {"group", "all"}
     run_cluster = mode in {"cluster", "cluster10", "all"}
+    run_sparsex = mode in {"sparsex", "all"}
+    run_sparsey = mode in {"sparsey", "all"}
 
     # ---------- Collect tables ----------
     all_t1: List[pd.DataFrame] = []
     all_t2: List[pd.DataFrame] = []
     all_t3: List[pd.DataFrame] = []
 
-    seed = int(ood_cfg.ood_seed)
+    seeds = list(ood_cfg.cv_seeds) if ood_cfg.cv_seeds is not None else [int(ood_cfg.ood_seed)]
     max_splits = int(ood_cfg.ood_max_splits)
 
     # If user supplies ood_targets, we use it for whichever mode is active.
@@ -237,21 +255,24 @@ def run_ood_evaluation(
 
         splits: List[Split] = build_loeo_splits(elements_per_row, targets)[:max_splits]
 
-        t1, t2, t3 = evaluate_splits_kfold_train_fixed_test(
-            X_full,
-            y_full,
-            splits,
-            models,
-            model_registry,
-            scenario="LOEO",
-            seed=seed,
-            cv_folds=cv_folds,
-            shuffle=cv_shuffle,
-            hyperparameter_tuning=hyperparameter_tuning,
-            rf_name=rf_name,
-            xgb_name=xgb_name,
-        )
-        all_t1.append(t1); all_t2.append(t2); all_t3.append(t3)
+        for seed in seeds:
+            t1, t2, t3 = evaluate_splits_kfold_train_fixed_test(
+                X_full,
+                y_full,
+                splits,
+                models,
+                model_registry,
+                scenario="LOEO",
+                seed=int(seed),
+                cv_folds=cv_folds,
+                shuffle=cv_shuffle,
+                hyperparameter_tuning=hyperparameter_tuning,
+                rf_name=rf_name,
+                xgb_name=xgb_name,
+            )
+            all_t1.append(t1)
+            all_t2.append(t2)
+            all_t3.append(t3)
 
     # ---------- LOPO ----------
     if run_period:
@@ -267,21 +288,24 @@ def run_ood_evaluation(
             strict=bool(ood_cfg.period_strict),
         )[:max_splits]
 
-        t1, t2, t3 = evaluate_splits_kfold_train_fixed_test(
-            X_full,
-            y_full,
-            splits,
-            models,
-            model_registry,
-            scenario="LOPO",
-            seed=seed,
-            cv_folds=cv_folds,
-            shuffle=cv_shuffle,
-            hyperparameter_tuning=hyperparameter_tuning,
-            rf_name=rf_name,
-            xgb_name=xgb_name,
-        )
-        all_t1.append(t1); all_t2.append(t2); all_t3.append(t3)
+        for seed in seeds:
+            t1, t2, t3 = evaluate_splits_kfold_train_fixed_test(
+                X_full,
+                y_full,
+                splits,
+                models,
+                model_registry,
+                scenario="LOPO",
+                seed=int(seed),
+                cv_folds=cv_folds,
+                shuffle=cv_shuffle,
+                hyperparameter_tuning=hyperparameter_tuning,
+                rf_name=rf_name,
+                xgb_name=xgb_name,
+            )
+            all_t1.append(t1)
+            all_t2.append(t2)
+            all_t3.append(t3)
 
     # ---------- LOGO ----------
     if run_group:
@@ -297,42 +321,106 @@ def run_ood_evaluation(
             strict=bool(ood_cfg.group_strict),
         )[:max_splits]
 
-        t1, t2, t3 = evaluate_splits_kfold_train_fixed_test(
-            X_full,
-            y_full,
-            splits,
-            models,
-            model_registry,
-            scenario="LOGO",
-            seed=seed,
-            cv_folds=cv_folds,
-            shuffle=cv_shuffle,
-            hyperparameter_tuning=hyperparameter_tuning,
-            rf_name=rf_name,
-            xgb_name=xgb_name,
-        )
-        all_t1.append(t1); all_t2.append(t2); all_t3.append(t3)
+        for seed in seeds:
+            t1, t2, t3 = evaluate_splits_kfold_train_fixed_test(
+                X_full,
+                y_full,
+                splits,
+                models,
+                model_registry,
+                scenario="LOGO",
+                seed=int(seed),
+                cv_folds=cv_folds,
+                shuffle=cv_shuffle,
+                hyperparameter_tuning=hyperparameter_tuning,
+                rf_name=rf_name,
+                xgb_name=xgb_name,
+            )
+            all_t1.append(t1)
+            all_t2.append(t2)
+            all_t3.append(t3)
 
     # ---------- LOCO-k ----------
     if run_cluster:
         k = int(ood_cfg.ood_k)
-        splits = build_kmeans_cluster_splits(X_full, k=k, seed=seed)[:max_splits]
-
-        t1, t2, t3 = evaluate_splits_kfold_train_fixed_test(
+        splits = build_kmeans_cluster_splits(
             X_full,
+            k=k,
+            seed=int(ood_cfg.ood_seed),
+        )[:max_splits]
+
+        for seed in seeds:
+            t1, t2, t3 = evaluate_splits_kfold_train_fixed_test(
+                X_full,
+                y_full,
+                splits,
+                models,
+                model_registry,
+                scenario=f"LOCO(k={k})",
+                seed=int(seed),
+                cv_folds=cv_folds,
+                shuffle=cv_shuffle,
+                hyperparameter_tuning=hyperparameter_tuning,
+                rf_name=rf_name,
+                xgb_name=xgb_name,
+            )
+            all_t1.append(t1)
+            all_t2.append(t2)
+            all_t3.append(t3)
+
+    # ---------- SparseX ----------
+    if run_sparsex:
+        splits = build_sparsex_splits(
+            X_full,
+            fractions=ood_cfg.ood_fractions,
+            n_neighbors=ood_cfg.sparsex_neighbors,
+        )[:max_splits]
+
+        for seed in seeds:
+            t1, t2, t3 = evaluate_splits_kfold_train_fixed_test(
+                X_full,
+                y_full,
+                splits,
+                models,
+                model_registry,
+                scenario="SparseX",
+                seed=int(seed),
+                cv_folds=cv_folds,
+                shuffle=cv_shuffle,
+                hyperparameter_tuning=hyperparameter_tuning,
+                rf_name=rf_name,
+                xgb_name=xgb_name,
+            )
+            all_t1.append(t1)
+            all_t2.append(t2)
+            all_t3.append(t3)
+
+    # ---------- SparseY ----------
+    if run_sparsey:
+        splits = build_sparsey_splits(
             y_full,
-            splits,
-            models,
-            model_registry,
-            scenario=f"LOCO(k={k})",
-            seed=seed,
-            cv_folds=cv_folds,
-            shuffle=cv_shuffle,
-            hyperparameter_tuning=hyperparameter_tuning,
-            rf_name=rf_name,
-            xgb_name=xgb_name,
-        )
-        all_t1.append(t1); all_t2.append(t2); all_t3.append(t3)
+            fractions=ood_cfg.ood_fractions,
+            center=ood_cfg.sparsey_center,
+        )[:max_splits]
+
+        for seed in seeds:
+            t1, t2, t3 = evaluate_splits_kfold_train_fixed_test(
+                X_full,
+                y_full,
+                splits,
+                models,
+                model_registry,
+                scenario="SparseY",
+                seed=int(seed),
+                cv_folds=cv_folds,
+                shuffle=cv_shuffle,
+                hyperparameter_tuning=hyperparameter_tuning,
+                rf_name=rf_name,
+                xgb_name=xgb_name,
+            )
+            all_t1.append(t1)
+            all_t2.append(t2)
+            all_t3.append(t3)
 
     # ---------- Finalize / print ----------
     table1 = pd.concat(all_t1, ignore_index=True) if all_t1 else pd.DataFrame()

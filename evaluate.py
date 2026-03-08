@@ -223,6 +223,13 @@ def evaluate_splits_kfold_train_fixed_test(
         X_test = X.iloc[test_idx]
         y_test = y.iloc[test_idx]
 
+        if len(train_idx) < cv_folds:
+            print(
+                f"[WARN] Skipping split {split_id} in {scenario}: "
+                f"n_train={len(train_idx)} < cv_folds={cv_folds}"
+            )
+            continue
+
         kf = KFold(
             n_splits=cv_folds,
             shuffle=shuffle,
@@ -280,10 +287,23 @@ def evaluate_splits_kfold_train_fixed_test(
                     split_id=split_id,
                     seed=seed,
                     model=model_name,
-                    MSE=format_mean_std(np.mean(scores["mse"]), np.std(scores["mse"], ddof=1)),
-                    MAE=format_mean_std(np.mean(scores["mae"]), np.std(scores["mae"], ddof=1)),
-                    MRE=format_mean_std(np.mean(scores["mre"]), np.std(scores["mre"], ddof=1), 6),
-                    R2=format_mean_std(np.mean(scores["r2"]), np.std(scores["r2"], ddof=1)),
+                    MSE=format_mean_std(
+                        np.mean(scores["mse"]),
+                        np.std(scores["mse"], ddof=1) if len(scores["mse"]) > 1 else 0.0,
+                    ),
+                    MAE=format_mean_std(
+                        np.mean(scores["mae"]),
+                        np.std(scores["mae"], ddof=1) if len(scores["mae"]) > 1 else 0.0,
+                    ),
+                    MRE=format_mean_std(
+                        np.mean(scores["mre"]),
+                        np.std(scores["mre"], ddof=1) if len(scores["mre"]) > 1 else 0.0,
+                        6,
+                    ),
+                    R2=format_mean_std(
+                        np.mean(scores["r2"]),
+                        np.std(scores["r2"], ddof=1) if len(scores["r2"]) > 1 else 0.0,
+                    ),
                     n_test=len(test_idx),
                 )
             )
@@ -345,10 +365,10 @@ def summarize_runs_across_splits(metrics_df: pd.DataFrame) -> pd.DataFrame:
             dict(
                 scenario=scenario,
                 model=model,
-                MSE=format_mean_std(np.mean(mse), np.std(mse, ddof=1)),
-                MAE=format_mean_std(np.mean(mae), np.std(mae, ddof=1)),
-                MRE=format_mean_std(np.mean(mre), np.std(mre, ddof=1), 6),
-                R2=format_mean_std(np.mean(r2), np.std(r2, ddof=1)),
+                MSE=format_mean_std(np.mean(mse), np.std(mse, ddof=1) if len(mse) > 1 else 0.0),
+                MAE=format_mean_std(np.mean(mae), np.std(mae, ddof=1) if len(mae) > 1 else 0.0),
+                MRE=format_mean_std(np.mean(mre), np.std(mre, ddof=1) if len(mre) > 1 else 0.0, 6),
+                R2=format_mean_std(np.mean(r2), np.std(r2, ddof=1) if len(r2) > 1 else 0.0),
                 n_splits=len(g),
             )
         )
