@@ -13,14 +13,14 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+from scipy import stats
 import shap
 
 from sklearn.model_selection import KFold
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.inspection import permutation_importance
-from scipy import stats
-import alloys as al
 
+import alloys as al
 
 def mean_relative_error(y_true: np.ndarray, y_pred: np.ndarray, eps: float = 1e-8) -> float:
     y_true = np.asarray(y_true, dtype=float)
@@ -94,6 +94,7 @@ def cross_validate_models(
             mae = mean_absolute_error(y_valid, y_pred)
             mre = mean_relative_error(y_valid.to_numpy(), np.asarray(y_pred))
             r2 = r2_score(y_valid, y_pred)
+            
 
             name = model_cfg["name"]
             results[name]["mse"].append(mse)
@@ -161,12 +162,16 @@ def compare_models_significance(
     model_b: str,
     metric: str = "mse",
 ):
+    
     """
-    Significance tests comparing two models using per-fold scores.
+    Significance tests comparing two models using per-fold CV scores.
 
     - Paired t-test: stats.ttest_rel
-    - Wilcoxon signed-rank: stats.wilcoxon
+    - Wilcoxon signed-rank: stats.wilcoxon (non-parametric)
+
+    NOTE: Uses per-fold scores as paired samples.
     """
+
     if model_a not in results or model_b not in results:
         raise ValueError(f"Model names not found in results: {model_a}, {model_b}")
 
@@ -176,15 +181,23 @@ def compare_models_significance(
     if len(a) != len(b):
         raise ValueError(f"Fold count mismatch: {model_a} has {len(a)}, {model_b} has {len(b)}")
 
-    diff = a - b
+    diff = a - b  # positive means A worse than B for MSE/MAE (lower is better)
 
+    # Paired t-test
     t_stat, t_p = stats.ttest_rel(a, b, nan_policy="omit")
 
+    # Wilcoxon signed-rank (requires non-zero diffs)
     nonzero = diff[diff != 0]
     if len(nonzero) < 1:
         w_stat, w_p = np.nan, np.nan
     else:
+        # Two-sided by default
         w_stat, w_p = stats.wilcoxon(a, b, zero_method="wilcox")
+
+    print(f"\nSignificance tests (paired) on CV folds — metric={metric}")
+    print(f"  Comparing: {model_a} vs {model_b}")
+    print(f"  Paired t-test:     t={t_stat:.4f}, p={t_p:.6g}")
+    print(f"  Wilcoxon signed-rank: W={w_stat}, p={w_p:.6g}")
 
     return float(t_stat), float(t_p), float(w_stat), float(w_p)
 

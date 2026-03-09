@@ -5,6 +5,7 @@ import yaml
 from pathlib import Path
 from ood import run_ood_evaluation
 
+
 from data import (
     load_features_and_target,
     load_raw_data,
@@ -127,6 +128,7 @@ def main():
             if rf_name is not None and xgb_name is not None:
                 print("\n--- RF vs XGB significance (paired across folds) ---")
 
+
                 mse_t_stat, mse_t_p, mse_w_stat, mse_w_p = compare_models_significance(
                     cv_results, rf_name, xgb_name, metric="mse"
                 )
@@ -161,6 +163,7 @@ def main():
         X, y, feature_columns = load_features_and_target(dataset_path)
         X_train, X_valid, y_train, y_valid = split_dataset(X, y, train_size=0.8)
 
+
         # 2) Train models (optionally tuned)
         for key in models:
             if key not in MODEL_REGISTRY:
@@ -176,6 +179,7 @@ def main():
             trained_models[key] = model
             best_params[key] = params
             preds[model_cfg["name"]] = model.predict(X_valid)
+
 
         # 3) Report validation metrics
         print_holdout_results(y_valid, preds)

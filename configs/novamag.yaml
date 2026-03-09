@@ -12,7 +12,7 @@ models:
   - mlp
 
 enable_data_visualization: true
-enable_hyperparameter_tuning: true
+
 enable_ablation_study: true
 
 # evaluation_mode: holdout # or cross_validation or ood
@@ -23,3 +23,5 @@ evaluation_mode: cross_validation
 cv_folds: 10
 cv_shuffle: true
 cv_random_state: 0
+cv_seeds: [0, 5, 10, 15, 20]
+enable_hyperparameter_tuning: false

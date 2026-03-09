@@ -7,3 +7,7 @@ __pycache__/
 
 # Local experiment outputs (do not commit)
 results/
+
+# results
+*.csv
+plots/
