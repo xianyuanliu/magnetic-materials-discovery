@@ -2,14 +2,16 @@
 
 import argparse
 import yaml
+from pathlib import Path
+from ood import run_ood_evaluation
 
 
 from data import (
     load_features_and_target,
     load_raw_data,
     split_dataset,
-    load_train_test_features_and_target,
 )
+
 from preprocess_data import load_elemental_data
 
 from train import MODEL_REGISTRY
@@ -47,7 +49,7 @@ def main():
 
     args = parse_args()
     cfg = load_config(args.config)
-
+    Path(plots_save_dir).mkdir(parents=True, exist_ok=True)
     dataset_name = cfg["dataset"].lower()
     dataset_path = cfg.get("dataset_path")
     train_dataset_path = cfg.get("train_dataset_path")
@@ -72,9 +74,9 @@ def main():
     if not need_ood and not dataset_path:
         raise ValueError("dataset_path is required for holdout or cross_validation modes.")
     
-    if dataset_name.lower() == "novamag":
+    if dataset_name == "novamag":
         prefix = "novamag"
-    elif dataset_name.lower() == "mp":
+    elif dataset_name == "mp":
         prefix = "mp"
     else:
         raise ValueError("Invalid dataset name. Choose either 'Novamag' or 'Materials Project'.")
@@ -125,18 +127,42 @@ def main():
             # p-values for RF vs XGB using paired tests across folds
             if rf_name is not None and xgb_name is not None:
                 print("\n--- RF vs XGB significance (paired across folds) ---")
-                compare_models_significance(cv_results, rf_name, xgb_name, metric="mse")
-                compare_models_significance(cv_results, rf_name, xgb_name, metric="mae")
+
+
+                mse_t_stat, mse_t_p, mse_w_stat, mse_w_p = compare_models_significance(
+                    cv_results, rf_name, xgb_name, metric="mse"
+                )
+                print(
+                    f"MSE: t-test p={mse_t_p:.6g}, Wilcoxon p={mse_w_p:.6g} "
+                    f"(t_stat={mse_t_stat:.4f}, w_stat={mse_w_stat:.4f})"
+                )
+
+                mae_t_stat, mae_t_p, mae_w_stat, mae_w_p = compare_models_significance(
+                    cv_results, rf_name, xgb_name, metric="mae"
+                )
+                print(
+                    f"MAE: t-test p={mae_t_p:.6g}, Wilcoxon p={mae_w_p:.6g} "
+                    f"(t_stat={mae_t_stat:.4f}, w_stat={mae_w_stat:.4f})"
+                )
+
+    elif need_ood:
+        run_ood_evaluation(
+            cfg=cfg,
+            train_dataset_path=train_dataset_path,
+            test_dataset_path=test_dataset_path,
+            pt_path=pt_path,
+            models=models,
+            model_registry=MODEL_REGISTRY,
+            cv_folds=cv_folds,
+            cv_shuffle=cv_shuffle,
+            hyperparameter_tuning=hyperparameter_tuning,
+            cv_random_state=cv_random_state,
+        )
 
     else:
-        if need_ood:
-            X_train, y_train, X_valid, y_valid, feature_columns = load_train_test_features_and_target(
-                train_dataset_path,
-                test_dataset_path,
-            )
-        else:
-            X, y, feature_columns = load_features_and_target(dataset_path)
-            X_train, X_valid, y_train, y_valid = split_dataset(X, y, train_size=0.8)
+        X, y, feature_columns = load_features_and_target(dataset_path)
+        X_train, X_valid, y_train, y_valid = split_dataset(X, y, train_size=0.8)
+
 
         # 2) Train models (optionally tuned)
         for key in models:
@@ -157,8 +183,7 @@ def main():
 
         # 3) Report validation metrics
         print_holdout_results(y_valid, preds)
-
-
+   
 
     # 4) Data visualization
     pt, mm = load_elemental_data(pt_path, mm_path)
@@ -169,7 +194,7 @@ def main():
         summarize_compound_radix(X_raw, pt)
 
     # 5) Model interpretability and ablation analyses
-    if ablation_study and not need_cross_validation:
+    if ablation_study and (not need_cross_validation) and (not need_ood):
 
         # Permutation feature importance evaluated on the validation set (Random Forest)
         if "rf" in trained_models:

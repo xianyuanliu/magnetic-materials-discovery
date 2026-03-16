@@ -27,6 +27,24 @@ def mean_relative_error(y_true: np.ndarray, y_pred: np.ndarray, eps: float = 1e-
     y_pred = np.asarray(y_pred, dtype=float)
     return float(np.mean(np.abs(y_true - y_pred) / (np.abs(y_true) + eps)))
 
+
+def format_mean_std(mean: float, std: float, decimals: int = 4) -> str:
+    if mean is None or std is None or np.isnan(mean) or np.isnan(std):
+        return "nan"
+    return f"{mean:.{decimals}f} ± {std:.{decimals}f}"
+
+
+def _compute_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
+    y_true = np.asarray(y_true, dtype=float)
+    y_pred = np.asarray(y_pred, dtype=float)
+
+    return {
+        "mse": float(mean_squared_error(y_true, y_pred)),
+        "mae": float(mean_absolute_error(y_true, y_pred)),
+        "mre": float(mean_relative_error(y_true, y_pred)),
+        "r2": float(r2_score(y_true, y_pred)),
+    }
+
 def cross_validate_models(
     X: pd.DataFrame,
     y: pd.Series,
@@ -74,8 +92,9 @@ def cross_validate_models(
 
             mse = mean_squared_error(y_valid, y_pred)
             mae = mean_absolute_error(y_valid, y_pred)
+            mre = mean_relative_error(y_valid.to_numpy(), np.asarray(y_pred))
             r2 = r2_score(y_valid, y_pred)
-            mre = mean_relative_error(y_valid.to_numpy(), np.asarray(y_pred), eps=1e-8)
+            
 
             name = model_cfg["name"]
             results[name]["mse"].append(mse)
@@ -110,10 +129,12 @@ def print_holdout_results(y_true, predictions: Dict[str, np.ndarray]):
     for name, y_pred in predictions.items():
         mse = mean_squared_error(y_true, y_pred)
         mae = mean_absolute_error(y_true, y_pred)
+        mre = mean_relative_error(y_true, y_pred)
         r2 = r2_score(y_true, y_pred)
         print(f"\n{name}:")
         print(f"  MSE: {mse:.4f}")
         print(f"  MAE: {mae:.4f}")
+        print(f"  MRE: {mre:.6f}")
         print(f"  R2:  {r2:.4f}")
 
 def print_cv_results(results: Dict[str, Dict[str, List[float]]]):
@@ -141,6 +162,7 @@ def compare_models_significance(
     model_b: str,
     metric: str = "mse",
 ):
+    
     """
     Significance tests comparing two models using per-fold CV scores.
 
@@ -149,6 +171,7 @@ def compare_models_significance(
 
     NOTE: Uses per-fold scores as paired samples.
     """
+
     if model_a not in results or model_b not in results:
         raise ValueError(f"Model names not found in results: {model_a}, {model_b}")
 
@@ -177,6 +200,208 @@ def compare_models_significance(
     print(f"  Wilcoxon signed-rank: W={w_stat}, p={w_p:.6g}")
 
     return float(t_stat), float(t_p), float(w_stat), float(w_p)
+
+# ====== OOD Evaluation ======
+
+def evaluate_splits_kfold_train_fixed_test(
+    X: pd.DataFrame,
+    y: pd.Series,
+    splits,
+    model_keys,
+    model_registry,
+    *,
+    scenario: str,
+    seed: int,
+    cv_folds: int,
+    shuffle: bool,
+    hyperparameter_tuning: bool,
+    rf_name: str | None,
+    xgb_name: str | None,
+):
+    """
+    KFold on TRAIN, evaluate on fixed OOD TEST.
+    """
+
+    summary_rows = []
+    metrics_rows = []
+    signif_rows = []
+
+    kf_seed = int(seed)
+
+    for split_id, train_idx, test_idx in splits:
+
+        X_train_full = X.iloc[train_idx]
+        y_train_full = y.iloc[train_idx]
+
+        X_test = X.iloc[test_idx]
+        y_test = y.iloc[test_idx]
+
+        if len(train_idx) < cv_folds:
+            print(
+                f"[WARN] Skipping split {split_id} in {scenario}: "
+                f"n_train={len(train_idx)} < cv_folds={cv_folds}"
+            )
+            continue
+
+        kf = KFold(
+            n_splits=cv_folds,
+            shuffle=shuffle,
+            random_state=kf_seed if shuffle else None,
+        )
+
+        per_fold = {}
+
+        for key in model_keys:
+            name = model_registry[key]["name"]
+            per_fold[name] = {"mse": [], "mae": [], "mre": [], "r2": []}
+
+        for train_sub_idx, _ in kf.split(X_train_full):
+
+            X_tr = X_train_full.iloc[train_sub_idx]
+            y_tr = y_train_full.iloc[train_sub_idx]
+
+            for key in model_keys:
+
+                model_cfg = model_registry[key]
+
+                params = None
+                if hyperparameter_tuning and model_cfg["tune"] is not None:
+                    params = model_cfg["tune"](X_tr, y_tr)
+
+                model = model_cfg["train"](X_tr, y_tr, params=params)
+
+                y_pred = model.predict(X_test)
+
+                metrics = _compute_metrics(y_test, y_pred)
+
+                name = model_cfg["name"]
+
+                for m in metrics:
+                    per_fold[name][m].append(metrics[m])
+
+        # Table 1
+        summary_rows.append(
+            dict(
+                scenario=scenario,
+                split_id=split_id,
+                heldout_target=split_id.split("=")[-1],
+                n_train=len(train_idx),
+                n_test=len(test_idx),
+                seed=seed,
+            )
+        )
+
+        # Table 2
+        for model_name, scores in per_fold.items():
+
+            metrics_rows.append(
+                dict(
+                    scenario=scenario,
+                    split_id=split_id,
+                    seed=seed,
+                    model=model_name,
+                    MSE=format_mean_std(
+                        np.mean(scores["mse"]),
+                        np.std(scores["mse"], ddof=1) if len(scores["mse"]) > 1 else 0.0,
+                    ),
+                    MAE=format_mean_std(
+                        np.mean(scores["mae"]),
+                        np.std(scores["mae"], ddof=1) if len(scores["mae"]) > 1 else 0.0,
+                    ),
+                    MRE=format_mean_std(
+                        np.mean(scores["mre"]),
+                        np.std(scores["mre"], ddof=1) if len(scores["mre"]) > 1 else 0.0,
+                        6,
+                    ),
+                    R2=format_mean_std(
+                        np.mean(scores["r2"]),
+                        np.std(scores["r2"], ddof=1) if len(scores["r2"]) > 1 else 0.0,
+                    ),
+                    n_test=len(test_idx),
+                )
+            )
+
+        # Table 3 — RF vs XGB
+        if rf_name and xgb_name and rf_name in per_fold and xgb_name in per_fold:
+
+            cv_like = {
+                rf_name: per_fold[rf_name],
+                xgb_name: per_fold[xgb_name],
+            }
+
+            for metric in ["mse", "mae"]:
+
+                _, t_p, _, w_p = compare_models_significance(
+                    cv_like,
+                    rf_name,
+                    xgb_name,
+                    metric=metric,
+                )
+
+                signif_rows.append(
+                    dict(
+                        scenario=scenario,
+                        split_id=split_id,
+                        seed=seed,
+                        metric=metric.upper(),
+                        t_pvalue=t_p,
+                        wilcoxon_pvalue=w_p,
+                        significant=(t_p < 0.05) or (w_p < 0.05),
+                    )
+                )
+
+    return (
+        pd.DataFrame(summary_rows),
+        pd.DataFrame(metrics_rows),
+        pd.DataFrame(signif_rows),
+    )
+
+
+def summarize_runs_across_splits(metrics_df: pd.DataFrame) -> pd.DataFrame:
+
+    rows = []
+
+    if metrics_df.empty:
+        return pd.DataFrame(rows)
+
+    def parse_mean(x):
+        return float(str(x).split("±")[0])
+
+    for (scenario, model), g in metrics_df.groupby(["scenario", "model"]):
+
+        mse = g["MSE"].map(parse_mean).to_numpy()
+        mae = g["MAE"].map(parse_mean).to_numpy()
+        mre = g["MRE"].map(parse_mean).to_numpy()
+        r2 = g["R2"].map(parse_mean).to_numpy()
+
+        rows.append(
+            dict(
+                scenario=scenario,
+                model=model,
+                MSE=format_mean_std(np.mean(mse), np.std(mse, ddof=1) if len(mse) > 1 else 0.0),
+                MAE=format_mean_std(np.mean(mae), np.std(mae, ddof=1) if len(mae) > 1 else 0.0),
+                MRE=format_mean_std(np.mean(mre), np.std(mre, ddof=1) if len(mre) > 1 else 0.0, 6),
+                R2=format_mean_std(np.mean(r2), np.std(r2, ddof=1) if len(r2) > 1 else 0.0),
+                n_splits=len(g),
+            )
+        )
+
+    return pd.DataFrame(rows)
+
+
+def print_ood_tables(table1, table2, table3, table4):
+
+    print("\nTable 1: Scenario summary")
+    print(table1.to_string(index=False))
+
+    print("\nTable 2: Metrics by model")
+    print(table2.to_string(index=False))
+
+    print("\nTable 3: RF vs XGB significance")
+    print(table3.to_string(index=False))
+
+    print("\nTable 4: Combined comparison")
+    print(table4.to_string(index=False))
 
 # ====== Permutation Feature Importance & SHAP ======
 

@@ -5,7 +5,9 @@ __pycache__/
 .vscode/
 .idea/
 
-# results
+# Local experiment outputs (do not commit)
 results/
+
+# results
 *.csv
 plots/
