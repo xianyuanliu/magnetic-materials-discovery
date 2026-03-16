@@ -221,7 +221,7 @@ def run_ood_evaluation(
 
     # ---------- Decide what to run ----------
     mode = ood_cfg.ood_mode
-    supported_modes = {"element", "period", "group", "cluster", "cluster10", "sparsex", "sparsey", "all"}
+    supported_modes = {"element", "period", "group", "cluster", "sparsex", "sparsey", "all"}
     if mode not in supported_modes:
         raise ValueError(
             f"Invalid ood_mode '{mode}'. Supported values are: {sorted(supported_modes)}"
@@ -230,7 +230,7 @@ def run_ood_evaluation(
     run_element = mode in {"element", "all"}
     run_period = mode in {"period", "all"}
     run_group = mode in {"group", "all"}
-    run_cluster = mode in {"cluster", "cluster10", "all"}
+    run_cluster = mode in {"cluster", "all"}
     run_sparsex = mode in {"sparsex", "all"}
     run_sparsey = mode in {"sparsey", "all"}
 
