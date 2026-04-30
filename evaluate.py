@@ -85,7 +85,7 @@ def cross_validate_models(
             model_cfg = model_registry[key]
             params = None
             if hyperparameter_tuning and model_cfg["tune"] is not None:
-                params = model_cfg["tune"](X_train, y_train)
+                params = model_cfg["tune"](X_train, y_train, cv_folds=cv_folds)
 
             model = model_cfg["train"](X_train, y_train, params=params)
             y_pred = model.predict(X_valid)
@@ -266,7 +266,7 @@ def evaluate_splits_kfold_train_fixed_test(
 
                 params = None
                 if hyperparameter_tuning and model_cfg["tune"] is not None:
-                    params = model_cfg["tune"](X_tr, y_tr)
+                    params = model_cfg["tune"](X_tr, y_tr, cv_folds=cv_folds)
 
                 model = model_cfg["train"](X_tr, y_tr, params=params)
 
