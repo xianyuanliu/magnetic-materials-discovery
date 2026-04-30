@@ -1,6 +1,9 @@
 dataset: Novamag
 evaluation_mode: ood
 
+pt_path: data/Periodic-table/periodic_table.xlsx
+mm_path: data/Miedema-model/Miedema-model-reduced.xlsx
+
 train_dataset_path: data/novamag-magnetism.csv
 test_dataset_path: data/novamag-magnetism.csv
 

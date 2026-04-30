@@ -1,6 +1,9 @@
 dataset: MP
 dataset_path: data/mp-magnetism.csv
 
+pt_path: data/Periodic-table/periodic_table.xlsx
+mm_path: data/Miedema-model/Miedema-model-reduced.xlsx
+
 models:
   - linear
   - ridge
