@@ -2,6 +2,8 @@
 Build various machine learning regression models for predicting material properties.
 """
 
+from typing import Optional
+
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.svm import SVR
 from sklearn.neural_network import MLPRegressor
@@ -30,7 +32,7 @@ def build_elasticnet_model(alpha: float = 1.0, l1_ratio: float = 0.5, max_iter: 
 # 2) Tree-based Models
 def build_rf_model(
     n_estimators: int = 200,
-    max_depth: int | None = 15,
+    max_depth: Optional[int] = 15,
     min_samples_split: int = 2,
     min_samples_leaf: int = 1,
 ) -> RandomForestRegressor:

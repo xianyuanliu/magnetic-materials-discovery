@@ -7,7 +7,7 @@ Evaluation and visualization:
 - Optional dataset distributions - Ms histograms and violin plots
 """
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -215,8 +215,8 @@ def evaluate_splits_kfold_train_fixed_test(
     cv_folds: int,
     shuffle: bool,
     hyperparameter_tuning: bool,
-    rf_name: str | None,
-    xgb_name: str | None,
+    rf_name: Optional[str],
+    xgb_name: Optional[str],
 ):
     """
     KFold on TRAIN, evaluate on fixed OOD TEST.
@@ -365,7 +365,7 @@ def summarize_runs_across_splits(metrics_df: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame(rows)
 
     def parse_mean(x):
-        return float(str(x).split("±")[0])
+        return float(str(x).split("±")[0].strip())
 
     for (scenario, model), g in metrics_df.groupby(["scenario", "model"]):
 
@@ -405,10 +405,17 @@ def print_ood_tables(table1, table2, table3, table4):
 
 # ====== Permutation Feature Importance & SHAP ======
 
-def plot_permutation_importance(model, X_valid, y_valid, title: str = "", save_path: str = None):
+def plot_permutation_importance(
+    model,
+    X_valid,
+    y_valid,
+    title: str = "",
+    save_path: str = None,
+    random_state: int = 0,
+):
     """Plot permutation importance for RFR / XGB / Ridge."""
     perm_import = permutation_importance(
-        model, X_valid, y_valid, n_repeats=10, random_state=0
+        model, X_valid, y_valid, n_repeats=10, random_state=random_state
     )
 
     sorted_idx = perm_import.importances_mean.argsort()
@@ -449,39 +456,38 @@ def plot_shap_summary(model, X_train, X_valid, save_path: str = None):
 
 # ====== Case studies: FeAl / FeCo / FeCr ======
 
+def _build_case_features(
+    formulas: List[str],
+    periodic_table,
+    miedema_weight,
+) -> pd.DataFrame:
+    """Build the full feature matrix for a list of chemical formulas.
+
+    Returns a DataFrame that includes the original "chemical formula" column
+    plus all nine engineered features used by the case-study models.
+    """
+    X = pd.DataFrame(formulas, columns=["chemical formula"])
+    stoich = al.get_stoich_array(X, periodic_table)
+    X["stoicentw"] = al.get_StoicEntw(stoich)
+    X["Zw"] = al.get_Zw(periodic_table, stoich)
+    X["compoundradix"] = al.get_CompoundRadix(X)
+    X["periodw"] = al.get_Periodw(periodic_table, stoich)
+    X["groupw"] = al.get_Groupw(periodic_table, stoich)
+    X["meltingTw"] = al.get_MeltingTw(periodic_table, stoich)
+    X["miedemaH"] = al.get_Miedemaw(miedema_weight, stoich)
+    X["valencew"] = al.get_Valencew(periodic_table, stoich)
+    X["electronegw"] = al.get_Electronegw(periodic_table, stoich)
+    return X, stoich
+
+
 def feal_case(X_cols: List[str], rf_model, xgb_model, ridge_model, periodic_table, miedema_weight):
     """Generate predictions and literature references for the FeAl case study (no plotting)."""
-    # Chemical formulas we want predictions for
-    X_FeAl = pd.DataFrame(
-        [
-            "Fe93Al2",
-            "Fe96Al4",
-            "Fe94Al6",
-            "Fe93Al7",
-            "Fe90Al10",
-            "Fe88Al12",
-            "Fe85Al15",
-            "Fe82Al18",
-            "Fe78Al22",
-            "Fe75Al25",
-            "Fe72Al28",
-            "Fe68Al32",
-            "Fe66Al34",
-        ],
-        columns=["chemical formula"],
-    )
-
-    stoich_array_FeAl = al.get_stoich_array(X_FeAl, periodic_table)
-
-    X_FeAl["stoicentw"] = al.get_StoicEntw(stoich_array_FeAl)
-    X_FeAl["Zw"] = al.get_Zw(periodic_table, stoich_array_FeAl)
-    X_FeAl["compoundradix"] = al.get_CompoundRadix(X_FeAl)
-    X_FeAl["periodw"] = al.get_Periodw(periodic_table, stoich_array_FeAl)
-    X_FeAl["groupw"] = al.get_Groupw(periodic_table, stoich_array_FeAl)
-    X_FeAl["meltingTw"] = al.get_MeltingTw(periodic_table, stoich_array_FeAl)
-    X_FeAl["miedemaH"] = al.get_Miedemaw(miedema_weight, stoich_array_FeAl)
-    X_FeAl["valencew"] = al.get_Valencew(periodic_table, stoich_array_FeAl)
-    X_FeAl["electronegw"] = al.get_Electronegw(periodic_table, stoich_array_FeAl)
+    formulas = [
+        "Fe98Al2", "Fe96Al4", "Fe94Al6", "Fe93Al7", "Fe90Al10",
+        "Fe88Al12", "Fe85Al15", "Fe82Al18", "Fe78Al22", "Fe75Al25",
+        "Fe72Al28", "Fe68Al32", "Fe66Al34",
+    ]
+    X_FeAl, stoich_array_FeAl = _build_case_features(formulas, periodic_table, miedema_weight)
 
     rfpreds_FeAl = rf_model.predict(X_FeAl[X_cols])
     xgbpreds_FeAl = xgb_model.predict(X_FeAl[X_cols])
@@ -490,36 +496,8 @@ def feal_case(X_cols: List[str], rf_model, xgb_model, ridge_model, periodic_tabl
     at_FeAl_fraction = al.get_AtomicFrac(stoich_array_FeAl)
 
     Exp_FeAl = pd.Series(
-        data=[
-            2.14,
-            2.12,
-            2.09,
-            2.05,
-            2.01,
-            1.98,
-            1.92,
-            1.86,
-            1.80,
-            1.75,
-            1.69,
-            1.65,
-            1.60,
-        ],
-        index=[
-            0.02,
-            0.038,
-            0.058,
-            0.074,
-            0.099,
-            0.124,
-            0.152,
-            0.183,
-            0.219,
-            0.251,
-            0.281,
-            0.315,
-            0.341,
-        ],
+        data=[2.14, 2.12, 2.09, 2.05, 2.01, 1.98, 1.92, 1.86, 1.80, 1.75, 1.69, 1.65, 1.60],
+        index=[0.02, 0.038, 0.058, 0.074, 0.099, 0.124, 0.152, 0.183, 0.219, 0.251, 0.281, 0.315, 0.341],
     )
 
     return at_FeAl_fraction, rfpreds_FeAl, xgbpreds_FeAl, ridgepreds_FeAl, Exp_FeAl
@@ -527,36 +505,13 @@ def feal_case(X_cols: List[str], rf_model, xgb_model, ridge_model, periodic_tabl
 
 def feco_case(X_cols, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight):
     """Generate predictions and literature references for the FeCo case study."""
-    X_FeCo = pd.DataFrame(
-        [
-            "Fe100Co0",
-            "Fe96Co4",
-            "Fe92Co8",
-            "Fe90Co10",
-            "Fe88Co12",
-            "Fe85Co15",
-            "Fe82Co18",
-            "Fe79Co21",
-            "Fe71Co29",
-            "Fe59Co41",
-            "Fe45Co55",
-            "Fe26Co74",
-            "Fe7Co93",
-        ],
-        columns=["chemical formula"],
-    )
+    formulas = [
+        "Fe100Co0", "Fe96Co4", "Fe92Co8", "Fe90Co10", "Fe88Co12",
+        "Fe85Co15", "Fe82Co18", "Fe79Co21", "Fe71Co29", "Fe59Co41",
+        "Fe45Co55", "Fe26Co74", "Fe7Co93",
+    ]
+    X_FeCo, stoich_array_FeCo = _build_case_features(formulas, periodic_table, miedema_weight)
 
-    stoich_array_FeCo = al.get_stoich_array(X_FeCo, periodic_table)
-
-    X_FeCo["stoicentw"] = al.get_StoicEntw(stoich_array_FeCo)
-    X_FeCo["Zw"] = al.get_Zw(periodic_table, stoich_array_FeCo)
-    X_FeCo["compoundradix"] = al.get_CompoundRadix(X_FeCo)
-    X_FeCo["periodw"] = al.get_Periodw(periodic_table, stoich_array_FeCo)
-    X_FeCo["groupw"] = al.get_Groupw(periodic_table, stoich_array_FeCo)
-    X_FeCo["meltingTw"] = al.get_MeltingTw(periodic_table, stoich_array_FeCo)
-    X_FeCo["miedemaH"] = al.get_Miedemaw(miedema_weight, stoich_array_FeCo)
-    X_FeCo["valencew"] = al.get_Valencew(periodic_table, stoich_array_FeCo)
-    X_FeCo["electronegw"] = al.get_Electronegw(periodic_table, stoich_array_FeCo)
     rfpreds_FeCo = rf_model.predict(X_FeCo[X_cols])
     xgbpreds_FeCo = xgb_model.predict(X_FeCo[X_cols])
     ridgepreds_FeCo = ridge_model.predict(X_FeCo[X_cols])
@@ -564,21 +519,7 @@ def feco_case(X_cols, rf_model, xgb_model, ridge_model, periodic_table, miedema_
     at_FeCo_fraction = al.get_AtomicFrac(stoich_array_FeCo)
 
     Exp_FeCo = pd.Series(
-        data=[
-            2.18,
-            2.21,
-            2.24,
-            2.26,
-            2.30,
-            2.33,
-            2.36,
-            2.39,
-            2.43,
-            2.44,
-            2.31,
-            2.09,
-            1.8,
-        ],
+        data=[2.18, 2.21, 2.24, 2.26, 2.30, 2.33, 2.36, 2.39, 2.43, 2.44, 2.31, 2.09, 1.8],
         index=[0.00, 0.04, 0.08, 0.10, 0.12, 0.15, 0.18, 0.21, 0.29, 0.41, 0.55, 0.74, 0.93],
     )
 
@@ -587,36 +528,12 @@ def feco_case(X_cols, rf_model, xgb_model, ridge_model, periodic_table, miedema_
 
 def fecr_case(X_cols, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight):
     """Generate predictions and literature references for the FeCr case study."""
-    X_FeCr = pd.DataFrame(
-        [
-            "Fe99Cr1",
-            "Fe98Cr2",
-            "Fe96Cr4",
-            "Fe95Cr5",
-            "Fe93Cr7",
-            "Fe92Cr8",
-            "Fe91Cr9",
-            "Fe90Cr10",
-            "Fe89Cr11",
-            "Fe87Cr13",
-            "Fe85Cr15",
-            "Fe83Cr17",
-            "Fe80Cr20",
-        ],
-        columns=["chemical formula"],
-    )
-
-    stoich_array_FeCr = al.get_stoich_array(X_FeCr, periodic_table)
-
-    X_FeCr["stoicentw"] = al.get_StoicEntw(stoich_array_FeCr)
-    X_FeCr["Zw"] = al.get_Zw(periodic_table, stoich_array_FeCr)
-    X_FeCr["compoundradix"] = al.get_CompoundRadix(X_FeCr)
-    X_FeCr["periodw"] = al.get_Periodw(periodic_table, stoich_array_FeCr)
-    X_FeCr["groupw"] = al.get_Groupw(periodic_table, stoich_array_FeCr)
-    X_FeCr["meltingTw"] = al.get_MeltingTw(periodic_table, stoich_array_FeCr)
-    X_FeCr["miedemaH"] = al.get_Miedemaw(miedema_weight, stoich_array_FeCr)
-    X_FeCr["valencew"] = al.get_Valencew(periodic_table, stoich_array_FeCr)
-    X_FeCr["electronegw"] = al.get_Electronegw(periodic_table, stoich_array_FeCr)
+    formulas = [
+        "Fe99Cr1", "Fe98Cr2", "Fe96Cr4", "Fe95Cr5", "Fe93Cr7",
+        "Fe92Cr8", "Fe91Cr9", "Fe90Cr10", "Fe89Cr11", "Fe87Cr13",
+        "Fe85Cr15", "Fe83Cr17", "Fe80Cr20",
+    ]
+    X_FeCr, stoich_array_FeCr = _build_case_features(formulas, periodic_table, miedema_weight)
 
     rfpreds_FeCr = rf_model.predict(X_FeCr[X_cols])
     xgbpreds_FeCr = xgb_model.predict(X_FeCr[X_cols])
@@ -624,8 +541,10 @@ def fecr_case(X_cols, rf_model, xgb_model, ridge_model, periodic_table, miedema_
 
     at_FeCr_fraction = al.get_AtomicFrac(stoich_array_FeCr)
 
-    Exp_FeCr = pd.Series(data=[2.14,2.09,2.05,2.00,1.96,1.92,1.89,1.86,1.83,1.78,1.73,1.66,1.60],
-                     index=[0.01,0.02,0.04,0.05,0.07,0.08,0.09,0.10,0.11,0.13,0.15,0.17,0.20])
+    Exp_FeCr = pd.Series(
+        data=[2.14, 2.09, 2.05, 2.00, 1.96, 1.92, 1.89, 1.86, 1.83, 1.78, 1.73, 1.66, 1.60],
+        index=[0.01, 0.02, 0.04, 0.05, 0.07, 0.08, 0.09, 0.10, 0.11, 0.13, 0.15, 0.17, 0.20],
+    )
 
     return at_FeCr_fraction, rfpreds_FeCr, xgbpreds_FeCr, ridgepreds_FeCr, Exp_FeCr
 
@@ -674,6 +593,12 @@ def plot_case_studies(
     ax1.set_title("FeAl Case Study", fontsize=16)
     ax1.set_xlabel("Al content [atomic fraction]", fontsize=16)
     ax1.set_ylabel("Saturation Magnetisation [T]", fontsize=16)
+    legend1 = ax1.legend(
+        ["random forest", "xgboost", "ridge regression", "literature"],
+        loc="upper right",
+        fontsize=12,
+    )
+    legend1.get_frame().set_facecolor("white")
 
     # FeCo
     sns.scatterplot(x=at_FeCo_fraction["Co"], y=rfpreds_FeCo, ax=ax2)
@@ -683,6 +608,12 @@ def plot_case_studies(
     ax2.set_title("FeCo Case Study", fontsize=16)
     ax2.set_xlabel("Co content [atomic fraction]", fontsize=16)
     ax2.set_ylabel("Saturation Magnetisation [T]", fontsize=16)
+    legend2 = ax2.legend(
+        ["random forest", "xgboost", "ridge regression", "literature"],
+        loc="upper right",
+        fontsize=12,
+    )
+    legend2.get_frame().set_facecolor("white")
 
     # FeCr
     sns.scatterplot(x=at_FeCr_fraction["Cr"], y=rfpreds_FeCr, ax=ax3)
