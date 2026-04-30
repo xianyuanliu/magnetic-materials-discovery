@@ -98,17 +98,6 @@ def import_miedema_weight(root_dir):
     mm = mm + mm_T
     return mm
 
-def get_K_mag(X):
-    # Extract the magnetocrystalline anisotropy constant K1
-    K = X["magnetocrystalline anisotropy constants"].copy()
-    for i in range(len(K)):
-        try:
-            # Turns out we have no non-zero K2 values, so the magnitude is just the K1 value.
-            X["magnetocrystalline anisotropy constants"].iloc[i] = K.iloc[i][0]
-        except:
-            TypeError  # to deal with 'nan' values which are vectors
-    return X
-
 
 def get_element_occurrence_novamag(x, pt, verbose=False):
     """Novamag: use 'chemical formula' column."""
