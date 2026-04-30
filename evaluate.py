@@ -115,9 +115,9 @@ def cross_validate_models(
         ties = cv_folds - wins_rf - wins_xgb
 
         print("\nFold-by-fold win count (metric=MSE): Random Forest vs XGBoost")
-        print(f"  RF wins:  {wins_rf}/{cv_folds}")
-        print(f"  XGB wins: {wins_xgb}/{cv_folds}")
-        print(f"  Ties:     {ties}/{cv_folds}")
+        print(f"RF wins:  {wins_rf}/{cv_folds}")
+        print(f"XGB wins: {wins_xgb}/{cv_folds}")
+        print(f"Ties:     {ties}/{cv_folds}")
 
     return results
 
@@ -132,10 +132,10 @@ def print_holdout_results(y_true, predictions: Dict[str, np.ndarray]):
         mre = mean_relative_error(y_true, y_pred)
         r2 = r2_score(y_true, y_pred)
         print(f"\n{name}:")
-        print(f"  MSE: {mse:.4f}")
-        print(f"  MAE: {mae:.4f}")
-        print(f"  MRE: {mre:.6f}")
-        print(f"  R2:  {r2:.4f}")
+        print(f"MSE: {mse:.4f}")
+        print(f"MAE: {mae:.4f}")
+        print(f"MRE: {mre:.6f}")
+        print(f"R2:  {r2:.4f}")
 
 def print_cv_results(results: Dict[str, Dict[str, List[float]]]):
     """Print mean ± std metrics for cross-validation results."""
@@ -151,10 +151,10 @@ def print_cv_results(results: Dict[str, Dict[str, List[float]]]):
         r2_std = np.std(scores["r2"], ddof=1)
 
         print(f"\n{name}:")
-        print(f"  MSE: {mse_mean:.4f} ± {mse_std:.4f}")
-        print(f"  MAE: {mae_mean:.4f} ± {mae_std:.4f}")
-        print(f"  MRE: {mre_mean:.6f} ± {mre_std:.6f}")
-        print(f"  R2:  {r2_mean:.4f} ± {r2_std:.4f}")
+        print(f"MSE: {mse_mean:.4f} ± {mse_std:.4f}")
+        print(f"MAE: {mae_mean:.4f} ± {mae_std:.4f}")
+        print(f"MRE: {mre_mean:.6f} ± {mre_std:.6f}")
+        print(f"R2:  {r2_mean:.4f} ± {r2_std:.4f}")
 
 def compare_models_significance(
     results: Dict[str, Dict[str, List[float]]],
