@@ -624,10 +624,8 @@ def fecr_case(X_cols, rf_model, xgb_model, ridge_model, periodic_table, miedema_
 
     at_FeCr_fraction = al.get_AtomicFrac(stoich_array_FeCr)
 
-    Exp_FeCr = pd.Series(
-        data=[2.14, 2.095, 2.00, 1.96, 1.92, 1.89, 1.86, 1.83, 1.78, 1.73, 1.66, 1.60],
-        index=[0.01, 0.02, 0.04, 0.05, 0.07, 0.08, 0.09, 0.10, 0.11, 0.13, 0.15, 0.17],
-    )
+    Exp_FeCr = pd.Series(data=[2.14,2.09,2.05,2.00,1.96,1.92,1.89,1.86,1.83,1.78,1.73,1.66,1.60],
+                     index=[0.01,0.02,0.04,0.05,0.07,0.08,0.09,0.10,0.11,0.13,0.15,0.17,0.20])
 
     return at_FeCr_fraction, rfpreds_FeCr, xgbpreds_FeCr, ridgepreds_FeCr, Exp_FeCr
 
