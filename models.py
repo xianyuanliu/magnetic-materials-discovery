@@ -35,6 +35,7 @@ def build_rf_model(
     max_depth: Optional[int] = 15,
     min_samples_split: int = 2,
     min_samples_leaf: int = 1,
+    random_state: int = 0,
 ) -> RandomForestRegressor:
     """Construct a Random Forest Regressor."""
     return RandomForestRegressor(
@@ -42,6 +43,7 @@ def build_rf_model(
         max_depth=max_depth,
         min_samples_split=min_samples_split,
         min_samples_leaf=min_samples_leaf,
+        random_state=random_state,
     )
 
 def build_xgb_model(
@@ -60,6 +62,7 @@ def build_xgb_model(
         min_child_weight=min_child_weight,
         subsample=subsample,
         colsample_bytree=colsample_bytree,
+        verbosity=0,
     )
 
 # 3) Kernel-based Models
