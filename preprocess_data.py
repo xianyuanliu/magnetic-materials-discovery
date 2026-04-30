@@ -6,8 +6,8 @@ import alloys
 # ====== Shared elemental data loader ======
 
 def load_elemental_data(
-    pt_path = "./data/Periodic-table/periodic_table.xlsx",
-    mm_path = "./data/Miedema-model/Miedema-model-reduced.xlsx",
+    pt_path: str = "./data/Periodic-table/periodic_table.xlsx",
+    mm_path: str = "./data/Miedema-model/Miedema-model-reduced.xlsx",
 ):
     """Load the periodic table and the Miedema model."""
     periodic_table = alloys.import_periodic_table(pt_path)
@@ -126,7 +126,12 @@ def load_mp_raw_data(csv_path):
 
 # ====== Shared alloy feature builder ======
 
-def build_features(raw_data: pd.DataFrame, pt: pd.DataFrame, mm: pd.DataFrame):
+def build_features(
+    raw_data: pd.DataFrame,
+    pt: pd.DataFrame,
+    mm: pd.DataFrame,
+    min_saturation_magnetization: float = 0.18,
+):
     """
     Engineer alloy features shared across Novamag and Materials Project data.
     """
@@ -161,14 +166,13 @@ def build_features(raw_data: pd.DataFrame, pt: pd.DataFrame, mm: pd.DataFrame):
     ]
 
     # Remove rows with missing target
-    data.dropna(
+    data = data.dropna(
         axis=0,
         subset=["saturation magnetization"] + feature_columns,
-        inplace=True,
     )
 
     # Drop alloys which are below magnetic cutoff (determined through prior model optimization)
-    data.drop(data[data["saturation magnetization"] < 0.18].index, axis=0, inplace=True)
+    data = data.drop(data[data["saturation magnetization"] < min_saturation_magnetization].index, axis=0)
 
     # # Round the saturation magnetization to two decimal places
     # data["saturation magnetization"] = pd.to_numeric(data["saturation magnetization"]).round(decimals=2)

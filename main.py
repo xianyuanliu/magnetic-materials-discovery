@@ -43,13 +43,14 @@ def load_config(path: str):
         return yaml.safe_load(f)
 
 def main():
-    pt_path = "./data/Periodic-table/periodic_table.xlsx"
-    mm_path = "./data/Miedema-model/Miedema-model-reduced.xlsx"
-    plots_save_dir = "./plots/"
+    plots_save_dir = Path("./plots/")
 
     args = parse_args()
     cfg = load_config(args.config)
-    Path(plots_save_dir).mkdir(parents=True, exist_ok=True)
+    plots_save_dir.mkdir(parents=True, exist_ok=True)
+
+    pt_path = cfg["pt_path"]
+    mm_path = cfg["mm_path"]
     dataset_name = cfg["dataset"].lower()
     dataset_path = cfg.get("dataset_path")
     train_dataset_path = cfg.get("train_dataset_path")
@@ -173,7 +174,7 @@ def main():
 
             params = None
             if hyperparameter_tuning and model_cfg["tune"] is not None:
-                params = model_cfg["tune"](X_train, y_train)
+                params = model_cfg["tune"](X_train, y_train, cv_folds=cv_folds)
 
             model = model_cfg["train"](X_train, y_train, params=params)
             trained_models[key] = model
@@ -189,26 +190,26 @@ def main():
     pt, mm = load_elemental_data(pt_path, mm_path)
     if data_visualization and not need_ood:
         X_raw = load_raw_data(dataset_path)
-        plot_ms_distribution_by_tm(X_raw, save_path=plots_save_dir + f"{prefix}_ms_distribution_by_tm.png")
-        plot_violin_ms_by_tm(X_raw, save_path=plots_save_dir + f"{prefix}_violin_ms_by_tm.png")
-        summarize_compound_radix(X_raw, pt)
+        plot_ms_distribution_by_tm(X_raw, save_path=plots_save_dir / f"{prefix}_ms_distribution_by_tm.png")
+        plot_violin_ms_by_tm(X_raw, title=f"{prefix.upper()} Violin Plot", save_path=plots_save_dir / f"{prefix}_violin_ms_by_tm.png")
+        summarize_compound_radix(X_raw)
 
     # 5) Model interpretability and ablation analyses
     if ablation_study and (not need_cross_validation) and (not need_ood):
 
         # Permutation feature importance evaluated on the validation set (Random Forest)
         if "rf" in trained_models:
-            plot_permutation_importance(trained_models["rf"], X_valid, y_valid, title=f"RF Permutation Importance ({prefix})", 
-                                    save_path=plots_save_dir + f"{prefix}_perm_importance_rf.png")
+            plot_permutation_importance(trained_models["rf"], X_valid, y_valid, title=f"RF Permutation Importance ({prefix})",
+                                    save_path=plots_save_dir / f"{prefix}_perm_importance_rf.png")
 
         # SHAP summary plot for global feature attribution (Random Forest)
         if "rf" in trained_models:
-            plot_shap_summary(trained_models["rf"], X_train, X_valid, save_path=plots_save_dir + f"{prefix}_shap_summary_rf.png")
+            plot_shap_summary(trained_models["rf"], X_train, X_valid, save_path=plots_save_dir / f"{prefix}_shap_summary_rf.png")
 
         # Comparative case studies across models (RF, XGBoost, and Ridge)
         if "rf" in trained_models and "xgb" in trained_models and "ridge" in trained_models:
-            plot_case_studies(feature_columns, trained_models["rf"], trained_models["xgb"], trained_models["ridge"], pt, mm, 
-                              save_path=plots_save_dir + f"{prefix}_case_studies.png")
+            plot_case_studies(feature_columns, trained_models["rf"], trained_models["xgb"], trained_models["ridge"], pt, mm,
+                              save_path=plots_save_dir / f"{prefix}_case_studies.png")
 
 
 if __name__ == "__main__":
