@@ -37,7 +37,7 @@ def plot_ms_distribution_by_tm(data, save_path=None):
         plt.show()
 
 
-def plot_violin_ms_by_tm(data, save_path=None):
+def plot_violin_ms_by_tm(data, title: str = "Violin Plot", save_path=None):
     """
     Plot a violin plot of saturation magnetization grouped by TM elements.
     """
@@ -48,7 +48,7 @@ def plot_violin_ms_by_tm(data, save_path=None):
     data_Mn = data[data['chemical formula'].str.contains(pat='Mn')]
 
     # Combine into one DataFrame for seaborn violinplot
-    data = pd.concat([
+    plot_data = pd.concat([
         data['saturation magnetization'].rename('all'),
         data_Fe['saturation magnetization'].rename('Fe'),
         data_Co['saturation magnetization'].rename('Co'),
@@ -57,10 +57,10 @@ def plot_violin_ms_by_tm(data, save_path=None):
     ], axis=1)
 
     plt.figure(figsize=(10, 6))
-    sns.violinplot(data=data, inner="quartile")
+    sns.violinplot(data=plot_data, inner="quartile")
     plt.xlabel("Element", fontsize=16)
     plt.ylabel("Saturation Magnetization (T)", fontsize=16)
-    plt.title("Novamag Violin Plot", fontsize=16)
+    plt.title(title, fontsize=16)
     plt.tight_layout()
 
     if save_path:
@@ -69,10 +69,11 @@ def plot_violin_ms_by_tm(data, save_path=None):
     else:
         plt.show()
     
-def summarize_compound_radix(data, PT):
+def summarize_compound_radix(data):
     """
     Print the number of compounds in the dataset.
     """
+    data = data.copy()
 
     # Compute compound radix (number of unique elements in formula)
     data['compoundradix'] = alloys.get_CompoundRadix(data)
