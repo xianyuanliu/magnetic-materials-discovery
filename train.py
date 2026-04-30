@@ -4,6 +4,7 @@ Training and tuning helpers for all models in models.py:
 # - Optional GridSearchCV hyperparameter optimization
 """
 
+import types
 from typing import Dict
 
 from sklearn.model_selection import GridSearchCV
@@ -21,7 +22,7 @@ from models import (
 
 # 1) Hyperparameter tuning for linear models
 
-def tune_ridge_hyperparams(X_train, y_train) -> Dict:
+def tune_ridge_hyperparams(X_train, y_train, cv_folds: int = 5) -> Dict:
     """Run GridSearchCV to search optimized Ridge hyperparameters."""
     param_grid = {
         "alpha": [0.01, 0.1, 1.0, 10.0, 50.0],
@@ -33,7 +34,7 @@ def tune_ridge_hyperparams(X_train, y_train) -> Dict:
     grid_search = GridSearchCV(
         estimator=ridge_model,
         param_grid=param_grid,
-        cv=5,
+        cv=cv_folds,
         scoring="neg_mean_squared_error",
         n_jobs=-1,
     )
@@ -47,7 +48,7 @@ def tune_ridge_hyperparams(X_train, y_train) -> Dict:
     print("Ridge Best Score (neg_mean_squared_error):", best_score)
     return best_params
 
-def tune_lasso_hyperparams(X_train, y_train) -> Dict:
+def tune_lasso_hyperparams(X_train, y_train, cv_folds: int = 5) -> Dict:
     """Run GridSearchCV to search optimized Lasso hyperparameters."""
     param_grid = {
         "alpha": [0.0005, 0.001, 0.01, 0.1, 1.0],
@@ -59,7 +60,7 @@ def tune_lasso_hyperparams(X_train, y_train) -> Dict:
     grid_search = GridSearchCV(
         estimator=lasso_model,
         param_grid=param_grid,
-        cv=5,
+        cv=cv_folds,
         scoring="neg_mean_squared_error",
         n_jobs=-1,
     )
@@ -71,7 +72,7 @@ def tune_lasso_hyperparams(X_train, y_train) -> Dict:
     return best_params
 
 
-def tune_elasticnet_hyperparams(X_train, y_train) -> Dict:
+def tune_elasticnet_hyperparams(X_train, y_train, cv_folds: int = 5) -> Dict:
     """Run GridSearchCV to search optimized ElasticNet hyperparameters."""
     param_grid = {
         "alpha": [0.0005, 0.001, 0.01, 0.1, 1.0],
@@ -83,7 +84,7 @@ def tune_elasticnet_hyperparams(X_train, y_train) -> Dict:
     grid_search = GridSearchCV(
         estimator=enet_model,
         param_grid=param_grid,
-        cv=5,
+        cv=cv_folds,
         scoring="neg_mean_squared_error",
         n_jobs=-1,
     )
@@ -96,7 +97,7 @@ def tune_elasticnet_hyperparams(X_train, y_train) -> Dict:
 
 # 2) Hyperparameter tuning for tree/boosting models
 
-def tune_rf_hyperparams(X_train, y_train) -> Dict:
+def tune_rf_hyperparams(X_train, y_train, cv_folds: int = 5) -> Dict:
     """Run GridSearchCV to search optimized Random Forest hyperparameters."""
     param_grid = {
         "n_estimators": [100, 200, 300],
@@ -109,7 +110,7 @@ def tune_rf_hyperparams(X_train, y_train) -> Dict:
     grid_search = GridSearchCV(
         estimator=rf_model,
         param_grid=param_grid,
-        cv=5,
+        cv=cv_folds,
         scoring="neg_mean_squared_error",
         n_jobs=-1,
     )
@@ -122,7 +123,7 @@ def tune_rf_hyperparams(X_train, y_train) -> Dict:
     print("RF Best Score (neg_mean_squared_error):", best_score)
     return best_params
 
-def tune_xgb_hyperparams(X_train, y_train) -> Dict:
+def tune_xgb_hyperparams(X_train, y_train, cv_folds: int = 5) -> Dict:
     """Run GridSearchCV to search optimized XGBoost hyperparameters."""
     param_grid = {
         "n_estimators": [100, 200, 300],
@@ -137,7 +138,7 @@ def tune_xgb_hyperparams(X_train, y_train) -> Dict:
     grid_search = GridSearchCV(
         estimator=xgb_model,
         param_grid=param_grid,
-        cv=5,
+        cv=cv_folds,
         scoring="neg_mean_squared_error",
         n_jobs=-1,
     )
@@ -152,7 +153,7 @@ def tune_xgb_hyperparams(X_train, y_train) -> Dict:
 
 # 3) Hyperparameter tuning for kernel and neural network models
 
-def tune_svr_hyperparams(X_train, y_train) -> Dict:
+def tune_svr_hyperparams(X_train, y_train, cv_folds: int = 5) -> Dict:
     """Run GridSearchCV to search optimized Support Vector Regressor hyperparameters."""
     param_grid = {
         "C": [0.5, 1.0, 5.0, 10.0],
@@ -164,7 +165,7 @@ def tune_svr_hyperparams(X_train, y_train) -> Dict:
     grid_search = GridSearchCV(
         estimator=svr_model,
         param_grid=param_grid,
-        cv=5,
+        cv=cv_folds,
         scoring="neg_mean_squared_error",
         n_jobs=-1,
     )
@@ -176,7 +177,7 @@ def tune_svr_hyperparams(X_train, y_train) -> Dict:
     return best_params
 
 
-def tune_mlp_hyperparams(X_train, y_train) -> Dict:
+def tune_mlp_hyperparams(X_train, y_train, cv_folds: int = 5) -> Dict:
     """Run GridSearchCV to search optimized Multi-Layer Perceptron hyperparameters."""
     param_grid = {
         "hidden_layer_sizes": [(100,), (128, 64), (256, 128)],
@@ -190,7 +191,7 @@ def tune_mlp_hyperparams(X_train, y_train) -> Dict:
     grid_search = GridSearchCV(
         estimator=mlp_model,
         param_grid=param_grid,
-        cv=5,
+        cv=cv_folds,
         scoring="neg_mean_squared_error",
         n_jobs=-1,
     )
@@ -302,7 +303,7 @@ def train_mlp(X_train, y_train, params: Dict = None):
     return mlp_model
 
 
-MODEL_REGISTRY = {
+MODEL_REGISTRY = types.MappingProxyType({
     "linear": {"name": "Linear Regression", "train": train_linear_regression, "tune": None},
 
     "ridge": {"name": "Ridge", "train": train_ridge, "tune": tune_ridge_hyperparams},
@@ -314,4 +315,4 @@ MODEL_REGISTRY = {
 
     "svr": {"name": "SVR", "train": train_svr, "tune": tune_svr_hyperparams},
     "mlp": {"name": "MLP", "train": train_mlp, "tune": tune_mlp_hyperparams},
-}
+})
