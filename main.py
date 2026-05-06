@@ -103,6 +103,14 @@ def main():
         rf_name = _name_for_key("rf") if "rf" in models else None
         xgb_name = _name_for_key("xgb") if "xgb" in models else None
 
+        # Tune once on full data, reuse best params across all seeds and folds
+        if hyperparameter_tuning:
+            print("\n=== Hyperparameter Tuning (once on full dataset) ===")
+            for key in models:
+                model_cfg = MODEL_REGISTRY[key]
+                if model_cfg["tune"] is not None:
+                    best_params[key] = model_cfg["tune"](X, y, cv_folds=cv_folds)
+
         # Run CV for each seed
         for run_i, seed in enumerate(cv_seeds, start=1):
             seed = int(seed)
@@ -116,7 +124,8 @@ def main():
                 y,
                 models,
                 MODEL_REGISTRY,
-                hyperparameter_tuning=hyperparameter_tuning,
+                hyperparameter_tuning=False,
+                best_params=best_params if best_params else None,
                 cv_folds=cv_folds,
                 shuffle=cv_shuffle,
                 random_state=seed,
@@ -165,16 +174,21 @@ def main():
         X_train, X_valid, y_train, y_valid = split_dataset(X, y, train_size=0.8)
 
 
-        # 2) Train models (optionally tuned)
+        # 2) Tune once on training set, then train all models with fixed best params
+        if hyperparameter_tuning:
+            print("\n=== Hyperparameter Tuning (once on training set) ===")
+            for key in models:
+                model_cfg = MODEL_REGISTRY[key]
+                if model_cfg["tune"] is not None:
+                    best_params[key] = model_cfg["tune"](X_train, y_train, cv_folds=cv_folds)
+
         for key in models:
             if key not in MODEL_REGISTRY:
                 raise ValueError(f"Unknown model key: {key}")
 
             model_cfg = MODEL_REGISTRY[key]
 
-            params = None
-            if hyperparameter_tuning and model_cfg["tune"] is not None:
-                params = model_cfg["tune"](X_train, y_train, cv_folds=cv_folds)
+            params = best_params.get(key) if best_params else None
 
             model = model_cfg["train"](X_train, y_train, params=params)
             trained_models[key] = model

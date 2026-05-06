@@ -51,6 +51,7 @@ def cross_validate_models(
     model_keys: List[str],
     model_registry: Dict,
     hyperparameter_tuning: bool = False,
+    best_params: Optional[Dict] = None,
     cv_folds: int = 5,
     shuffle: bool = True,
     random_state: int = 0,
@@ -84,7 +85,9 @@ def cross_validate_models(
         for key in model_keys:
             model_cfg = model_registry[key]
             params = None
-            if hyperparameter_tuning and model_cfg["tune"] is not None:
+            if best_params is not None and key in best_params:
+                params = best_params[key]
+            elif hyperparameter_tuning and model_cfg["tune"] is not None:
                 params = model_cfg["tune"](X_train, y_train, cv_folds=cv_folds)
 
             model = model_cfg["train"](X_train, y_train, params=params)
@@ -215,6 +218,7 @@ def evaluate_splits_kfold_train_fixed_test(
     cv_folds: int,
     shuffle: bool,
     hyperparameter_tuning: bool,
+    best_params: Optional[Dict] = None,
     rf_name: Optional[str],
     xgb_name: Optional[str],
 ):
@@ -265,7 +269,9 @@ def evaluate_splits_kfold_train_fixed_test(
                 model_cfg = model_registry[key]
 
                 params = None
-                if hyperparameter_tuning and model_cfg["tune"] is not None:
+                if best_params is not None and key in best_params:
+                    params = best_params[key]
+                elif hyperparameter_tuning and model_cfg["tune"] is not None:
                     params = model_cfg["tune"](X_tr, y_tr, cv_folds=cv_folds)
 
                 model = model_cfg["train"](X_tr, y_tr, params=params)

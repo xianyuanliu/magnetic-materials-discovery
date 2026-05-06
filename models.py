@@ -35,6 +35,7 @@ def build_rf_model(
     max_depth: Optional[int] = 15,
     min_samples_split: int = 2,
     min_samples_leaf: int = 1,
+    max_features: str = "sqrt",
     random_state: int = 0,
 ) -> RandomForestRegressor:
     """Construct a Random Forest Regressor."""
@@ -43,6 +44,7 @@ def build_rf_model(
         max_depth=max_depth,
         min_samples_split=min_samples_split,
         min_samples_leaf=min_samples_leaf,
+        max_features=max_features,
         random_state=random_state,
     )
 
@@ -53,6 +55,9 @@ def build_xgb_model(
     min_child_weight: int = 1,
     subsample: float = 0.6,
     colsample_bytree: float = 0.8,
+    gamma: float = 0,
+    reg_alpha: float = 0,
+    reg_lambda: float = 1.0,
 ) -> xgb.XGBRegressor:
     """Construct an XGB Regressor."""
     return xgb.XGBRegressor(
@@ -62,6 +67,9 @@ def build_xgb_model(
         min_child_weight=min_child_weight,
         subsample=subsample,
         colsample_bytree=colsample_bytree,
+        gamma=gamma,
+        reg_alpha=reg_alpha,
+        reg_lambda=reg_lambda,
         verbosity=0,
     )
 
@@ -70,9 +78,11 @@ def build_svr_model(
     C: float = 1.0,
     epsilon: float = 0.1,
     kernel: str = "rbf",
+    gamma: str = "scale",
+    degree: int = 3,
 ) -> SVR:
     """Construct an Support Vector Regression model."""
-    return SVR(C=C, epsilon=epsilon, kernel=kernel)
+    return SVR(C=C, epsilon=epsilon, kernel=kernel, gamma=gamma, degree=degree)
 
 
 # 4) Neural Networks
@@ -80,6 +90,7 @@ def build_mlp_model(
     hidden_layer_sizes: tuple = (256, 128),
     activation: str = "relu",
     alpha: float = 0.01,
+    learning_rate: str = "constant",
     learning_rate_init: float = 0.001,
     max_iter: int = 1000,
     early_stopping: bool = False,
@@ -89,6 +100,7 @@ def build_mlp_model(
         hidden_layer_sizes=hidden_layer_sizes,
         activation=activation,
         alpha=alpha,
+        learning_rate=learning_rate,
         learning_rate_init=learning_rate_init,
         max_iter=max_iter,
         early_stopping=early_stopping,
