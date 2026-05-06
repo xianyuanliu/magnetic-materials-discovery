@@ -1,13 +1,14 @@
 """
 Training and tuning helpers for all models in models.py:
 - Train linear, tree/boosting, kernel, and neural regressors
-# - Optional GridSearchCV hyperparameter optimization
+- GridSearchCV for small search spaces (Ridge, Lasso, ElasticNet, SVR)
+- RandomizedSearchCV (n_iter=50, random_state=42) for large spaces (RF, XGBoost, MLP)
 """
 
 import types
 from typing import Dict
 
-from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 from models import (
     build_linear_regression_model,
     build_ridge_model,
@@ -98,54 +99,58 @@ def tune_elasticnet_hyperparams(X_train, y_train, cv_folds: int = 5) -> Dict:
 # 2) Hyperparameter tuning for tree/boosting models
 
 def tune_rf_hyperparams(X_train, y_train, cv_folds: int = 5) -> Dict:
-    """Run GridSearchCV to search optimized Random Forest hyperparameters."""
-    param_grid = {
-        "n_estimators": [100, 200, 300],
-        "max_depth": [None, 5, 10, 15],
+    """Run RandomizedSearchCV to search optimized Random Forest hyperparameters."""
+    param_dist = {
+        "n_estimators": [100, 200, 300, 500],
+        "max_depth": [None, 5, 10, 15, 20],
         "min_samples_split": [2, 5, 10],
         "min_samples_leaf": [1, 2, 4],
     }
 
     rf_model = build_rf_model()
-    grid_search = GridSearchCV(
+    random_search = RandomizedSearchCV(
         estimator=rf_model,
-        param_grid=param_grid,
+        param_distributions=param_dist,
+        n_iter=50,
         cv=cv_folds,
         scoring="neg_mean_squared_error",
         n_jobs=-1,
+        random_state=42,
     )
-    grid_search.fit(X_train, y_train)
+    random_search.fit(X_train, y_train)
 
-    best_params = grid_search.best_params_
-    best_score = grid_search.best_score_
+    best_params = random_search.best_params_
+    best_score = random_search.best_score_
 
     print("RF Best Parameters:", best_params)
     print("RF Best Score (neg_mean_squared_error):", best_score)
     return best_params
 
 def tune_xgb_hyperparams(X_train, y_train, cv_folds: int = 5) -> Dict:
-    """Run GridSearchCV to search optimized XGBoost hyperparameters."""
-    param_grid = {
-        "n_estimators": [100, 200, 300],
-        "learning_rate": [0.05, 0.1, 0.2],
-        "max_depth": [3, 5, 7],
-        "min_child_weight": [1, 3, 5],
-        "subsample": [0.6, 0.8, 1.0],
-        "colsample_bytree": [0.6, 0.8, 1.0],
+    """Run RandomizedSearchCV to search optimized XGBoost hyperparameters."""
+    param_dist = {
+        "n_estimators": [100, 200, 300, 500],
+        "learning_rate": [0.01, 0.05, 0.1, 0.2, 0.3],
+        "max_depth": [3, 5, 7, 9],
+        "min_child_weight": [1, 3, 5, 7],
+        "subsample": [0.6, 0.7, 0.8, 0.9, 1.0],
+        "colsample_bytree": [0.6, 0.7, 0.8, 0.9, 1.0],
     }
 
     xgb_model = build_xgb_model()
-    grid_search = GridSearchCV(
+    random_search = RandomizedSearchCV(
         estimator=xgb_model,
-        param_grid=param_grid,
+        param_distributions=param_dist,
+        n_iter=50,
         cv=cv_folds,
         scoring="neg_mean_squared_error",
         n_jobs=-1,
+        random_state=42,
     )
-    grid_search.fit(X_train, y_train)
+    random_search.fit(X_train, y_train)
 
-    best_params = grid_search.best_params_
-    best_score = grid_search.best_score_
+    best_params = random_search.best_params_
+    best_score = random_search.best_score_
 
     print("XGB Best Parameters:", best_params)
     print("XGB Best Score (neg_mean_squared_error):", best_score)
@@ -178,26 +183,28 @@ def tune_svr_hyperparams(X_train, y_train, cv_folds: int = 5) -> Dict:
 
 
 def tune_mlp_hyperparams(X_train, y_train, cv_folds: int = 5) -> Dict:
-    """Run GridSearchCV to search optimized Multi-Layer Perceptron hyperparameters."""
-    param_grid = {
-        "hidden_layer_sizes": [(100,), (128, 64), (256, 128)],
+    """Run RandomizedSearchCV to search optimized Multi-Layer Perceptron hyperparameters."""
+    param_dist = {
+        "hidden_layer_sizes": [(64,), (100,), (128,), (64, 32), (128, 64), (256, 128), (128, 64, 32)],
         "activation": ["relu", "tanh"],
-        "alpha": [1e-4, 1e-3, 1e-2],
-        "learning_rate_init": [1e-3, 1e-2],
+        "alpha": [1e-5, 1e-4, 1e-3, 1e-2],
+        "learning_rate_init": [1e-4, 1e-3, 5e-3, 1e-2],
         "early_stopping": [True, False],
     }
 
     mlp_model = build_mlp_model()
-    grid_search = GridSearchCV(
+    random_search = RandomizedSearchCV(
         estimator=mlp_model,
-        param_grid=param_grid,
+        param_distributions=param_dist,
+        n_iter=50,
         cv=cv_folds,
         scoring="neg_mean_squared_error",
         n_jobs=-1,
+        random_state=42,
     )
-    grid_search.fit(X_train, y_train)
-    best_params = grid_search.best_params_
-    best_score = grid_search.best_score_
+    random_search.fit(X_train, y_train)
+    best_params = random_search.best_params_
+    best_score = random_search.best_score_
     print("MLP Best Parameters:", best_params)
     print("MLP Best Score (neg_mean_squared_error):", best_score)
     return best_params
