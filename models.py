@@ -17,24 +17,24 @@ def build_linear_regression_model() -> LinearRegression:
     """Construct a Linear Regression model."""
     return LinearRegression()
 
-def build_ridge_model(alpha: float = 1.0, solver: str = "auto", max_iter: int = 1000) -> Ridge:
+def build_ridge_model(alpha: float = 1.0) -> Ridge:
     """Construct a Ridge Regression model."""
-    return Ridge(alpha=alpha, solver=solver, max_iter=max_iter)
+    return Ridge(alpha=alpha, max_iter=10000)
 
-def build_lasso_model(alpha: float = 1.0, selection: str = "cyclic", max_iter: int = 1000) -> Lasso:
+def build_lasso_model(alpha: float = 0.01) -> Lasso:
     """Construct a Lasso Regression model."""
-    return Lasso(alpha=alpha, selection=selection, max_iter=max_iter)
+    return Lasso(alpha=alpha, max_iter=10000)
 
-def build_elasticnet_model(alpha: float = 1.0, l1_ratio: float = 0.5, max_iter: int = 1000) -> ElasticNet:
+def build_elasticnet_model(alpha: float = 0.01, l1_ratio: float = 0.5) -> ElasticNet:
     """Construct an ElasticNet Regression model."""
-    return ElasticNet(alpha=alpha, l1_ratio=l1_ratio, max_iter=max_iter)
+    return ElasticNet(alpha=alpha, l1_ratio=l1_ratio, max_iter=10000)
 
 # 2) Tree-based Models
 def build_rf_model(
-    n_estimators: int = 200,
-    max_depth: Optional[int] = 15,
-    min_samples_split: int = 2,
-    min_samples_leaf: int = 1,
+    n_estimators: int = 300,
+    max_depth: Optional[int] = None,
+    min_samples_split: int = 5,
+    min_samples_leaf: int = 2,
     max_features: str = "sqrt",
     random_state: int = 0,
 ) -> RandomForestRegressor:
@@ -49,11 +49,11 @@ def build_rf_model(
     )
 
 def build_xgb_model(
-    n_estimators: int = 200,
+    n_estimators: int = 300,
     learning_rate: float = 0.05,
-    max_depth: int = 7,
+    max_depth: int = 5,
     min_child_weight: int = 1,
-    subsample: float = 0.6,
+    subsample: float = 0.8,
     colsample_bytree: float = 0.8,
     gamma: float = 0,
     reg_alpha: float = 0,
@@ -75,7 +75,7 @@ def build_xgb_model(
 
 # 3) Kernel-based Models
 def build_svr_model(
-    C: float = 1.0,
+    C: float = 10.0,
     epsilon: float = 0.1,
     kernel: str = "rbf",
     gamma: str = "scale",
@@ -87,13 +87,13 @@ def build_svr_model(
 
 # 4) Neural Networks
 def build_mlp_model(
-    hidden_layer_sizes: tuple = (256, 128),
+    hidden_layer_sizes: tuple = (128, 64),
     activation: str = "relu",
-    alpha: float = 0.01,
+    alpha: float = 1e-4,
     learning_rate: str = "constant",
-    learning_rate_init: float = 0.001,
+    learning_rate_init: float = 1e-3,
     max_iter: int = 1000,
-    early_stopping: bool = False,
+    early_stopping: bool = True,
 ) -> MLPRegressor:
     """Construct a Multi-layer Perceptron model."""
     return MLPRegressor(
