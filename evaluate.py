@@ -22,6 +22,7 @@ from sklearn.inspection import permutation_importance
 
 import alloys as al
 
+
 def mean_relative_error(y_true: np.ndarray, y_pred: np.ndarray, eps: float = 1e-8) -> float:
     y_true = np.asarray(y_true, dtype=float)
     y_pred = np.asarray(y_pred, dtype=float)
@@ -45,6 +46,7 @@ def _compute_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]
         "r2": float(r2_score(y_true, y_pred)),
     }
 
+
 def cross_validate_models(
     X: pd.DataFrame,
     y: pd.Series,
@@ -57,6 +59,9 @@ def cross_validate_models(
     report_rf_xgb: bool = True,
 ):
     """Run K-fold cross-validation for the requested models."""
+    if cv_folds < 2:
+        raise ValueError("cv_folds must be at least 2.")
+
     results = {}
     for key in model_keys:
         if key not in model_registry:
@@ -94,7 +99,6 @@ def cross_validate_models(
             mae = mean_absolute_error(y_valid, y_pred)
             mre = mean_relative_error(y_valid.to_numpy(), np.asarray(y_pred))
             r2 = r2_score(y_valid, y_pred)
-            
 
             name = model_cfg["name"]
             results[name]["mse"].append(mse)
@@ -108,7 +112,7 @@ def cross_validate_models(
                 elif key == "xgb":
                     xgb_fold_mse.append(mse)
 
-    # how many times RF outperforms XGB
+    # How many times RF outperforms XGB
     if track_rf_xgb and len(rf_fold_mse) == cv_folds and len(xgb_fold_mse) == cv_folds:
         wins_rf = sum(m_rf < m_xgb for m_rf, m_xgb in zip(rf_fold_mse, xgb_fold_mse))
         wins_xgb = sum(m_xgb < m_rf for m_rf, m_xgb in zip(rf_fold_mse, xgb_fold_mse))
@@ -121,10 +125,11 @@ def cross_validate_models(
 
     return results
 
+
 # ====== Quantitative metrics ======
 
 def print_holdout_results(y_true, predictions: Dict[str, np.ndarray]):
-    """Print MSE, MAE, and R² for multiple regression models."""
+    """Print MSE, MAE, MRE, and R² for multiple regression models."""
     print("Regression Metrics:")
     for name, y_pred in predictions.items():
         mse = mean_squared_error(y_true, y_pred)
@@ -137,18 +142,19 @@ def print_holdout_results(y_true, predictions: Dict[str, np.ndarray]):
         print(f"  MRE: {mre:.6f}")
         print(f"  R2:  {r2:.4f}")
 
+
 def print_cv_results(results: Dict[str, Dict[str, List[float]]]):
     """Print mean ± std metrics for cross-validation results."""
     print("Cross-Validation Metrics (mean ± std):")
     for name, scores in results.items():
         mse_mean = np.mean(scores["mse"])
-        mse_std = np.std(scores["mse"], ddof=1)
+        mse_std = np.std(scores["mse"], ddof=1) if len(scores["mse"]) > 1 else 0.0
         mae_mean = np.mean(scores["mae"])
-        mae_std = np.std(scores["mae"], ddof=1)
+        mae_std = np.std(scores["mae"], ddof=1) if len(scores["mae"]) > 1 else 0.0
         mre_mean = np.mean(scores["mre"])
-        mre_std = np.std(scores["mre"], ddof=1)
+        mre_std = np.std(scores["mre"], ddof=1) if len(scores["mre"]) > 1 else 0.0
         r2_mean = np.mean(scores["r2"])
-        r2_std = np.std(scores["r2"], ddof=1)
+        r2_std = np.std(scores["r2"], ddof=1) if len(scores["r2"]) > 1 else 0.0
 
         print(f"\n{name}:")
         print(f"  MSE: {mse_mean:.4f} ± {mse_std:.4f}")
@@ -156,22 +162,22 @@ def print_cv_results(results: Dict[str, Dict[str, List[float]]]):
         print(f"  MRE: {mre_mean:.6f} ± {mre_std:.6f}")
         print(f"  R2:  {r2_mean:.4f} ± {r2_std:.4f}")
 
+
 def compare_models_significance(
     results: Dict[str, Dict[str, List[float]]],
     model_a: str,
     model_b: str,
     metric: str = "mse",
 ):
-    
     """
-    Significance tests comparing two models using per-fold CV scores.
+    Significance tests comparing two models using paired fold-level scores.
 
     - Paired t-test: stats.ttest_rel
-    - Wilcoxon signed-rank: stats.wilcoxon (non-parametric)
+    - Wilcoxon signed-rank: stats.wilcoxon
 
-    NOTE: Uses per-fold scores as paired samples.
+    NOTE:
+        Uses per-fold scores as paired samples.
     """
-
     if model_a not in results or model_b not in results:
         raise ValueError(f"Model names not found in results: {model_a}, {model_b}")
 
@@ -181,25 +187,25 @@ def compare_models_significance(
     if len(a) != len(b):
         raise ValueError(f"Fold count mismatch: {model_a} has {len(a)}, {model_b} has {len(b)}")
 
-    diff = a - b  # positive means A worse than B for MSE/MAE (lower is better)
+    diff = a - b
 
     # Paired t-test
     t_stat, t_p = stats.ttest_rel(a, b, nan_policy="omit")
 
-    # Wilcoxon signed-rank (requires non-zero diffs)
+    # Wilcoxon signed-rank
     nonzero = diff[diff != 0]
     if len(nonzero) < 1:
         w_stat, w_p = np.nan, np.nan
     else:
-        # Two-sided by default
         w_stat, w_p = stats.wilcoxon(a, b, zero_method="wilcox")
 
     print(f"\nSignificance tests (paired) on CV folds — metric={metric}")
     print(f"  Comparing: {model_a} vs {model_b}")
-    print(f"  Paired t-test:     t={t_stat:.4f}, p={t_p:.6g}")
+    print(f"  Paired t-test:        t={t_stat:.4f}, p={t_p:.6g}")
     print(f"  Wilcoxon signed-rank: W={w_stat}, p={w_p:.6g}")
 
     return float(t_stat), float(t_p), float(w_stat), float(w_p)
+
 
 # ====== OOD Evaluation ======
 
@@ -219,8 +225,19 @@ def evaluate_splits_kfold_train_fixed_test(
     xgb_name: str | None,
 ):
     """
-    KFold on TRAIN, evaluate on fixed OOD TEST.
+    For each OOD split:
+    - define a fixed OOD test partition
+    - run KFold over the split-specific training partition
+    - train each model on each training fold subset
+    - evaluate every fitted model on the same fixed OOD test set
+
+    This yields repeated fixed-test performance estimates across training-fold resamples.
     """
+    if cv_folds < 2:
+        raise ValueError("cv_folds must be at least 2 for OOD evaluation.")
+
+    if not splits:
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
     summary_rows = []
     metrics_rows = []
@@ -229,7 +246,6 @@ def evaluate_splits_kfold_train_fixed_test(
     kf_seed = int(seed)
 
     for split_id, train_idx, test_idx in splits:
-
         X_train_full = X.iloc[train_idx]
         y_train_full = y.iloc[train_idx]
 
@@ -252,16 +268,16 @@ def evaluate_splits_kfold_train_fixed_test(
         per_fold = {}
 
         for key in model_keys:
+            if key not in model_registry:
+                raise ValueError(f"Unknown model key: {key}")
             name = model_registry[key]["name"]
             per_fold[name] = {"mse": [], "mae": [], "mre": [], "r2": []}
 
         for train_sub_idx, _ in kf.split(X_train_full):
-
             X_tr = X_train_full.iloc[train_sub_idx]
             y_tr = y_train_full.iloc[train_sub_idx]
 
             for key in model_keys:
-
                 model_cfg = model_registry[key]
 
                 params = None
@@ -269,22 +285,22 @@ def evaluate_splits_kfold_train_fixed_test(
                     params = model_cfg["tune"](X_tr, y_tr)
 
                 model = model_cfg["train"](X_tr, y_tr, params=params)
-
                 y_pred = model.predict(X_test)
 
                 metrics = _compute_metrics(y_test, y_pred)
 
                 name = model_cfg["name"]
-
                 for m in metrics:
                     per_fold[name][m].append(metrics[m])
+
+        heldout_target = split_id.split("=", 1)[-1] if "=" in split_id else split_id
 
         # Table 1
         summary_rows.append(
             dict(
                 scenario=scenario,
                 split_id=split_id,
-                heldout_target=split_id.split("=")[-1],
+                heldout_target=heldout_target,
                 n_train=len(train_idx),
                 n_test=len(test_idx),
                 seed=seed,
@@ -293,7 +309,6 @@ def evaluate_splits_kfold_train_fixed_test(
 
         # Table 2
         for model_name, scores in per_fold.items():
-
             metrics_rows.append(
                 dict(
                     scenario=scenario,
@@ -323,14 +338,12 @@ def evaluate_splits_kfold_train_fixed_test(
 
         # Table 3 — RF vs XGB
         if rf_name and xgb_name and rf_name in per_fold and xgb_name in per_fold:
-
             cv_like = {
                 rf_name: per_fold[rf_name],
                 xgb_name: per_fold[xgb_name],
             }
 
             for metric in ["mse", "mae"]:
-
                 _, t_p, _, w_p = compare_models_significance(
                     cv_like,
                     rf_name,
@@ -358,17 +371,15 @@ def evaluate_splits_kfold_train_fixed_test(
 
 
 def summarize_runs_across_splits(metrics_df: pd.DataFrame) -> pd.DataFrame:
-
     rows = []
 
     if metrics_df.empty:
         return pd.DataFrame(rows)
 
     def parse_mean(x):
-        return float(str(x).split("±")[0])
+        return float(str(x).split("±")[0].strip())
 
     for (scenario, model), g in metrics_df.groupby(["scenario", "model"]):
-
         mse = g["MSE"].map(parse_mean).to_numpy()
         mae = g["MAE"].map(parse_mean).to_numpy()
         mre = g["MRE"].map(parse_mean).to_numpy()
@@ -390,7 +401,6 @@ def summarize_runs_across_splits(metrics_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def print_ood_tables(table1, table2, table3, table4):
-
     print("\nTable 1: Scenario summary")
     print(table1.to_string(index=False))
 
@@ -403,12 +413,17 @@ def print_ood_tables(table1, table2, table3, table4):
     print("\nTable 4: Combined comparison")
     print(table4.to_string(index=False))
 
+
 # ====== Permutation Feature Importance & SHAP ======
 
 def plot_permutation_importance(model, X_valid, y_valid, title: str = "", save_path: str = None):
-    """Plot permutation importance for RFR / XGB / Ridge."""
+    """Plot permutation importance for RF / XGB / Ridge."""
     perm_import = permutation_importance(
-        model, X_valid, y_valid, n_repeats=10, random_state=0
+        model,
+        X_valid,
+        y_valid,
+        n_repeats=10,
+        random_state=0,
     )
 
     sorted_idx = perm_import.importances_mean.argsort()
@@ -431,27 +446,40 @@ def plot_permutation_importance(model, X_valid, y_valid, title: str = "", save_p
         plt.savefig(save_path)
         plt.close()
     else:
-        plt.show() 
+        plt.show()
 
 
 def plot_shap_summary(model, X_train, X_valid, save_path: str = None):
-    """Generate SHAP summary plots."""
+    """Generate publication-style SHAP summary plot."""
     explainer = shap.Explainer(model, X_train)
     shap_values = explainer(X_valid, check_additivity=False)
 
-    shap.summary_plot(shap_values, X_valid, feature_names=X_valid.columns, show=False)
+    plt.figure(figsize=(7, 5))
+
+    shap.summary_plot(
+        shap_values,
+        X_valid,
+        feature_names=X_valid.columns,
+        show=False,
+        plot_size=(7, 5),
+    )
+
+    plt.gca().set_facecolor("white")
+    plt.gcf().patch.set_facecolor("white")
+    plt.xlabel("SHAP value (impact on model output)", fontsize=10)
+    plt.tight_layout()
 
     if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+        plt.savefig(save_path, dpi=600, bbox_inches="tight")
         plt.close()
     else:
         plt.show()
 
+
 # ====== Case studies: FeAl / FeCo / FeCr ======
 
 def feal_case(X_cols: List[str], rf_model, xgb_model, ridge_model, periodic_table, miedema_weight):
-    """Generate predictions and literature references for the FeAl case study (no plotting)."""
-    # Chemical formulas we want predictions for
+    """Generate model predictions for the FeAl case study (no plotting)."""
     X_FeAl = pd.DataFrame(
         [
             "Fe93Al2",
@@ -489,44 +517,11 @@ def feal_case(X_cols: List[str], rf_model, xgb_model, ridge_model, periodic_tabl
 
     at_FeAl_fraction = al.get_AtomicFrac(stoich_array_FeAl)
 
-    Exp_FeAl = pd.Series(
-        data=[
-            2.14,
-            2.12,
-            2.09,
-            2.05,
-            2.01,
-            1.98,
-            1.92,
-            1.86,
-            1.80,
-            1.75,
-            1.69,
-            1.65,
-            1.60,
-        ],
-        index=[
-            0.02,
-            0.038,
-            0.058,
-            0.074,
-            0.099,
-            0.124,
-            0.152,
-            0.183,
-            0.219,
-            0.251,
-            0.281,
-            0.315,
-            0.341,
-        ],
-    )
-
-    return at_FeAl_fraction, rfpreds_FeAl, xgbpreds_FeAl, ridgepreds_FeAl, Exp_FeAl
+    return at_FeAl_fraction, rfpreds_FeAl, xgbpreds_FeAl, ridgepreds_FeAl
 
 
 def feco_case(X_cols, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight):
-    """Generate predictions and literature references for the FeCo case study."""
+    """Generate model predictions for the FeCo case study."""
     X_FeCo = pd.DataFrame(
         [
             "Fe100Co0",
@@ -557,36 +552,18 @@ def feco_case(X_cols, rf_model, xgb_model, ridge_model, periodic_table, miedema_
     X_FeCo["miedemaH"] = al.get_Miedemaw(miedema_weight, stoich_array_FeCo)
     X_FeCo["valencew"] = al.get_Valencew(periodic_table, stoich_array_FeCo)
     X_FeCo["electronegw"] = al.get_Electronegw(periodic_table, stoich_array_FeCo)
+
     rfpreds_FeCo = rf_model.predict(X_FeCo[X_cols])
     xgbpreds_FeCo = xgb_model.predict(X_FeCo[X_cols])
     ridgepreds_FeCo = ridge_model.predict(X_FeCo[X_cols])
 
     at_FeCo_fraction = al.get_AtomicFrac(stoich_array_FeCo)
 
-    Exp_FeCo = pd.Series(
-        data=[
-            2.18,
-            2.21,
-            2.24,
-            2.26,
-            2.30,
-            2.33,
-            2.36,
-            2.39,
-            2.43,
-            2.44,
-            2.31,
-            2.09,
-            1.8,
-        ],
-        index=[0.00, 0.04, 0.08, 0.10, 0.12, 0.15, 0.18, 0.21, 0.29, 0.41, 0.55, 0.74, 0.93],
-    )
-
-    return at_FeCo_fraction, rfpreds_FeCo, xgbpreds_FeCo, ridgepreds_FeCo, Exp_FeCo
+    return at_FeCo_fraction, rfpreds_FeCo, xgbpreds_FeCo, ridgepreds_FeCo
 
 
 def fecr_case(X_cols, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight):
-    """Generate predictions and literature references for the FeCr case study."""
+    """Generate model predictions for the FeCr case study."""
     X_FeCr = pd.DataFrame(
         [
             "Fe99Cr1",
@@ -624,12 +601,7 @@ def fecr_case(X_cols, rf_model, xgb_model, ridge_model, periodic_table, miedema_
 
     at_FeCr_fraction = al.get_AtomicFrac(stoich_array_FeCr)
 
-    Exp_FeCr = pd.Series(
-        data=[2.14, 2.095, 2.00, 1.96, 1.92, 1.89, 1.86, 1.83, 1.78, 1.73, 1.66, 1.60],
-        index=[0.01, 0.02, 0.04, 0.05, 0.07, 0.08, 0.09, 0.10, 0.11, 0.13, 0.15, 0.17],
-    )
-
-    return at_FeCr_fraction, rfpreds_FeCr, xgbpreds_FeCr, ridgepreds_FeCr, Exp_FeCr
+    return at_FeCr_fraction, rfpreds_FeCr, xgbpreds_FeCr, ridgepreds_FeCr
 
 
 def plot_case_studies(
@@ -639,15 +611,15 @@ def plot_case_studies(
     ridge_model,
     periodic_table,
     miedema_weight,
-    save_path = None,
+    save_path=None,
 ):
-    """Plot three case studies (FeAl, FeCo, FeCr) side by side."""
+    """Plot publication-style case studies for FeAl, FeCo, and FeCr."""
+
     (
         at_FeAl_fraction,
         rfpreds_FeAl,
         xgbpreds_FeAl,
         ridgepreds_FeAl,
-        Exp_FeAl,
     ) = feal_case(feature_columns, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight)
 
     (
@@ -655,7 +627,6 @@ def plot_case_studies(
         rfpreds_FeCo,
         xgbpreds_FeCo,
         ridgepreds_FeCo,
-        Exp_FeCo,
     ) = feco_case(feature_columns, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight)
 
     (
@@ -663,49 +634,92 @@ def plot_case_studies(
         rfpreds_FeCr,
         xgbpreds_FeCr,
         ridgepreds_FeCr,
-        Exp_FeCr,
     ) = fecr_case(feature_columns, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight)
 
-    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(20, 4))
+    fig, axes = plt.subplots(1, 3, figsize=(12, 4.2), facecolor="white")
+    ax1, ax2, ax3 = axes
 
-    # FeAl
-    sns.scatterplot(x=at_FeAl_fraction["Al"], y=rfpreds_FeAl, ax=ax1)
-    sns.scatterplot(x=at_FeAl_fraction["Al"], y=xgbpreds_FeAl, ax=ax1)
-    sns.scatterplot(x=at_FeAl_fraction["Al"], y=ridgepreds_FeAl, ax=ax1)
-    sns.scatterplot(x=Exp_FeAl.index, y=Exp_FeAl.values, ax=ax1)
-    ax1.set_title("FeAl Case Study", fontsize=16)
-    ax1.set_xlabel("Al content [atomic fraction]", fontsize=16)
-    ax1.set_ylabel("Saturation Magnetisation [T]", fontsize=16)
+    rf_color = "#1f77b4"
+    xgb_color = "#d62728"
+    ridge_color = "#2ca02c"
 
-    # FeCo
-    sns.scatterplot(x=at_FeCo_fraction["Co"], y=rfpreds_FeCo, ax=ax2)
-    sns.scatterplot(x=at_FeCo_fraction["Co"], y=xgbpreds_FeCo, ax=ax2)
-    sns.scatterplot(x=at_FeCo_fraction["Co"], y=ridgepreds_FeCo, ax=ax2)
-    sns.scatterplot(x=Exp_FeCo.index, y=Exp_FeCo.values, ax=ax2)
-    ax2.set_title("FeCo Case Study", fontsize=16)
-    ax2.set_xlabel("Co content [atomic fraction]", fontsize=16)
-    ax2.set_ylabel("Saturation Magnetisation [T]", fontsize=16)
+    marker_size_model = 28
 
-    # FeCr
-    sns.scatterplot(x=at_FeCr_fraction["Cr"], y=rfpreds_FeCr, ax=ax3)
-    sns.scatterplot(x=at_FeCr_fraction["Cr"], y=xgbpreds_FeCr, ax=ax3)
-    sns.scatterplot(x=at_FeCr_fraction["Cr"], y=ridgepreds_FeCr, ax=ax3)
-    sns.scatterplot(x=Exp_FeCr.index, y=Exp_FeCr.values, ax=ax3)
-    ax3.set_title("FeCr Case Study", fontsize=16)
-    ax3.set_xlabel("Cr content [atomic fraction]", fontsize=16)
-    ax3.set_ylabel("Saturation Magnetisation [T]", fontsize=16)
-
-    legend3 = ax3.legend(
-        ["random forest", "xgboost", "ridge regression", "literature"],
-        loc="upper right",
-        fontsize=12,
+    # ---------- (a) Fe–Al ----------
+    ax1.scatter(
+        at_FeAl_fraction["Al"], rfpreds_FeAl,
+        s=marker_size_model, color=rf_color, label="Random Forest"
     )
-    legend3.get_frame().set_facecolor("white")
+    ax1.scatter(
+        at_FeAl_fraction["Al"], xgbpreds_FeAl,
+        s=marker_size_model, color=xgb_color, label="XGBoost"
+    )
+    ax1.scatter(
+        at_FeAl_fraction["Al"], ridgepreds_FeAl,
+        s=marker_size_model, color=ridge_color, label="Ridge"
+    )
+
+    ax1.set_title("(a) Fe–Al system", fontsize=11)
+    ax1.set_xlabel("Al atomic fraction", fontsize=10)
+    ax1.set_ylabel("Saturation magnetization (T)", fontsize=10)
+
+    # ---------- (b) Fe–Co ----------
+    ax2.scatter(
+        at_FeCo_fraction["Co"], rfpreds_FeCo,
+        s=marker_size_model, color=rf_color, label="Random Forest"
+    )
+    ax2.scatter(
+        at_FeCo_fraction["Co"], xgbpreds_FeCo,
+        s=marker_size_model, color=xgb_color, label="XGBoost"
+    )
+    ax2.scatter(
+        at_FeCo_fraction["Co"], ridgepreds_FeCo,
+        s=marker_size_model, color=ridge_color, label="Ridge"
+    )
+
+    ax2.set_title("(b) Fe–Co system", fontsize=11)
+    ax2.set_xlabel("Co atomic fraction", fontsize=10)
+    ax2.set_ylabel("Saturation magnetization (T)", fontsize=10)
+
+    # ---------- (c) Fe–Cr ----------
+    ax3.scatter(
+        at_FeCr_fraction["Cr"], rfpreds_FeCr,
+        s=marker_size_model, color=rf_color, label="Random Forest"
+    )
+    ax3.scatter(
+        at_FeCr_fraction["Cr"], xgbpreds_FeCr,
+        s=marker_size_model, color=xgb_color, label="XGBoost"
+    )
+    ax3.scatter(
+        at_FeCr_fraction["Cr"], ridgepreds_FeCr,
+        s=marker_size_model, color=ridge_color, label="Ridge"
+    )
+
+    ax3.set_title("(c) Fe–Cr system", fontsize=11)
+    ax3.set_xlabel("Cr atomic fraction", fontsize=10)
+    ax3.set_ylabel("Saturation magnetization (T)", fontsize=10)
+
+    # White background + clean spines
+    for ax in axes:
+        ax.set_facecolor("white")
+        ax.tick_params(labelsize=9)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.spines["left"].set_linewidth(0.8)
+        ax.spines["bottom"].set_linewidth(0.8)
+
+    # Put legend outside the last panel
+    ax3.legend(
+        loc="upper left",
+        bbox_to_anchor=(1.02, 1.0),
+        frameon=False,
+        fontsize=9
+    )
 
     plt.tight_layout()
 
     if save_path:
-        plt.savefig(save_path, dpi=300)
+        plt.savefig(save_path, dpi=600, bbox_inches="tight", facecolor="white")
         plt.close()
     else:
         plt.show()

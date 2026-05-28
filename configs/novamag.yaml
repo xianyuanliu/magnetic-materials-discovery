@@ -16,7 +16,7 @@ enable_data_visualization: true
 enable_ablation_study: true
 
 # evaluation_mode: holdout # or cross_validation or ood
-evaluation_mode: cross_validation
+evaluation_mode: holdout
 # train_dataset_path: data/novamag-train.csv
 # test_dataset_path: data/novamag-test.csv
 
@@ -24,4 +24,4 @@ cv_folds: 10
 cv_shuffle: true
 cv_random_state: 0
 cv_seeds: [0, 5, 10, 15, 20]
-enable_hyperparameter_tuning: false
+enable_hyperparameter_tuning: true

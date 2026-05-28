@@ -15,7 +15,7 @@ enable_ablation_study: false
 cv_folds: 5
 cv_shuffle: true
 cv_random_state: 0
-cv_seeds: [0, 1]
+cv_seeds: [0, 1, 2, 3, 4]
 
 target_column: saturation magnetization
 formula_column: chemical formula

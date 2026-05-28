@@ -1,5 +1,5 @@
 """
-OOD split
+OOD split construction utilities.
 
 Design goals:
 - deterministic where seeded
@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 from sklearn.cluster import KMeans
 from sklearn.neighbors import NearestNeighbors
+from sklearn.preprocessing import StandardScaler
 
 
 Split = Tuple[str, np.ndarray, np.ndarray]
@@ -38,12 +39,15 @@ def _validate_split(
     if train_idx.size < min_train or test_idx.size < min_test:
         return None
 
-    # No overlap between train and test
     if np.intersect1d(train_idx, test_idx).size > 0:
         raise ValueError(f"Leakage detected in split {split_id}")
 
-    # Bounds safety
-    if train_idx.max(initial=-1) >= n_samples or test_idx.max(initial=-1) >= n_samples:
+    if (
+        train_idx.min(initial=0) < 0
+        or test_idx.min(initial=0) < 0
+        or train_idx.max(initial=-1) >= n_samples
+        or test_idx.max(initial=-1) >= n_samples
+    ):
         raise ValueError(f"Index out of bounds in split {split_id}")
 
     return split_id, train_idx, test_idx
@@ -68,12 +72,10 @@ def build_loeo_splits(
     n = len(elements_per_sample)
     splits: List[Split] = []
 
-    for element in element_list:
+    sample_sets = [set(els) for els in elements_per_sample]
 
-        test_mask = np.array(
-            [element in set(els) for els in elements_per_sample],
-            dtype=bool,
-        )
+    for element in element_list:
+        test_mask = np.array([element in els for els in sample_sets], dtype=bool)
 
         test_idx = np.where(test_mask)[0]
         train_idx = np.where(~test_mask)[0]
@@ -86,7 +88,6 @@ def build_loeo_splits(
             min_train=min_train,
             min_test=min_test,
         )
-
         if split is not None:
             splits.append(split)
 
@@ -117,32 +118,22 @@ def build_period_splits(
     """
     n = len(elements_per_sample)
     splits: List[Split] = []
+    sample_sets = [set(els) for els in elements_per_sample]
 
     for p in periods:
-
         if strict:
             test_mask = []
-            for els in elements_per_sample:
-                els = list(set(els))
+            for els in sample_sets:
                 if len(els) == 0:
                     test_mask.append(False)
                     continue
-
                 ok = all(element_to_period.get(e) == p for e in els)
                 test_mask.append(ok)
-
             test_mask = np.array(test_mask, dtype=bool)
-
         else:
-            heldout_elements = {
-                e for e, pe in element_to_period.items() if pe == p
-            }
-
+            heldout_elements = {e for e, pe in element_to_period.items() if pe == p}
             test_mask = np.array(
-                [
-                    len(set(els).intersection(heldout_elements)) > 0
-                    for els in elements_per_sample
-                ],
+                [len(els.intersection(heldout_elements)) > 0 for els in sample_sets],
                 dtype=bool,
             )
 
@@ -157,7 +148,6 @@ def build_period_splits(
             min_train=min_train,
             min_test=min_test,
         )
-
         if split is not None:
             splits.append(split)
 
@@ -188,32 +178,22 @@ def build_group_splits(
     """
     n = len(elements_per_sample)
     splits: List[Split] = []
+    sample_sets = [set(els) for els in elements_per_sample]
 
     for g in groups:
-
         if strict:
             test_mask = []
-            for els in elements_per_sample:
-                els = list(set(els))
+            for els in sample_sets:
                 if len(els) == 0:
                     test_mask.append(False)
                     continue
-
                 ok = all(element_to_group.get(e) == g for e in els)
                 test_mask.append(ok)
-
             test_mask = np.array(test_mask, dtype=bool)
-
         else:
-            heldout_elements = {
-                e for e, ge in element_to_group.items() if ge == g
-            }
-
+            heldout_elements = {e for e, ge in element_to_group.items() if ge == g}
             test_mask = np.array(
-                [
-                    len(set(els).intersection(heldout_elements)) > 0
-                    for els in elements_per_sample
-                ],
+                [len(els.intersection(heldout_elements)) > 0 for els in sample_sets],
                 dtype=bool,
             )
 
@@ -228,7 +208,6 @@ def build_group_splits(
             min_train=min_train,
             min_test=min_test,
         )
-
         if split is not None:
             splits.append(split)
 
@@ -236,7 +215,7 @@ def build_group_splits(
 
 
 # ============================================================
-# Representation Space OOD — KMeans (LOCO)
+# Representation-space OOD — KMeans (LOCO)
 # ============================================================
 
 def build_kmeans_cluster_splits(
@@ -246,24 +225,27 @@ def build_kmeans_cluster_splits(
     min_train: int = 1,
     min_test: int = 1,
 ) -> List[Split]:
-    
     """
     Representation-space OOD (LOCO)
 
-    KMeans clustering on the full feature space.
+    KMeans clustering on the original descriptor space.
     Test = one cluster
     Train = remaining clusters
 
     Note:
         Cluster assignments are derived unsupervised from the full feature matrix
         before the train/test partition is formed. This is intended as a pragmatic
-        representation-space stress test, not a strict train-only clustering protocol.
+        descriptor-space stress test, not a strict train-only clustering protocol.
     """
-
     if k < 2:
         raise ValueError("k must be >= 2")
 
+    n = X.shape[0]
+    if k > n:
+        raise ValueError(f"k={k} cannot exceed number of samples n={n}")
+
     X_mat = X.to_numpy()
+    X_scaled = StandardScaler().fit_transform(X_mat)
 
     km = KMeans(
         n_clusters=k,
@@ -271,13 +253,11 @@ def build_kmeans_cluster_splits(
         n_init=10,
     )
 
-    labels = km.fit_predict(X_mat)
+    labels = km.fit_predict(X_scaled)
 
-    n = X.shape[0]
     splits: List[Split] = []
 
     for c in range(k):
-
         test_idx = np.where(labels == c)[0]
         train_idx = np.where(labels != c)[0]
 
@@ -289,11 +269,11 @@ def build_kmeans_cluster_splits(
             min_train=min_train,
             min_test=min_test,
         )
-
         if split is not None:
             splits.append(split)
 
     return splits
+
 
 # ============================================================
 # SparseX OOD — Feature-space sparsity
@@ -313,15 +293,6 @@ def build_sparsex_splits(
         - compute average distance to k nearest neighbors in X
         - samples with largest distances are the sparsest / most isolated
         - hold out the top fraction as test set
-
-    Parameters
-    ----------
-    X : pd.DataFrame
-        Feature matrix.
-    fractions : sequence of float
-        Fractions of sparsest samples to hold out (e.g. 0.1, 0.2).
-    n_neighbors : int
-        Number of neighbors used to estimate local density/sparsity.
     """
     if n_neighbors < 1:
         raise ValueError("n_neighbors must be >= 1")
@@ -332,25 +303,26 @@ def build_sparsex_splits(
     if n < 2:
         raise ValueError("SparseX requires at least 2 samples")
 
-    # +1 because nearest neighbor includes the point itself at distance 0
-    nn = NearestNeighbors(n_neighbors=min(n_neighbors + 1, n))
-    nn.fit(X_mat)
-    distances, _ = nn.kneighbors(X_mat)
+    X_scaled = StandardScaler().fit_transform(X_mat)
 
-    # Exclude self-distance (first column = 0)
+    nn = NearestNeighbors(n_neighbors=min(n_neighbors + 1, n))
+    nn.fit(X_scaled)
+    distances, _ = nn.kneighbors(X_scaled)
+
     if distances.shape[1] > 1:
         mean_dist = distances[:, 1:].mean(axis=1)
     else:
         mean_dist = distances[:, 0]
 
-    order = np.argsort(mean_dist)[::-1]  # descending: sparsest first
+    order = np.argsort(mean_dist)[::-1]
     splits: List[Split] = []
 
     for frac in fractions:
-        if not (0 < float(frac) < 1):
+        frac = float(frac)
+        if not (0 < frac < 1):
             raise ValueError(f"Each fraction must be in (0, 1), got {frac}")
 
-        n_test = max(1, int(round(n * float(frac))))
+        n_test = max(1, int(round(n * frac)))
         test_idx = np.sort(order[:n_test])
         train_idx = np.sort(order[n_test:])
 
@@ -362,7 +334,6 @@ def build_sparsex_splits(
             min_train=min_train,
             min_test=min_test,
         )
-
         if split is not None:
             splits.append(split)
 
@@ -386,15 +357,6 @@ def build_sparsey_splits(
     Idea:
         - find samples with target values farthest from the central tendency
         - hold out the top fraction as test set
-
-    Parameters
-    ----------
-    y : pd.Series
-        Target values.
-    fractions : sequence of float
-        Fractions of most extreme samples to hold out.
-    center : {"median", "mean"}
-        Reference point used to define extremeness.
     """
     y_arr = np.asarray(y, dtype=float)
     n = y_arr.shape[0]
@@ -407,14 +369,15 @@ def build_sparsey_splits(
         raise ValueError("center must be 'median' or 'mean'")
 
     extremeness = np.abs(y_arr - ref)
-    order = np.argsort(extremeness)[::-1]  # descending: most extreme first
+    order = np.argsort(extremeness)[::-1]
     splits: List[Split] = []
 
     for frac in fractions:
-        if not (0 < float(frac) < 1):
+        frac = float(frac)
+        if not (0 < frac < 1):
             raise ValueError(f"Each fraction must be in (0, 1), got {frac}")
 
-        n_test = max(1, int(round(n * float(frac))))
+        n_test = max(1, int(round(n * frac)))
         test_idx = np.sort(order[:n_test])
         train_idx = np.sort(order[n_test:])
 
@@ -426,7 +389,6 @@ def build_sparsey_splits(
             min_train=min_train,
             min_test=min_test,
         )
-
         if split is not None:
             splits.append(split)
 
