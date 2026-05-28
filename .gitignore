@@ -4,6 +4,7 @@ __pycache__/
 # Editor settings
 .vscode/
 .idea/
+.codex
 
 # Local experiment outputs (do not commit)
 results/

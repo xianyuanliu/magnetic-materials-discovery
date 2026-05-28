@@ -38,26 +38,23 @@ def _atomic_fraction(compound: pd.Series):
     af = subset / total
     return af, af.index
 
-def _element_occurrence(df, periodic_table, formula_col, verbose=False):
-    """Count how many compounds each element appears in for the given formula column."""
-    formulas = df[formula_col].copy()
-    symbols = _sorted_elements(periodic_table)
-
-    # Calculate the occurrence of each element
-    n_el_rows = []
-    for el in symbols:
-        regex_list = formulas.str.extractall(pat=r"(?P<element>{0})(?P<digit>\d*)".format(el))
-        # drop the multi-index that extractall creates
-        regex_list = regex_list.droplevel(level=1).copy()
-        count = len(regex_list)
-        n_el_rows.append({"element": el, "count": count})
-        if verbose is True:
-            print("Number of compounds containing {0} is {1}".format(el, count))
-        # Remove the elements we have just found from the formulas list
-        formulas[regex_list.index] = formulas[regex_list.index].replace(
-            to_replace=regex_list.element + regex_list.digit, value=None, regex=True
-        )
-    return pd.DataFrame(n_el_rows, columns=["element", "count"])
+# def _element_occurrence(df, periodic_table, formula_col, verbose=False):
+#     """Count how many compounds each element appears in for the given formula column."""
+#     formulas = df[formula_col].copy()
+#     symbols = _sorted_elements(periodic_table)
+#
+#     n_el_rows = []
+#     for el in symbols:
+#         regex_list = formulas.str.extractall(pat=r"(?P<element>{0})(?P<digit>\d*)".format(el))
+#         regex_list = regex_list.droplevel(level=1).copy()
+#         count = len(regex_list)
+#         n_el_rows.append({"element": el, "count": count})
+#         if verbose is True:
+#             print("Number of compounds containing {0} is {1}".format(el, count))
+#         formulas[regex_list.index] = formulas[regex_list.index].replace(
+#             to_replace=regex_list.element + regex_list.digit, value=None, regex=True
+#         )
+#     return pd.DataFrame(n_el_rows, columns=["element", "count"])
 
 def importNovamag(root_dir):
     """
@@ -98,26 +95,15 @@ def import_miedema_weight(root_dir):
     mm = mm + mm_T
     return mm
 
-def get_K_mag(X):
-    # Extract the magnetocrystalline anisotropy constant K1
-    K = X["magnetocrystalline anisotropy constants"].copy()
-    for i in range(len(K)):
-        try:
-            # Turns out we have no non-zero K2 values, so the magnitude is just the K1 value.
-            X["magnetocrystalline anisotropy constants"].iloc[i] = K.iloc[i][0]
-        except:
-            TypeError  # to deal with 'nan' values which are vectors
-    return X
+
+# def get_element_occurrence_novamag(x, pt, verbose=False):
+#     """Novamag: use 'chemical formula' column."""
+#     return _element_occurrence(x, pt, "chemical formula", verbose=verbose)
 
 
-def get_element_occurrence_novamag(x, pt, verbose=False):
-    """Novamag: use 'chemical formula' column."""
-    return _element_occurrence(x, pt, "chemical formula", verbose=verbose)
-
-
-def get_element_occurrence_mp(x, pt, verbose=False):
-    """Materials Project: use 'composition' column."""
-    return _element_occurrence(x, pt, "composition", verbose=verbose)
+# def get_element_occurrence_mp(x, pt, verbose=False):
+#     """Materials Project: use 'composition' column."""
+#     return _element_occurrence(x, pt, "composition", verbose=verbose)
 
 
 def get_stoich_array(x, pt):

@@ -67,15 +67,15 @@ def load_config(path: str):
 def main():
     repo_root = Path(__file__).resolve().parent
 
-    pt_path = repo_root / "data" / "Periodic-table" / "periodic_table.xlsx"
-    mm_path = repo_root / "data" / "Miedema-model" / "Miedema-model-reduced.xlsx"
     plots_save_dir = repo_root / "plots"
+    plots_save_dir.mkdir(parents=True, exist_ok=True)
 
     args = parse_args()
     config_path = Path(args.config).resolve()
     cfg = load_config(str(config_path))
-    plots_save_dir.mkdir(parents=True, exist_ok=True)
 
+    pt_path = cfg["pt_path"]
+    mm_path = cfg["mm_path"]
     dataset_name = cfg["dataset"].lower()
     dataset_path = cfg.get("dataset_path")
     train_dataset_path = cfg.get("train_dataset_path")
@@ -134,6 +134,15 @@ def main():
         rf_name = _name_for_key("rf") if "rf" in models else None
         xgb_name = _name_for_key("xgb") if "xgb" in models else None
 
+        # Tune once on full data, reuse best params across all seeds and folds
+        if hyperparameter_tuning:
+            print("\n=== Hyperparameter Tuning (once on full dataset) ===")
+            for key in models:
+                model_cfg = MODEL_REGISTRY[key]
+                if model_cfg["tune"] is not None:
+                    best_params[key] = model_cfg["tune"](X, y, cv_folds=cv_folds)
+
+        # Run CV for each seed
         for run_i, seed in enumerate(cv_seeds, start=1):
             seed = int(seed)
 
@@ -146,7 +155,8 @@ def main():
                 y,
                 models,
                 MODEL_REGISTRY,
-                hyperparameter_tuning=hyperparameter_tuning,
+                hyperparameter_tuning=False,
+                best_params=best_params if best_params else None,
                 cv_folds=cv_folds,
                 shuffle=cv_shuffle,
                 random_state=seed,
@@ -191,15 +201,20 @@ def main():
         X, y, feature_columns = load_features_and_target(dataset_path)
         X_train, X_valid, y_train, y_valid = split_dataset(X, y, train_size=0.8)
 
+        # 2) Tune once on training set, then train all models with fixed best params
+        if hyperparameter_tuning:
+            print("\n=== Hyperparameter Tuning (once on training set) ===")
+            for key in models:
+                model_cfg = MODEL_REGISTRY[key]
+                if model_cfg["tune"] is not None:
+                    best_params[key] = model_cfg["tune"](X_train, y_train, cv_folds=cv_folds)
         for key in models:
             if key not in MODEL_REGISTRY:
                 raise ValueError(f"Unknown model key: {key}")
 
             model_cfg = MODEL_REGISTRY[key]
 
-            params = None
-            if hyperparameter_tuning and model_cfg["tune"] is not None:
-                params = model_cfg["tune"](X_train, y_train)
+            params = best_params.get(key) if best_params else None
 
             model = model_cfg["train"](X_train, y_train, params=params)
             trained_models[key] = model
@@ -240,6 +255,7 @@ def main():
                 save_path=str(plots_save_dir / f"{prefix}_shap_summary_rf.png"),
             )
 
+        # Comparative case studies across models (RF, XGBoost, and Ridge)
         if (
             "rf" in trained_models
             and "xgb" in trained_models
@@ -254,7 +270,3 @@ def main():
                 mm,
                 save_path=str(plots_save_dir / f"{prefix}_case_studies.png"),
             )
-
-
-if __name__ == "__main__":
-    main()

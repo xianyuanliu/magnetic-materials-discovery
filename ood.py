@@ -215,6 +215,15 @@ def run_ood_evaluation(
     rf_name = _name_for_key(model_registry, "rf") if "rf" in models else None
     xgb_name = _name_for_key(model_registry, "xgb") if "xgb" in models else None
 
+    # ---------- Tune once on full data ----------
+    best_params: Dict = {}
+    if hyperparameter_tuning:
+        print("\n=== Hyperparameter Tuning (once on full dataset) ===")
+        for key in models:
+            model_cfg = model_registry[key]
+            if model_cfg["tune"] is not None:
+                best_params[key] = model_cfg["tune"](X_full, y_full, cv_folds=cv_folds)
+
     # ---------- Decide what to run ----------
     mode = ood_cfg.ood_mode
     supported_modes = {"element", "period", "group", "cluster", "sparsex", "sparsey", "all"}
@@ -259,7 +268,8 @@ def run_ood_evaluation(
                 seed=int(seed),
                 cv_folds=cv_folds,
                 shuffle=cv_shuffle,
-                hyperparameter_tuning=hyperparameter_tuning,
+                hyperparameter_tuning=False,
+                best_params=best_params if best_params else None,
                 rf_name=rf_name,
                 xgb_name=xgb_name,
             )
@@ -292,7 +302,8 @@ def run_ood_evaluation(
                 seed=int(seed),
                 cv_folds=cv_folds,
                 shuffle=cv_shuffle,
-                hyperparameter_tuning=hyperparameter_tuning,
+                hyperparameter_tuning=False,
+                best_params=best_params if best_params else None,
                 rf_name=rf_name,
                 xgb_name=xgb_name,
             )
@@ -325,7 +336,8 @@ def run_ood_evaluation(
                 seed=int(seed),
                 cv_folds=cv_folds,
                 shuffle=cv_shuffle,
-                hyperparameter_tuning=hyperparameter_tuning,
+                hyperparameter_tuning=False,
+                best_params=best_params if best_params else None,
                 rf_name=rf_name,
                 xgb_name=xgb_name,
             )
@@ -353,7 +365,8 @@ def run_ood_evaluation(
                 seed=int(seed),
                 cv_folds=cv_folds,
                 shuffle=cv_shuffle,
-                hyperparameter_tuning=hyperparameter_tuning,
+                hyperparameter_tuning=False,
+                best_params=best_params if best_params else None,
                 rf_name=rf_name,
                 xgb_name=xgb_name,
             )
@@ -380,7 +393,8 @@ def run_ood_evaluation(
                 seed=int(seed),
                 cv_folds=cv_folds,
                 shuffle=cv_shuffle,
-                hyperparameter_tuning=hyperparameter_tuning,
+                hyperparameter_tuning=False,
+                best_params=best_params if best_params else None,
                 rf_name=rf_name,
                 xgb_name=xgb_name,
             )
@@ -407,7 +421,8 @@ def run_ood_evaluation(
                 seed=int(seed),
                 cv_folds=cv_folds,
                 shuffle=cv_shuffle,
-                hyperparameter_tuning=hyperparameter_tuning,
+                hyperparameter_tuning=False,
+                best_params=best_params if best_params else None,
                 rf_name=rf_name,
                 xgb_name=xgb_name,
             )
