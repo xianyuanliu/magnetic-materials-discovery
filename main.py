@@ -41,6 +41,18 @@ def load_config(path: str):
     with open(path, "r") as f:
         return yaml.safe_load(f)
 
+def print_rf_vs_xgb_significance(cv_results, rf_name: str, xgb_name: str):
+    """Print paired t-test / Wilcoxon significance for RF vs XGB, on MSE and MAE."""
+    print("\n--- RF vs XGB significance (paired across folds) ---")
+    for metric in ("mse", "mae"):
+        t_stat, t_p, w_stat, w_p = compare_models_significance(
+            cv_results, rf_name, xgb_name, metric=metric
+        )
+        print(
+            f"{metric.upper()}: t-test p={t_p:.6g}, Wilcoxon p={w_p:.6g} "
+            f"(t_stat={t_stat:.4f}, w_stat={w_stat:.4f})"
+        )
+
 def main():
     """Run one holdout/cross_validation/ood evaluation, per the --config file."""
     plots_save_dir = Path("./plots/")
@@ -133,24 +145,7 @@ def main():
 
             # p-values for RF vs XGB using paired tests across folds
             if rf_name is not None and xgb_name is not None:
-                print("\n--- RF vs XGB significance (paired across folds) ---")
-
-
-                mse_t_stat, mse_t_p, mse_w_stat, mse_w_p = compare_models_significance(
-                    cv_results, rf_name, xgb_name, metric="mse"
-                )
-                print(
-                    f"MSE: t-test p={mse_t_p:.6g}, Wilcoxon p={mse_w_p:.6g} "
-                    f"(t_stat={mse_t_stat:.4f}, w_stat={mse_w_stat:.4f})"
-                )
-
-                mae_t_stat, mae_t_p, mae_w_stat, mae_w_p = compare_models_significance(
-                    cv_results, rf_name, xgb_name, metric="mae"
-                )
-                print(
-                    f"MAE: t-test p={mae_t_p:.6g}, Wilcoxon p={mae_w_p:.6g} "
-                    f"(t_stat={mae_t_stat:.4f}, w_stat={mae_w_stat:.4f})"
-                )
+                print_rf_vs_xgb_significance(cv_results, rf_name, xgb_name)
 
     elif need_ood:
         run_ood_evaluation(
