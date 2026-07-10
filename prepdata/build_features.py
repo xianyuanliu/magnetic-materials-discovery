@@ -3,7 +3,6 @@
 import pandas as pd
 
 import prepdata.alloy_transform as alloy_transform
-from loaddata.raw_loaders import load_elemental_data
 
 
 def build_features(
@@ -56,12 +55,3 @@ def build_features(
     data = data.groupby(by="chemical formula").median()
 
     return data, feature_columns
-
-
-def process_data(raw_data, pt_path, mm_path):
-    """Load elemental data and engineer alloy features for a raw magnetism dataset."""
-    periodic_table, miedema_weight = load_elemental_data(pt_path, mm_path)
-    data, _ = build_features(raw_data, periodic_table, miedema_weight)
-    print(f"The total number of samples after cleaning is {len(data)}")
-
-    return data
