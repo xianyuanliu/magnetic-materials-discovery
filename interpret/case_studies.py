@@ -1,6 +1,6 @@
 """FeAl / FeCo / FeCr case studies: model predictions vs. literature measurements."""
 
-from typing import List
+from typing import Dict, List
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -41,49 +41,65 @@ def _build_case_features(
     return X, stoich
 
 
+def _run_case(
+    formulas: List[str],
+    literature_ms: Dict[float, float],
+    X_cols: List[str],
+    rf_model,
+    xgb_model,
+    ridge_model,
+    periodic_table,
+    miedema_weight,
+):
+    """Generate predictions and literature references for one case study (no plotting)."""
+    X, stoich_array = _build_case_features(formulas, periodic_table, miedema_weight)
+
+    rf_preds = rf_model.predict(X[X_cols])
+    xgb_preds = xgb_model.predict(X[X_cols])
+    ridge_preds = ridge_model.predict(X[X_cols])
+
+    at_fraction = alloy_transform.get_atomic_frac(stoich_array)
+    exp = pd.Series(literature_ms)
+
+    return at_fraction, rf_preds, xgb_preds, ridge_preds, exp
+
+
 def feal_case(X_cols: List[str], rf_model, xgb_model, ridge_model, periodic_table, miedema_weight):
     """Generate predictions and literature references for the FeAl case study (no plotting)."""
-    X_FeAl, stoich_array_FeAl = _build_case_features(FEAL_FORMULAS, periodic_table, miedema_weight)
-
-    rfpreds_FeAl = rf_model.predict(X_FeAl[X_cols])
-    xgbpreds_FeAl = xgb_model.predict(X_FeAl[X_cols])
-    ridgepreds_FeAl = ridge_model.predict(X_FeAl[X_cols])
-
-    at_FeAl_fraction = alloy_transform.get_atomic_frac(stoich_array_FeAl)
-
-    Exp_FeAl = pd.Series(FEAL_LITERATURE_MS)
-
-    return at_FeAl_fraction, rfpreds_FeAl, xgbpreds_FeAl, ridgepreds_FeAl, Exp_FeAl
+    return _run_case(
+        FEAL_FORMULAS, FEAL_LITERATURE_MS, X_cols, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight
+    )
 
 
 def feco_case(X_cols, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight):
     """Generate predictions and literature references for the FeCo case study."""
-    X_FeCo, stoich_array_FeCo = _build_case_features(FECO_FORMULAS, periodic_table, miedema_weight)
-
-    rfpreds_FeCo = rf_model.predict(X_FeCo[X_cols])
-    xgbpreds_FeCo = xgb_model.predict(X_FeCo[X_cols])
-    ridgepreds_FeCo = ridge_model.predict(X_FeCo[X_cols])
-
-    at_FeCo_fraction = alloy_transform.get_atomic_frac(stoich_array_FeCo)
-
-    Exp_FeCo = pd.Series(FECO_LITERATURE_MS)
-
-    return at_FeCo_fraction, rfpreds_FeCo, xgbpreds_FeCo, ridgepreds_FeCo, Exp_FeCo
+    return _run_case(
+        FECO_FORMULAS, FECO_LITERATURE_MS, X_cols, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight
+    )
 
 
 def fecr_case(X_cols, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight):
     """Generate predictions and literature references for the FeCr case study."""
-    X_FeCr, stoich_array_FeCr = _build_case_features(FECR_FORMULAS, periodic_table, miedema_weight)
+    return _run_case(
+        FECR_FORMULAS, FECR_LITERATURE_MS, X_cols, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight
+    )
 
-    rfpreds_FeCr = rf_model.predict(X_FeCr[X_cols])
-    xgbpreds_FeCr = xgb_model.predict(X_FeCr[X_cols])
-    ridgepreds_FeCr = ridge_model.predict(X_FeCr[X_cols])
 
-    at_FeCr_fraction = alloy_transform.get_atomic_frac(stoich_array_FeCr)
-
-    Exp_FeCr = pd.Series(FECR_LITERATURE_MS)
-
-    return at_FeCr_fraction, rfpreds_FeCr, xgbpreds_FeCr, ridgepreds_FeCr, Exp_FeCr
+def _plot_one_case(ax, at_fraction, element_col, rf_preds, xgb_preds, ridge_preds, exp, title):
+    """Plot one case study's predictions + literature scatter onto `ax`."""
+    sns.scatterplot(x=at_fraction[element_col], y=rf_preds, ax=ax)
+    sns.scatterplot(x=at_fraction[element_col], y=xgb_preds, ax=ax)
+    sns.scatterplot(x=at_fraction[element_col], y=ridge_preds, ax=ax)
+    sns.scatterplot(x=exp.index, y=exp.values, ax=ax)
+    ax.set_title(f"{title} Case Study", fontsize=16)
+    ax.set_xlabel(f"{element_col} content [atomic fraction]", fontsize=16)
+    ax.set_ylabel("Saturation Magnetisation [T]", fontsize=16)
+    legend = ax.legend(
+        ["random forest", "xgboost", "ridge regression", "literature"],
+        loc="upper right",
+        fontsize=12,
+    )
+    legend.get_frame().set_facecolor("white")
 
 
 def plot_case_studies(
@@ -93,80 +109,22 @@ def plot_case_studies(
     ridge_model,
     periodic_table,
     miedema_weight,
-    save_path = None,
+    save_path=None,
 ):
     """Plot three case studies (FeAl, FeCo, FeCr) side by side."""
-    (
-        at_FeAl_fraction,
-        rfpreds_FeAl,
-        xgbpreds_FeAl,
-        ridgepreds_FeAl,
-        Exp_FeAl,
-    ) = feal_case(feature_columns, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight)
+    fig, axes = plt.subplots(1, 3, figsize=(20, 4))
 
-    (
-        at_FeCo_fraction,
-        rfpreds_FeCo,
-        xgbpreds_FeCo,
-        ridgepreds_FeCo,
-        Exp_FeCo,
-    ) = feco_case(feature_columns, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight)
+    cases = [
+        (feal_case, "Al", "FeAl", axes[0]),
+        (feco_case, "Co", "FeCo", axes[1]),
+        (fecr_case, "Cr", "FeCr", axes[2]),
+    ]
 
-    (
-        at_FeCr_fraction,
-        rfpreds_FeCr,
-        xgbpreds_FeCr,
-        ridgepreds_FeCr,
-        Exp_FeCr,
-    ) = fecr_case(feature_columns, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight)
-
-    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(20, 4))
-
-    # FeAl
-    sns.scatterplot(x=at_FeAl_fraction["Al"], y=rfpreds_FeAl, ax=ax1)
-    sns.scatterplot(x=at_FeAl_fraction["Al"], y=xgbpreds_FeAl, ax=ax1)
-    sns.scatterplot(x=at_FeAl_fraction["Al"], y=ridgepreds_FeAl, ax=ax1)
-    sns.scatterplot(x=Exp_FeAl.index, y=Exp_FeAl.values, ax=ax1)
-    ax1.set_title("FeAl Case Study", fontsize=16)
-    ax1.set_xlabel("Al content [atomic fraction]", fontsize=16)
-    ax1.set_ylabel("Saturation Magnetisation [T]", fontsize=16)
-    legend1 = ax1.legend(
-        ["random forest", "xgboost", "ridge regression", "literature"],
-        loc="upper right",
-        fontsize=12,
-    )
-    legend1.get_frame().set_facecolor("white")
-
-    # FeCo
-    sns.scatterplot(x=at_FeCo_fraction["Co"], y=rfpreds_FeCo, ax=ax2)
-    sns.scatterplot(x=at_FeCo_fraction["Co"], y=xgbpreds_FeCo, ax=ax2)
-    sns.scatterplot(x=at_FeCo_fraction["Co"], y=ridgepreds_FeCo, ax=ax2)
-    sns.scatterplot(x=Exp_FeCo.index, y=Exp_FeCo.values, ax=ax2)
-    ax2.set_title("FeCo Case Study", fontsize=16)
-    ax2.set_xlabel("Co content [atomic fraction]", fontsize=16)
-    ax2.set_ylabel("Saturation Magnetisation [T]", fontsize=16)
-    legend2 = ax2.legend(
-        ["random forest", "xgboost", "ridge regression", "literature"],
-        loc="upper right",
-        fontsize=12,
-    )
-    legend2.get_frame().set_facecolor("white")
-
-    # FeCr
-    sns.scatterplot(x=at_FeCr_fraction["Cr"], y=rfpreds_FeCr, ax=ax3)
-    sns.scatterplot(x=at_FeCr_fraction["Cr"], y=xgbpreds_FeCr, ax=ax3)
-    sns.scatterplot(x=at_FeCr_fraction["Cr"], y=ridgepreds_FeCr, ax=ax3)
-    sns.scatterplot(x=Exp_FeCr.index, y=Exp_FeCr.values, ax=ax3)
-    ax3.set_title("FeCr Case Study", fontsize=16)
-    ax3.set_xlabel("Cr content [atomic fraction]", fontsize=16)
-    ax3.set_ylabel("Saturation Magnetisation [T]", fontsize=16)
-
-    legend3 = ax3.legend(
-        ["random forest", "xgboost", "ridge regression", "literature"],
-        loc="upper right",
-        fontsize=12,
-    )
-    legend3.get_frame().set_facecolor("white")
+    for case_fn, element_col, title, ax in cases:
+        at_fraction, rf_preds, xgb_preds, ridge_preds, exp = case_fn(
+            feature_columns, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight
+        )
+        _plot_one_case(ax, at_fraction, element_col, rf_preds, xgb_preds, ridge_preds, exp, title)
 
     plt.tight_layout()
 

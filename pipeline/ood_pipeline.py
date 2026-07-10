@@ -7,6 +7,7 @@ split families via pipeline/ood_splits.py, and scores each via evaluate/ood_eval
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple, Any
 
@@ -154,6 +155,51 @@ def _load_ood_cfg(cfg: dict, default_seed: int) -> OODConfig:
     )
 
 
+def _run_scenario(
+    scenario: str,
+    splits: List[Split],
+    *,
+    X_full: pd.DataFrame,
+    y_full: pd.Series,
+    models: List[str],
+    model_registry: Dict,
+    seeds: Sequence[int],
+    cv_folds: int,
+    cv_shuffle: bool,
+    hyperparameter_tuning: bool,
+    model_random_state: int,
+    rf_name: Optional[str],
+    xgb_name: Optional[str],
+) -> Tuple[List[pd.DataFrame], List[pd.DataFrame], List[pd.DataFrame]]:
+    """Evaluate one OOD scenario's splits across all seeds.
+
+    Returns:
+        (t1_frames, t2_frames, t3_frames) — one triple of tables per seed.
+    """
+    t1_frames, t2_frames, t3_frames = [], [], []
+    for seed in seeds:
+        t1, t2, t3 = evaluate_splits_kfold_train_fixed_test(
+            X_full,
+            y_full,
+            splits,
+            models,
+            model_registry,
+            scenario=scenario,
+            seed=int(seed),
+            cv_folds=cv_folds,
+            shuffle=cv_shuffle,
+            hyperparameter_tuning=hyperparameter_tuning,
+            best_params=None,
+            model_random_state=model_random_state,
+            rf_name=rf_name,
+            xgb_name=xgb_name,
+        )
+        t1_frames.append(t1)
+        t2_frames.append(t2)
+        t3_frames.append(t3)
+    return t1_frames, t2_frames, t3_frames
+
+
 def run_ood_evaluation(
     *,
     cfg: dict,
@@ -234,10 +280,6 @@ def run_ood_evaluation(
     run_sparsey = mode in {"sparsey", "all"}
 
     # ---------- Collect tables ----------
-    all_t1: List[pd.DataFrame] = []
-    all_t2: List[pd.DataFrame] = []
-    all_t3: List[pd.DataFrame] = []
-
     seeds = list(ood_cfg.cv_seeds) if ood_cfg.cv_seeds is not None else [int(ood_cfg.ood_seed)]
     max_splits = int(ood_cfg.ood_max_splits)
 
@@ -245,193 +287,79 @@ def run_ood_evaluation(
     # NOTE: for period/group you should pass ints; we coerce to int list.
     user_targets = ood_cfg.ood_targets
 
+    # Every scenario below just picks its own `splits`, then runs the same
+    # per-seed evaluate-and-collect loop, so bind everything else once.
+    run_scenario = partial(
+        _run_scenario,
+        X_full=X_full,
+        y_full=y_full,
+        models=models,
+        model_registry=model_registry,
+        seeds=seeds,
+        cv_folds=cv_folds,
+        cv_shuffle=cv_shuffle,
+        hyperparameter_tuning=hyperparameter_tuning,
+        model_random_state=model_random_state,
+        rf_name=rf_name,
+        xgb_name=xgb_name,
+    )
+
+    all_t1: List[pd.DataFrame] = []
+    all_t2: List[pd.DataFrame] = []
+    all_t3: List[pd.DataFrame] = []
+
+    def _collect(scenario: str, splits: List[Split]) -> None:
+        t1s, t2s, t3s = run_scenario(scenario, splits)
+        all_t1.extend(t1s)
+        all_t2.extend(t2s)
+        all_t3.extend(t3s)
+
     # ---------- LOEO ----------
     if run_element:
-        if user_targets is None:
-            targets = _top_elements(elements_per_row, max_splits)
-        else:
-            targets = [str(x) for x in user_targets]
-
-        splits: List[Split] = build_loeo_splits(elements_per_row, targets)[:max_splits]
-
-        for seed in seeds:
-            t1, t2, t3 = evaluate_splits_kfold_train_fixed_test(
-                X_full,
-                y_full,
-                splits,
-                models,
-                model_registry,
-                scenario="LOEO",
-                seed=int(seed),
-                cv_folds=cv_folds,
-                shuffle=cv_shuffle,
-                hyperparameter_tuning=hyperparameter_tuning,
-                best_params=None,
-                model_random_state=model_random_state,
-                rf_name=rf_name,
-                xgb_name=xgb_name,
-            )
-            all_t1.append(t1)
-            all_t2.append(t2)
-            all_t3.append(t3)
+        targets = [str(x) for x in user_targets] if user_targets is not None else _top_elements(
+            elements_per_row, max_splits
+        )
+        _collect("LOEO", build_loeo_splits(elements_per_row, targets)[:max_splits])
 
     # ---------- LOPO ----------
     if run_period:
-        if user_targets is None:
-            targets = _top_periods(elements_per_row, element_to_period, max_splits)
-        else:
-            targets = _safe_int_list(user_targets) or []
-
+        targets = _safe_int_list(user_targets) or [] if user_targets is not None else _top_periods(
+            elements_per_row, element_to_period, max_splits
+        )
         splits = build_period_splits(
-            elements_per_row,
-            element_to_period,
-            targets,
-            strict=bool(ood_cfg.period_strict),
+            elements_per_row, element_to_period, targets, strict=bool(ood_cfg.period_strict)
         )[:max_splits]
-
-        for seed in seeds:
-            t1, t2, t3 = evaluate_splits_kfold_train_fixed_test(
-                X_full,
-                y_full,
-                splits,
-                models,
-                model_registry,
-                scenario="LOPO",
-                seed=int(seed),
-                cv_folds=cv_folds,
-                shuffle=cv_shuffle,
-                hyperparameter_tuning=hyperparameter_tuning,
-                best_params=None,
-                model_random_state=model_random_state,
-                rf_name=rf_name,
-                xgb_name=xgb_name,
-            )
-            all_t1.append(t1)
-            all_t2.append(t2)
-            all_t3.append(t3)
+        _collect("LOPO", splits)
 
     # ---------- LOGO ----------
     if run_group:
-        if user_targets is None:
-            targets = _top_groups(elements_per_row, element_to_group, max_splits)
-        else:
-            targets = _safe_int_list(user_targets) or []
-
+        targets = _safe_int_list(user_targets) or [] if user_targets is not None else _top_groups(
+            elements_per_row, element_to_group, max_splits
+        )
         splits = build_group_splits(
-            elements_per_row,
-            element_to_group,
-            targets,
-            strict=bool(ood_cfg.group_strict),
+            elements_per_row, element_to_group, targets, strict=bool(ood_cfg.group_strict)
         )[:max_splits]
-
-        for seed in seeds:
-            t1, t2, t3 = evaluate_splits_kfold_train_fixed_test(
-                X_full,
-                y_full,
-                splits,
-                models,
-                model_registry,
-                scenario="LOGO",
-                seed=int(seed),
-                cv_folds=cv_folds,
-                shuffle=cv_shuffle,
-                hyperparameter_tuning=hyperparameter_tuning,
-                best_params=None,
-                model_random_state=model_random_state,
-                rf_name=rf_name,
-                xgb_name=xgb_name,
-            )
-            all_t1.append(t1)
-            all_t2.append(t2)
-            all_t3.append(t3)
+        _collect("LOGO", splits)
 
     # ---------- LOCO-k ----------
     if run_cluster:
         k = int(ood_cfg.ood_k)
-        splits = build_kmeans_cluster_splits(
-            X_full,
-            k=k,
-            seed=int(ood_cfg.ood_seed),
-        )[:max_splits]
-
-        for seed in seeds:
-            t1, t2, t3 = evaluate_splits_kfold_train_fixed_test(
-                X_full,
-                y_full,
-                splits,
-                models,
-                model_registry,
-                scenario=f"LOCO(k={k})",
-                seed=int(seed),
-                cv_folds=cv_folds,
-                shuffle=cv_shuffle,
-                hyperparameter_tuning=hyperparameter_tuning,
-                best_params=None,
-                model_random_state=model_random_state,
-                rf_name=rf_name,
-                xgb_name=xgb_name,
-            )
-            all_t1.append(t1)
-            all_t2.append(t2)
-            all_t3.append(t3)
+        splits = build_kmeans_cluster_splits(X_full, k=k, seed=int(ood_cfg.ood_seed))[:max_splits]
+        _collect(f"LOCO(k={k})", splits)
 
     # ---------- SparseX ----------
     if run_sparsex:
         splits = build_sparsex_splits(
-            X_full,
-            fractions=ood_cfg.ood_fractions,
-            n_neighbors=ood_cfg.sparsex_neighbors,
+            X_full, fractions=ood_cfg.ood_fractions, n_neighbors=ood_cfg.sparsex_neighbors
         )[:max_splits]
-
-        for seed in seeds:
-            t1, t2, t3 = evaluate_splits_kfold_train_fixed_test(
-                X_full,
-                y_full,
-                splits,
-                models,
-                model_registry,
-                scenario="SparseX",
-                seed=int(seed),
-                cv_folds=cv_folds,
-                shuffle=cv_shuffle,
-                hyperparameter_tuning=hyperparameter_tuning,
-                best_params=None,
-                model_random_state=model_random_state,
-                rf_name=rf_name,
-                xgb_name=xgb_name,
-            )
-            all_t1.append(t1)
-            all_t2.append(t2)
-            all_t3.append(t3)
+        _collect("SparseX", splits)
 
     # ---------- SparseY ----------
     if run_sparsey:
         splits = build_sparsey_splits(
-            y_full,
-            fractions=ood_cfg.ood_fractions,
-            center=ood_cfg.sparsey_center,
+            y_full, fractions=ood_cfg.ood_fractions, center=ood_cfg.sparsey_center
         )[:max_splits]
-
-        for seed in seeds:
-            t1, t2, t3 = evaluate_splits_kfold_train_fixed_test(
-                X_full,
-                y_full,
-                splits,
-                models,
-                model_registry,
-                scenario="SparseY",
-                seed=int(seed),
-                cv_folds=cv_folds,
-                shuffle=cv_shuffle,
-                hyperparameter_tuning=hyperparameter_tuning,
-                best_params=None,
-                model_random_state=model_random_state,
-                rf_name=rf_name,
-                xgb_name=xgb_name,
-            )
-            all_t1.append(t1)
-            all_t2.append(t2)
-            all_t3.append(t3)
+        _collect("SparseY", splits)
 
     # ---------- Finalize / print ----------
     table1 = pd.concat(all_t1, ignore_index=True) if all_t1 else pd.DataFrame()

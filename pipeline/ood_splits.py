@@ -1,8 +1,7 @@
 """Builders for out-of-distribution (OOD) train/test splits.
 
 Each build_*_splits function returns a list of (split_id, train_idx, test_idx)
-tuples. Splits are deterministic where seeded and validated for leakage/bounds
-via _validate_split.
+tuples. Splits are deterministic where seeded.
 """
 
 from typing import Dict, List, Sequence, Tuple, Optional
@@ -16,31 +15,24 @@ from sklearn.neighbors import NearestNeighbors
 Split = Tuple[str, np.ndarray, np.ndarray]
 
 
-def _validate_split(
+def _finalize_split(
     split_id: str,
     train_idx: np.ndarray,
     test_idx: np.ndarray,
-    n_samples: int,
     min_train: int = 1,
     min_test: int = 1,
 ) -> Optional[Split]:
-    """Return (split_id, train_idx, test_idx), or None if below min size.
+    """Return (split_id, train_idx, test_idx), or None if below the minimum size.
 
-    Raises ValueError on train/test overlap or out-of-bounds indices.
+    train_idx/test_idx always come in as a partition (a boolean mask and its
+    complement, or an argsort split) built by the caller, so they're already
+    guaranteed disjoint and in-bounds — no need to re-check that here.
     """
     train_idx = np.asarray(train_idx, dtype=int)
     test_idx = np.asarray(test_idx, dtype=int)
 
     if train_idx.size < min_train or test_idx.size < min_test:
         return None
-
-    # No overlap between train and test
-    if np.intersect1d(train_idx, test_idx).size > 0:
-        raise ValueError(f"Leakage detected in split {split_id}")
-
-    # Bounds safety
-    if train_idx.max(initial=-1) >= n_samples or test_idx.max(initial=-1) >= n_samples:
-        raise ValueError(f"Index out of bounds in split {split_id}")
 
     return split_id, train_idx, test_idx
 
@@ -56,7 +48,6 @@ def build_loeo_splits(
     min_test: int = 1,
 ) -> List[Split]:
     """Leave-One-Element-Out: test = samples containing element E, train = the rest."""
-    n = len(elements_per_sample)
     splits: List[Split] = []
 
     for element in element_list:
@@ -66,14 +57,10 @@ def build_loeo_splits(
             dtype=bool,
         )
 
-        test_idx = np.where(test_mask)[0]
-        train_idx = np.where(~test_mask)[0]
-
-        split = _validate_split(
+        split = _finalize_split(
             f"E={element}",
-            train_idx,
-            test_idx,
-            n,
+            np.where(~test_mask)[0],
+            np.where(test_mask)[0],
             min_train=min_train,
             min_test=min_test,
         )
@@ -85,8 +72,55 @@ def build_loeo_splits(
 
 
 # ============================================================
-# Leave-One-Period-Out (LOPO)
+# Leave-One-Period-Out (LOPO) / Leave-One-Group-Out (LOGO)
 # ============================================================
+
+def _build_membership_splits(
+    elements_per_sample: Sequence[Sequence[str]],
+    element_to_attr: Dict[str, int],
+    attr_values: Sequence[int],
+    label: str,
+    strict: bool,
+    min_train: int,
+    min_test: int,
+) -> List[Split]:
+    """Shared LOPO/LOGO logic, keyed by an element->period or element->group map.
+
+    Default (strict=False): test = samples containing ANY element with this
+    attribute value. strict=True: test = samples where ALL elements do.
+    """
+    splits: List[Split] = []
+
+    for value in attr_values:
+
+        if strict:
+            test_mask = np.array(
+                [
+                    bool(els) and all(element_to_attr.get(e) == value for e in set(els))
+                    for els in elements_per_sample
+                ],
+                dtype=bool,
+            )
+        else:
+            heldout_elements = {e for e, v in element_to_attr.items() if v == value}
+            test_mask = np.array(
+                [len(set(els).intersection(heldout_elements)) > 0 for els in elements_per_sample],
+                dtype=bool,
+            )
+
+        split = _finalize_split(
+            f"{label}={value}",
+            np.where(~test_mask)[0],
+            np.where(test_mask)[0],
+            min_train=min_train,
+            min_test=min_test,
+        )
+
+        if split is not None:
+            splits.append(split)
+
+    return splits
+
 
 def build_period_splits(
     elements_per_sample: Sequence[Sequence[str]],
@@ -96,63 +130,11 @@ def build_period_splits(
     min_train: int = 1,
     min_test: int = 1,
 ) -> List[Split]:
-    """Leave-One-Period-Out.
+    """Leave-One-Period-Out (see _build_membership_splits for strict/default semantics)."""
+    return _build_membership_splits(
+        elements_per_sample, element_to_period, periods, "P", strict, min_train, min_test
+    )
 
-    Default (strict=False): test = samples containing ANY element from period P.
-    strict=True: test = samples where ALL elements belong to period P.
-    """
-    n = len(elements_per_sample)
-    splits: List[Split] = []
-
-    for p in periods:
-
-        if strict:
-            test_mask = []
-            for els in elements_per_sample:
-                els = list(set(els))
-                if len(els) == 0:
-                    test_mask.append(False)
-                    continue
-
-                ok = all(element_to_period.get(e) == p for e in els)
-                test_mask.append(ok)
-
-            test_mask = np.array(test_mask, dtype=bool)
-
-        else:
-            heldout_elements = {
-                e for e, pe in element_to_period.items() if pe == p
-            }
-
-            test_mask = np.array(
-                [
-                    len(set(els).intersection(heldout_elements)) > 0
-                    for els in elements_per_sample
-                ],
-                dtype=bool,
-            )
-
-        test_idx = np.where(test_mask)[0]
-        train_idx = np.where(~test_mask)[0]
-
-        split = _validate_split(
-            f"P={p}",
-            train_idx,
-            test_idx,
-            n,
-            min_train=min_train,
-            min_test=min_test,
-        )
-
-        if split is not None:
-            splits.append(split)
-
-    return splits
-
-
-# ============================================================
-# Leave-One-Group-Out (LOGO)
-# ============================================================
 
 def build_group_splits(
     elements_per_sample: Sequence[Sequence[str]],
@@ -162,58 +144,10 @@ def build_group_splits(
     min_train: int = 1,
     min_test: int = 1,
 ) -> List[Split]:
-    """Leave-One-Group-Out.
-
-    Default (strict=False): test = samples containing ANY element from group G.
-    strict=True: test = samples where ALL elements belong to group G.
-    """
-    n = len(elements_per_sample)
-    splits: List[Split] = []
-
-    for g in groups:
-
-        if strict:
-            test_mask = []
-            for els in elements_per_sample:
-                els = list(set(els))
-                if len(els) == 0:
-                    test_mask.append(False)
-                    continue
-
-                ok = all(element_to_group.get(e) == g for e in els)
-                test_mask.append(ok)
-
-            test_mask = np.array(test_mask, dtype=bool)
-
-        else:
-            heldout_elements = {
-                e for e, ge in element_to_group.items() if ge == g
-            }
-
-            test_mask = np.array(
-                [
-                    len(set(els).intersection(heldout_elements)) > 0
-                    for els in elements_per_sample
-                ],
-                dtype=bool,
-            )
-
-        test_idx = np.where(test_mask)[0]
-        train_idx = np.where(~test_mask)[0]
-
-        split = _validate_split(
-            f"G={g}",
-            train_idx,
-            test_idx,
-            n,
-            min_train=min_train,
-            min_test=min_test,
-        )
-
-        if split is not None:
-            splits.append(split)
-
-    return splits
+    """Leave-One-Group-Out (see _build_membership_splits for strict/default semantics)."""
+    return _build_membership_splits(
+        elements_per_sample, element_to_group, groups, "G", strict, min_train, min_test
+    )
 
 
 # ============================================================
@@ -247,19 +181,14 @@ def build_kmeans_cluster_splits(
 
     labels = km.fit_predict(X_mat)
 
-    n = X.shape[0]
     splits: List[Split] = []
 
     for c in range(k):
 
-        test_idx = np.where(labels == c)[0]
-        train_idx = np.where(labels != c)[0]
-
-        split = _validate_split(
+        split = _finalize_split(
             f"C={c}",
-            train_idx,
-            test_idx,
-            n,
+            np.where(labels != c)[0],
+            np.where(labels == c)[0],
             min_train=min_train,
             min_test=min_test,
         )
@@ -313,14 +242,11 @@ def build_sparsex_splits(
             raise ValueError(f"Each fraction must be in (0, 1), got {frac}")
 
         n_test = max(1, int(round(n * float(frac))))
-        test_idx = np.sort(order[:n_test])
-        train_idx = np.sort(order[n_test:])
 
-        split = _validate_split(
+        split = _finalize_split(
             f"SparseX_top{int(round(frac * 100))}pct",
-            train_idx,
-            test_idx,
-            n,
+            np.sort(order[n_test:]),
+            np.sort(order[:n_test]),
             min_train=min_train,
             min_test=min_test,
         )
@@ -366,14 +292,11 @@ def build_sparsey_splits(
             raise ValueError(f"Each fraction must be in (0, 1), got {frac}")
 
         n_test = max(1, int(round(n * float(frac))))
-        test_idx = np.sort(order[:n_test])
-        train_idx = np.sort(order[n_test:])
 
-        split = _validate_split(
+        split = _finalize_split(
             f"SparseY_top{int(round(frac * 100))}pct",
-            train_idx,
-            test_idx,
-            n,
+            np.sort(order[n_test:]),
+            np.sort(order[:n_test]),
             min_train=min_train,
             min_test=min_test,
         )

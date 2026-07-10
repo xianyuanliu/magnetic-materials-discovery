@@ -25,6 +25,40 @@ from models import (
 )
 
 
+def _grid_search_best_params(model, param_grid: Dict, X_train, y_train, cv_folds: int, label: str) -> Dict:
+    """Run GridSearchCV for a given model instance, print and return the best params."""
+    grid_search = GridSearchCV(
+        estimator=model,
+        param_grid=param_grid,
+        cv=cv_folds,
+        scoring="neg_mean_squared_error",
+        n_jobs=-1,
+    )
+    grid_search.fit(X_train, y_train)
+    print(f"{label} Best Parameters:", grid_search.best_params_)
+    print(f"{label} Best Score (neg_mean_squared_error):", grid_search.best_score_)
+    return grid_search.best_params_
+
+
+def _randomized_search_best_params(
+    model, param_dist: Dict, X_train, y_train, cv_folds: int, random_state: int, label: str
+) -> Dict:
+    """Run RandomizedSearchCV (n_iter=50) for a given model instance, print and return the best params."""
+    random_search = RandomizedSearchCV(
+        estimator=model,
+        param_distributions=param_dist,
+        n_iter=50,
+        cv=cv_folds,
+        scoring="neg_mean_squared_error",
+        n_jobs=-1,
+        random_state=random_state,
+    )
+    random_search.fit(X_train, y_train)
+    print(f"{label} Best Parameters:", random_search.best_params_)
+    print(f"{label} Best Score (neg_mean_squared_error):", random_search.best_score_)
+    return random_search.best_params_
+
+
 # 1) Hyperparameter tuning for linear models
 
 def tune_ridge_hyperparams(X_train, y_train, cv_folds: int = 5, random_state: int = 0) -> Dict:
@@ -37,24 +71,7 @@ def tune_ridge_hyperparams(X_train, y_train, cv_folds: int = 5, random_state: in
     param_grid = {
         "alpha": [0.001, 0.01, 0.1, 1.0, 10.0, 100.0, 1000.0],
     }
-
-    ridge_model = build_ridge_model()
-    grid_search = GridSearchCV(
-        estimator=ridge_model,
-        param_grid=param_grid,
-        cv=cv_folds,
-        scoring="neg_mean_squared_error",
-        n_jobs=-1,
-    )
-
-    grid_search.fit(X_train, y_train)
-
-    best_params = grid_search.best_params_
-    best_score = grid_search.best_score_
-
-    print("Ridge Best Parameters:", best_params)
-    print("Ridge Best Score (neg_mean_squared_error):", best_score)
-    return best_params
+    return _grid_search_best_params(build_ridge_model(), param_grid, X_train, y_train, cv_folds, "Ridge")
 
 def tune_lasso_hyperparams(X_train, y_train, cv_folds: int = 5, random_state: int = 0) -> Dict:
     """Run GridSearchCV to search optimized Lasso hyperparameters.
@@ -65,21 +82,7 @@ def tune_lasso_hyperparams(X_train, y_train, cv_folds: int = 5, random_state: in
     param_grid = {
         "alpha": [0.0001, 0.001, 0.01, 0.1, 1.0, 10.0],
     }
-
-    lasso_model = build_lasso_model()
-    grid_search = GridSearchCV(
-        estimator=lasso_model,
-        param_grid=param_grid,
-        cv=cv_folds,
-        scoring="neg_mean_squared_error",
-        n_jobs=-1,
-    )
-    grid_search.fit(X_train, y_train)
-    best_params = grid_search.best_params_
-    best_score = grid_search.best_score_
-    print("Lasso Best Parameters:", best_params)
-    print("Lasso Best Score (neg_mean_squared_error):", best_score)
-    return best_params
+    return _grid_search_best_params(build_lasso_model(), param_grid, X_train, y_train, cv_folds, "Lasso")
 
 
 def tune_elasticnet_hyperparams(X_train, y_train, cv_folds: int = 5, random_state: int = 0) -> Dict:
@@ -92,21 +95,7 @@ def tune_elasticnet_hyperparams(X_train, y_train, cv_folds: int = 5, random_stat
         "alpha": [0.0001, 0.001, 0.01, 0.1, 1.0, 10.0],
         "l1_ratio": [0.1, 0.3, 0.5, 0.7, 0.9],
     }
-
-    enet_model = build_elasticnet_model()
-    grid_search = GridSearchCV(
-        estimator=enet_model,
-        param_grid=param_grid,
-        cv=cv_folds,
-        scoring="neg_mean_squared_error",
-        n_jobs=-1,
-    )
-    grid_search.fit(X_train, y_train)
-    best_params = grid_search.best_params_
-    best_score = grid_search.best_score_
-    print("ElasticNet Best Parameters:", best_params)
-    print("ElasticNet Best Score (neg_mean_squared_error):", best_score)
-    return best_params
+    return _grid_search_best_params(build_elasticnet_model(), param_grid, X_train, y_train, cv_folds, "ElasticNet")
 
 # 2) Hyperparameter tuning for tree/boosting models
 
@@ -117,25 +106,9 @@ def tune_rf_hyperparams(X_train, y_train, cv_folds: int = 5, random_state: int =
         "min_samples_leaf": [1, 2, 4],
         "max_features": ["sqrt", "log2", 0.5],
     }
-
-    rf_model = build_rf_model(random_state=random_state)
-    random_search = RandomizedSearchCV(
-        estimator=rf_model,
-        param_distributions=param_dist,
-        n_iter=50,
-        cv=cv_folds,
-        scoring="neg_mean_squared_error",
-        n_jobs=-1,
-        random_state=random_state,
+    return _randomized_search_best_params(
+        build_rf_model(random_state=random_state), param_dist, X_train, y_train, cv_folds, random_state, "RF"
     )
-    random_search.fit(X_train, y_train)
-
-    best_params = random_search.best_params_
-    best_score = random_search.best_score_
-
-    print("RF Best Parameters:", best_params)
-    print("RF Best Score (neg_mean_squared_error):", best_score)
-    return best_params
 
 def tune_xgb_hyperparams(X_train, y_train, cv_folds: int = 5, random_state: int = 0) -> Dict:
     """Run RandomizedSearchCV to search optimized XGBoost hyperparameters."""
@@ -146,25 +119,9 @@ def tune_xgb_hyperparams(X_train, y_train, cv_folds: int = 5, random_state: int 
         "subsample": [0.6, 0.8, 1.0],
         "colsample_bytree": [0.6, 0.8, 1.0],
     }
-
-    xgb_model = build_xgb_model(random_state=random_state)
-    random_search = RandomizedSearchCV(
-        estimator=xgb_model,
-        param_distributions=param_dist,
-        n_iter=50,
-        cv=cv_folds,
-        scoring="neg_mean_squared_error",
-        n_jobs=-1,
-        random_state=random_state,
+    return _randomized_search_best_params(
+        build_xgb_model(random_state=random_state), param_dist, X_train, y_train, cv_folds, random_state, "XGB"
     )
-    random_search.fit(X_train, y_train)
-
-    best_params = random_search.best_params_
-    best_score = random_search.best_score_
-
-    print("XGB Best Parameters:", best_params)
-    print("XGB Best Score (neg_mean_squared_error):", best_score)
-    return best_params
 
 # 3) Hyperparameter tuning for kernel and neural network models
 
@@ -180,23 +137,9 @@ def tune_svr_hyperparams(X_train, y_train, cv_folds: int = 5, random_state: int 
         "kernel": ["rbf", "linear"],
         "gamma": ["scale", "auto", 0.001, 0.01, 0.1, 1.0],
     }
-
-    svr_model = build_svr_model()
-    random_search = RandomizedSearchCV(
-        estimator=svr_model,
-        param_distributions=param_dist,
-        n_iter=50,
-        cv=cv_folds,
-        scoring="neg_mean_squared_error",
-        n_jobs=-1,
-        random_state=random_state,
+    return _randomized_search_best_params(
+        build_svr_model(), param_dist, X_train, y_train, cv_folds, random_state, "SVR"
     )
-    random_search.fit(X_train, y_train)
-    best_params = random_search.best_params_
-    best_score = random_search.best_score_
-    print("SVR Best Parameters:", best_params)
-    print("SVR Best Score (neg_mean_squared_error):", best_score)
-    return best_params
 
 
 def tune_mlp_hyperparams(X_train, y_train, cv_folds: int = 5, random_state: int = 0) -> Dict:
@@ -207,23 +150,9 @@ def tune_mlp_hyperparams(X_train, y_train, cv_folds: int = 5, random_state: int 
         "alpha": [1e-5, 1e-4, 1e-3, 1e-2],
         "learning_rate_init": [1e-4, 1e-3, 5e-3, 1e-2],
     }
-
-    mlp_model = build_mlp_model(random_state=random_state)
-    random_search = RandomizedSearchCV(
-        estimator=mlp_model,
-        param_distributions=param_dist,
-        n_iter=50,
-        cv=cv_folds,
-        scoring="neg_mean_squared_error",
-        n_jobs=-1,
-        random_state=random_state,
+    return _randomized_search_best_params(
+        build_mlp_model(random_state=random_state), param_dist, X_train, y_train, cv_folds, random_state, "MLP"
     )
-    random_search.fit(X_train, y_train)
-    best_params = random_search.best_params_
-    best_score = random_search.best_score_
-    print("MLP Best Parameters:", best_params)
-    print("MLP Best Score (neg_mean_squared_error):", best_score)
-    return best_params
 
 
 # 4) Training linear models
