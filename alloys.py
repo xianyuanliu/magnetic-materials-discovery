@@ -42,24 +42,6 @@ def _atomic_fraction(compound: pd.Series):
     af = subset / total
     return af, af.index
 
-# def _element_occurrence(df, periodic_table, formula_col, verbose=False):
-#     """Count how many compounds each element appears in for the given formula column."""
-#     formulas = df[formula_col].copy()
-#     symbols = _sorted_elements(periodic_table)
-#
-#     n_el_rows = []
-#     for el in symbols:
-#         regex_list = formulas.str.extractall(pat=r"(?P<element>{0})(?P<digit>\d*)".format(el))
-#         regex_list = regex_list.droplevel(level=1).copy()
-#         count = len(regex_list)
-#         n_el_rows.append({"element": el, "count": count})
-#         if verbose is True:
-#             print("Number of compounds containing {0} is {1}".format(el, count))
-#         formulas[regex_list.index] = formulas[regex_list.index].replace(
-#             to_replace=regex_list.element + regex_list.digit, value=None, regex=True
-#         )
-#     return pd.DataFrame(n_el_rows, columns=["element", "count"])
-
 def import_novamag(root_dir):
     """Load all Novamag JSON files into a flat DataFrame of chemistry, crystal, and magnetic properties."""
 
@@ -96,16 +78,6 @@ def import_miedema_weight(root_dir):
     mm_T = mm.transpose().fillna(0)
     mm = mm + mm_T
     return mm
-
-
-# def get_element_occurrence_novamag(x, pt, verbose=False):
-#     """Novamag: use 'chemical formula' column."""
-#     return _element_occurrence(x, pt, "chemical formula", verbose=verbose)
-
-
-# def get_element_occurrence_mp(x, pt, verbose=False):
-#     """Materials Project: use 'composition' column."""
-#     return _element_occurrence(x, pt, "composition", verbose=verbose)
 
 
 def get_stoich_array(x, pt):

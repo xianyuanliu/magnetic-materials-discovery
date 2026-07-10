@@ -141,23 +141,6 @@ def load_periodic_table_map(
     return element_to_group, element_to_period
 
 
-# def load_features_target_and_formulas(
-#     path: str,
-#     target_column: str = "saturation magnetization",
-#     formula_column: str = "chemical formula",
-# ):
-#     """Load X, y and formulas aligned by index."""
-#     df = pd.read_csv(path).reset_index(drop=True)
-#     if target_column not in df.columns:
-#         raise ValueError(f"Missing target column '{target_column}'")
-#     if formula_column not in df.columns:
-#         raise ValueError(f"Missing formula column '{formula_column}'")
-#     y = df[target_column]
-#     formulas = df[formula_column].astype(str)
-#     feature_columns = df.columns.drop([target_column, formula_column])
-#     X = df[feature_columns].copy()
-#     return X, y, formulas, feature_columns
-
 # ====== Data loading ======
 def load_features_and_target(path, target_column="saturation magnetization"):
     """Load features, target and drop formula column."""
