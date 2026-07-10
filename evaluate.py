@@ -17,15 +17,15 @@ from scipy import stats
 import shap
 
 from sklearn.model_selection import KFold
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.metrics import (
+    mean_absolute_error,
+    mean_absolute_percentage_error,
+    mean_squared_error,
+    r2_score,
+)
 from sklearn.inspection import permutation_importance
 
 import alloys as al
-
-def mean_relative_error(y_true: np.ndarray, y_pred: np.ndarray, eps: float = 1e-8) -> float:
-    y_true = np.asarray(y_true, dtype=float)
-    y_pred = np.asarray(y_pred, dtype=float)
-    return float(np.mean(np.abs(y_true - y_pred) / (np.abs(y_true) + eps)))
 
 
 def format_mean_std(mean: float, std: float, decimals: int = 4) -> str:
@@ -35,13 +35,18 @@ def format_mean_std(mean: float, std: float, decimals: int = 4) -> str:
 
 
 def _compute_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
+    """Compute MSE/MAE/MRE/R² using sklearn's metric implementations.
+
+    MRE (mean relative error) is sklearn's mean_absolute_percentage_error,
+    which is already expressed as a fraction (not multiplied by 100).
+    """
     y_true = np.asarray(y_true, dtype=float)
     y_pred = np.asarray(y_pred, dtype=float)
 
     return {
         "mse": float(mean_squared_error(y_true, y_pred)),
         "mae": float(mean_absolute_error(y_true, y_pred)),
-        "mre": float(mean_relative_error(y_true, y_pred)),
+        "mre": float(mean_absolute_percentage_error(y_true, y_pred)),
         "r2": float(r2_score(y_true, y_pred)),
     }
 
@@ -101,23 +106,19 @@ def cross_validate_models(
             model = model_cfg["train"](X_train, y_train, params=params, random_state=model_random_state)
             y_pred = model.predict(X_valid)
 
-            mse = mean_squared_error(y_valid, y_pred)
-            mae = mean_absolute_error(y_valid, y_pred)
-            mre = mean_relative_error(y_valid.to_numpy(), np.asarray(y_pred))
-            r2 = r2_score(y_valid, y_pred)
-            
+            metrics = _compute_metrics(y_valid, y_pred)
 
             name = model_cfg["name"]
-            results[name]["mse"].append(mse)
-            results[name]["mae"].append(mae)
-            results[name]["mre"].append(mre)
-            results[name]["r2"].append(r2)
+            results[name]["mse"].append(metrics["mse"])
+            results[name]["mae"].append(metrics["mae"])
+            results[name]["mre"].append(metrics["mre"])
+            results[name]["r2"].append(metrics["r2"])
 
             if track_rf_xgb:
                 if key == "rf":
-                    rf_fold_mse.append(mse)
+                    rf_fold_mse.append(metrics["mse"])
                 elif key == "xgb":
-                    xgb_fold_mse.append(mse)
+                    xgb_fold_mse.append(metrics["mse"])
 
     # how many times RF outperforms XGB
     if track_rf_xgb and len(rf_fold_mse) == cv_folds and len(xgb_fold_mse) == cv_folds:
@@ -138,15 +139,12 @@ def print_holdout_results(y_true, predictions: Dict[str, np.ndarray]):
     """Print MSE, MAE, and R² for multiple regression models."""
     print("Regression Metrics:")
     for name, y_pred in predictions.items():
-        mse = mean_squared_error(y_true, y_pred)
-        mae = mean_absolute_error(y_true, y_pred)
-        mre = mean_relative_error(y_true, y_pred)
-        r2 = r2_score(y_true, y_pred)
+        metrics = _compute_metrics(y_true, y_pred)
         print(f"\n{name}:")
-        print(f"MSE: {mse:.4f}")
-        print(f"MAE: {mae:.4f}")
-        print(f"MRE: {mre:.6f}")
-        print(f"R2:  {r2:.4f}")
+        print(f"MSE: {metrics['mse']:.4f}")
+        print(f"MAE: {metrics['mae']:.4f}")
+        print(f"MRE: {metrics['mre']:.6f}")
+        print(f"R2:  {metrics['r2']:.4f}")
 
 def print_cv_results(results: Dict[str, Dict[str, List[float]]]):
     """Print mean ± std metrics for cross-validation results."""
