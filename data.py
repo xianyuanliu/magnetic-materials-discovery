@@ -1,7 +1,8 @@
 """Data loading and feature engineering helpers for alloy datasets."""
 
 import re
-from typing import Dict, List, Tuple
+from typing import Dict, Iterable, List, Sequence, Tuple
+import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from pymatgen.core.composition import Composition
@@ -41,6 +42,33 @@ def extract_elements_series(
         parse_elements_from_formula(x)
         for x in df_raw[formula_column].tolist()
     ]
+
+
+def elements_mask(
+    elements_per_row: Sequence[Sequence[str]],
+    elements: Iterable[str],
+) -> np.ndarray:
+    """Boolean mask: True where a row's parsed elements intersect `elements`.
+
+    Built on the same pymatgen-based parsing as parse_elements_from_formula,
+    so element-based filtering/grouping stays consistent with the OOD element
+    splits instead of relying on ad hoc formula substring matching.
+    """
+    target = set(elements)
+    return np.array(
+        [bool(target.intersection(els)) for els in elements_per_row],
+        dtype=bool,
+    )
+
+
+def formula_contains_elements(
+    df: pd.DataFrame,
+    elements: Iterable[str],
+    formula_column: str = "chemical formula",
+) -> np.ndarray:
+    """Boolean mask over `df` rows whose formula contains any of `elements`."""
+    elements_per_row = extract_elements_series(df, formula_column=formula_column)
+    return elements_mask(elements_per_row, elements)
 
 
 def load_periodic_table_map(

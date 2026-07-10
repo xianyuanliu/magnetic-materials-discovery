@@ -4,18 +4,19 @@ import pandas as pd
 import seaborn as sns
 
 import alloys
+from data import formula_contains_elements
 
 def plot_ms_distribution_by_tm(data, save_path=None):
     """
     Plot histograms of saturation magnetization grouped by TM elements, such as Fe/Co/Cr/Mn.
 
-    X : DataFrame
+    data : DataFrame
         Must contain 'chemical formula' and 'saturation magnetization'.
     """
-    data_Fe = data[data["chemical formula"].str.contains(pat="Fe")]
-    data_Co = data[data["chemical formula"].str.contains(pat="Co")]
-    data_Cr = data[data["chemical formula"].str.contains(pat="Cr")]
-    data_Mn = data[data["chemical formula"].str.contains(pat="Mn")]
+    data_Fe = data[formula_contains_elements(data, ["Fe"])]
+    data_Co = data[formula_contains_elements(data, ["Co"])]
+    data_Cr = data[formula_contains_elements(data, ["Cr"])]
+    data_Mn = data[formula_contains_elements(data, ["Mn"])]
 
     plt.figure(figsize=(8, 6))
     bins = np.arange(0.0, 2.6, 0.2)
@@ -42,10 +43,10 @@ def plot_violin_ms_by_tm(data, title: str = "Violin Plot", save_path=None):
     Plot a violin plot of saturation magnetization grouped by TM elements.
     """
     # Subsets grouped by element
-    data_Fe = data[data['chemical formula'].str.contains(pat='Fe')]
-    data_Co = data[data['chemical formula'].str.contains(pat='Co')]
-    data_Cr = data[data['chemical formula'].str.contains(pat='Cr')]
-    data_Mn = data[data['chemical formula'].str.contains(pat='Mn')]
+    data_Fe = data[formula_contains_elements(data, ["Fe"])]
+    data_Co = data[formula_contains_elements(data, ["Co"])]
+    data_Cr = data[formula_contains_elements(data, ["Cr"])]
+    data_Mn = data[formula_contains_elements(data, ["Mn"])]
 
     # Combine into one DataFrame for seaborn violinplot
     plot_data = pd.concat([

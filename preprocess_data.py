@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import alloys
+from data import formula_contains_elements
 
 
 # ====== Shared elemental data loader ======
@@ -92,8 +93,7 @@ def load_mp_raw_data(csv_path):
         "Yb",
     ]
     before_rare_earth = len(data)
-    for element in rare_earth_elements:
-        data = data[~data["chemical formula"].str.contains(element)]
+    data = data[~formula_contains_elements(data, rare_earth_elements)]
     print(f"Removed rare-earth entries: {before_rare_earth - len(data)} rows dropped")
 
     # Remove uncommon or commercially unavailable elements
@@ -115,8 +115,7 @@ def load_mp_raw_data(csv_path):
         "Lr",
     ]
     before_non_commercial = len(data)
-    for element in non_commercial_elements:
-        data = data[~data["chemical formula"].str.contains(element)]
+    data = data[~formula_contains_elements(data, non_commercial_elements)]
     print(f"Removed non-commercial entries: {before_non_commercial - len(data)} rows dropped")
 
     data = data[["chemical formula", "saturation magnetization"]]
