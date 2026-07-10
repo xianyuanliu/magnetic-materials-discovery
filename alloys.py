@@ -1,4 +1,8 @@
-# Adapted from https://github.com/rich970/ML-alloy-design/blob/master/alloys.py with modifications.
+"""Chemical-formula parsing and element-weighted alloy feature calculations.
+
+Adapted from https://github.com/rich970/ML-alloy-design/blob/master/alloys.py
+with modifications.
+"""
 
 import os
 from itertools import combinations
@@ -57,9 +61,7 @@ def _atomic_fraction(compound: pd.Series):
 #     return pd.DataFrame(n_el_rows, columns=["element", "count"])
 
 def import_novamag(root_dir):
-    """
-    Load all Novamag JSON files into a flat DataFrame of chemistry, crystal, and magnetic properties.
-    """
+    """Load all Novamag JSON files into a flat DataFrame of chemistry, crystal, and magnetic properties."""
 
     rows = []
     failed_files = []
@@ -107,7 +109,15 @@ def import_miedema_weight(root_dir):
 
 
 def get_stoich_array(x, pt):
-    """Create stoichiometry array (element counts) from chemical formulas."""
+    """Create stoichiometry array (element counts) from chemical formulas.
+
+    Args:
+        x: DataFrame with a "chemical formula" column, or a single formula string.
+        pt: Periodic table DataFrame (see import_periodic_table), used for element symbols.
+
+    Returns:
+        DataFrame of per-compound element counts, columns = element symbols.
+    """
     if isinstance(x, pd.DataFrame):
         formulas = x["chemical formula"].copy()  # if user passes whole of Novamag
         index = x.index

@@ -1,6 +1,4 @@
-"""
-Build various machine learning regression models for predicting material properties.
-"""
+"""Builders for the regression models used to predict material properties."""
 
 from typing import Optional
 

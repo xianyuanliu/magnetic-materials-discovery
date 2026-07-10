@@ -1,3 +1,5 @@
+"""Build the raw Novamag/Materials Project magnetism CSVs used by main.py."""
+
 import numpy as np
 import pandas as pd
 import alloys
@@ -19,9 +21,7 @@ def load_elemental_data(
 # ====== Raw data loaders with basic cleaning ======
 
 def load_novamag_raw_data(novamag_dir):
-    """
-    Load and prune raw Novamag data to chemical formula and saturation magnetization.
-    """
+    """Load raw Novamag JSON data and normalize missing-value markers."""
     data = alloys.import_novamag(novamag_dir)
 
     # Normalize literal 'none' entries
@@ -51,9 +51,7 @@ def load_novamag_raw_data(novamag_dir):
 
 
 def load_mp_raw_data(csv_path):
-    """
-    Read the Materials Project CSV export, convert magnetization units, and filter invalid entries.
-    """
+    """Read the Materials Project CSV, convert magnetization units, and filter invalid entries."""
     data = pd.read_csv(csv_path)
     data = data.rename(columns={"composition": "chemical formula"})
     print(f"The total number of imported features is {len(data.columns)}")
@@ -131,9 +129,7 @@ def build_features(
     mm: pd.DataFrame,
     min_saturation_magnetization: float = 0.18,
 ):
-    """
-    Engineer alloy features shared across Novamag and Materials Project data.
-    """
+    """Engineer alloy features shared across Novamag and Materials Project data."""
     data = raw_data.copy()
 
     # compoundradix: number of species in the compound (binary, ternary, etc.)
@@ -185,9 +181,7 @@ def build_features(
 # ====== Shared feature engineering ======
 
 def process_data(raw_data, pt_path, mm_path):
-    """
-    Load elemental data and engineer alloy features for a raw magnetism dataset.
-    """
+    """Load elemental data and engineer alloy features for a raw magnetism dataset."""
     periodic_table, miedema_weight = load_elemental_data(pt_path, mm_path)
     data, _ = build_features(raw_data, periodic_table, miedema_weight)
     print(f"The total number of samples after cleaning is {len(data)}")
@@ -198,6 +192,7 @@ def process_data(raw_data, pt_path, mm_path):
 # ===== Main execution ======
 
 def main():
+    """Build novamag-magnetism.csv and mp-magnetism.csv from the raw source data."""
     pt_path = "./data/Periodic-table/periodic_table.xlsx"
     mm_path = "./data/Miedema-model/Miedema-model-reduced.xlsx"
 

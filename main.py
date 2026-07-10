@@ -21,28 +21,28 @@ from evaluate import (
     cross_validate_models,
     print_cv_results,
     compare_models_significance,
-    plot_permutation_importance,
-    plot_shap_summary,
-    plot_case_studies,
 )
+from interpret import plot_permutation_importance, plot_shap_summary, plot_case_studies
 from visualize import plot_ms_distribution_by_tm, plot_violin_ms_by_tm, summarize_compound_radix
 
 def parse_args():
+    """Parse the --config CLI flag."""
     parser = argparse.ArgumentParser(description="Train ML models for material property prediction")
     parser.add_argument(
         "--config",
         type=str,
         default="./configs/novamag.yaml",
-        # default="./configs/mp.yaml",
         help="Path to YAML configuration file"
     )
     return parser.parse_args()
 
 def load_config(path: str):
+    """Load a YAML run config."""
     with open(path, "r") as f:
         return yaml.safe_load(f)
 
 def main():
+    """Run one holdout/cross_validation/ood evaluation, per the --config file."""
     plots_save_dir = Path("./plots/")
 
     args = parse_args()
@@ -202,7 +202,7 @@ def main():
         print_holdout_results(y_valid, preds)
    
 
-    # 4) Data visualization
+    # 4) Data visualisation
     pt, mm = load_elemental_data(pt_path, mm_path)
     if data_visualization and not need_ood:
         X_raw = load_raw_data(dataset_path)

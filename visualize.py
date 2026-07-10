@@ -7,11 +7,11 @@ import alloys
 from data import formula_contains_elements
 
 def plot_ms_distribution_by_tm(data, save_path=None):
-    """
-    Plot histograms of saturation magnetization grouped by TM elements, such as Fe/Co/Cr/Mn.
+    """Plot Ms histograms for the full dataset and Fe/Co/Cr/Mn-containing subsets.
 
-    data : DataFrame
-        Must contain 'chemical formula' and 'saturation magnetization'.
+    Args:
+        data: DataFrame with 'chemical formula' and 'saturation magnetization' columns.
+        save_path: If set, save the figure here instead of showing it.
     """
     data_Fe = data[formula_contains_elements(data, ["Fe"])]
     data_Co = data[formula_contains_elements(data, ["Co"])]
@@ -39,8 +39,11 @@ def plot_ms_distribution_by_tm(data, save_path=None):
 
 
 def plot_violin_ms_by_tm(data, title: str = "Violin Plot", save_path=None):
-    """
-    Plot a violin plot of saturation magnetization grouped by TM elements.
+    """Plot a violin plot of saturation magnetization grouped by TM elements.
+
+    Args:
+        data: DataFrame with 'chemical formula' and 'saturation magnetization' columns.
+        save_path: If set, save the figure here instead of showing it.
     """
     # Subsets grouped by element
     data_Fe = data[formula_contains_elements(data, ["Fe"])]

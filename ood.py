@@ -1,11 +1,7 @@
-"""
-OOD evaluation orchestration.
+"""OOD evaluation orchestration: config resolution, split selection, and reporting.
 
-Design goals:
-
-- uses a configurable random seed for OOD split generation
-
-- reads train/test CSVs (fixed split) and runs extra OOD stress tests on FULL data
+Reads train/test CSVs (or a single fixed split), builds the requested OOD
+split families via ood_splits.py, and scores each via ood_evaluate.py.
 """
 
 from __future__ import annotations
@@ -19,13 +15,12 @@ import pandas as pd
 
 import os
 
-from evaluate import (
+from ood_evaluate import (
     evaluate_splits_kfold_train_fixed_test,
     summarize_runs_across_splits,
     print_ood_tables,
 )
 
-# Uses your existing split builders (recommended to keep as a separate, auditable file)
 from ood_splits import (
     build_loeo_splits,
     build_period_splits,
@@ -35,7 +30,6 @@ from ood_splits import (
     build_sparsey_splits,
 )
 
-# These should already exist from your PR5 utilities commit
 from data import (
     extract_elements_series,
     load_periodic_table_map,
@@ -46,6 +40,8 @@ Split = Tuple[str, np.ndarray, np.ndarray]
 
 @dataclass
 class OODConfig:
+    """Resolved OOD settings for one run_ood_evaluation call (see _load_ood_cfg)."""
+
     target_column: str = "saturation magnetization"
     formula_column: str = "chemical formula"
 
@@ -73,18 +69,21 @@ class OODConfig:
 
 
 def _safe_int_list(x: Optional[Sequence[Any]]) -> Optional[List[int]]:
+    """Coerce a sequence to ints, or return None if x is None."""
     if x is None:
         return None
     return [int(v) for v in x]
 
 
 def _ensure_dir(path: str) -> Path:
+    """Create `path` (including parents) if missing, and return it."""
     p = Path(path)
     p.mkdir(parents=True, exist_ok=True)
     return p
 
 
 def _top_elements(elements_per_row: Sequence[Sequence[str]], max_n: int) -> List[str]:
+    """Return up to `max_n` elements, most-frequent-in-the-dataset first."""
     counts: Dict[str, int] = {}
     for els in elements_per_row:
         for e in set(els):
@@ -98,6 +97,7 @@ def _top_periods(
     element_to_period: Dict[str, int],
     max_n: int,
 ) -> List[int]:
+    """Return up to `max_n` periods, most-frequent-in-the-dataset first."""
     counts: Dict[int, int] = {}
     for els in elements_per_row:
         periods = set()
@@ -116,6 +116,7 @@ def _top_groups(
     element_to_group: Dict[str, int],
     max_n: int,
 ) -> List[int]:
+    """Return up to `max_n` groups, most-frequent-in-the-dataset first."""
     counts: Dict[int, int] = {}
     for els in elements_per_row:
         groups = set()
@@ -134,6 +135,7 @@ def _name_for_key(model_registry: Dict, model_key: str) -> str:
 
 
 def _load_ood_cfg(cfg: dict, default_seed: int) -> OODConfig:
+    """Build an OODConfig from the run config dict, filling in defaults."""
     return OODConfig(
         target_column=str(cfg.get("target_column", "saturation magnetization")),
         formula_column=str(cfg.get("formula_column", "chemical formula")),
@@ -166,16 +168,12 @@ def run_ood_evaluation(
     cv_random_state: int,
     model_random_state: int = 0,
 ) -> None:
-    """
-    Entry point called from main.py when evaluation_mode == 'ood'.
+    """Run the OOD evaluation pipeline: build split families, score each, report tables.
 
-    What it does:
-    1) Loads train/test CSVs and concatenates them -> df_full
-    2) Builds several OOD split families (LOEO / LOPO / LOGO / LOCO-k)
-    3) For each split:
-        - runs KFold on TRAIN portion only
-        - evaluates on fixed held-out TEST portion
-    4) Prints 4 tables + saves them as CSV (optional, but professional)
+    Called from main.py when evaluation_mode == 'ood'. Loads and merges the
+    train/test CSVs, builds the requested OOD split families (LOEO/LOPO/LOGO/
+    LOCO/SparseX/SparseY), evaluates each via evaluate_splits_kfold_train_fixed_test,
+    then prints and saves 4 result tables under ood_cfg.output_dir.
     """
     ood_cfg = _load_ood_cfg(cfg, default_seed=int(cv_random_state))
 

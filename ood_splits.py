@@ -1,10 +1,8 @@
-"""
-OOD split
+"""Builders for out-of-distribution (OOD) train/test splits.
 
-Design goals:
-- deterministic where seeded
-- simple and auditable
-- explicit split construction rules
+Each build_*_splits function returns a list of (split_id, train_idx, test_idx)
+tuples. Splits are deterministic where seeded and validated for leakage/bounds
+via _validate_split.
 """
 
 from typing import Dict, List, Sequence, Tuple, Optional
@@ -26,11 +24,9 @@ def _validate_split(
     min_train: int = 1,
     min_test: int = 1,
 ) -> Optional[Split]:
-    """
-    Validate split integrity:
-    - size constraints
-    - no leakage
-    - index bounds
+    """Return (split_id, train_idx, test_idx), or None if below min size.
+
+    Raises ValueError on train/test overlap or out-of-bounds indices.
     """
     train_idx = np.asarray(train_idx, dtype=int)
     test_idx = np.asarray(test_idx, dtype=int)
@@ -59,12 +55,7 @@ def build_loeo_splits(
     min_train: int = 1,
     min_test: int = 1,
 ) -> List[Split]:
-    """
-    Leave-One-Element-Out (LOEO)
-
-    Test = samples containing element E
-    Train = samples NOT containing E
-    """
+    """Leave-One-Element-Out: test = samples containing element E, train = the rest."""
     n = len(elements_per_sample)
     splits: List[Split] = []
 
@@ -105,15 +96,10 @@ def build_period_splits(
     min_train: int = 1,
     min_test: int = 1,
 ) -> List[Split]:
-    """
-    Leave-One-Period-Out (LOPO)
+    """Leave-One-Period-Out.
 
-    Default (strict=False):
-        Test = samples containing ANY element from period P
-        Train = samples containing NONE of those elements
-
-    strict=True:
-        Test = samples where ALL elements belong to period P
+    Default (strict=False): test = samples containing ANY element from period P.
+    strict=True: test = samples where ALL elements belong to period P.
     """
     n = len(elements_per_sample)
     splits: List[Split] = []
@@ -176,15 +162,10 @@ def build_group_splits(
     min_train: int = 1,
     min_test: int = 1,
 ) -> List[Split]:
-    """
-    Leave-One-Group-Out (LOGO)
+    """Leave-One-Group-Out.
 
-    Default (strict=False):
-        Test = samples containing ANY element from group G
-        Train = samples containing NONE of those elements
-
-    strict=True:
-        Test = samples where ALL elements belong to group G
+    Default (strict=False): test = samples containing ANY element from group G.
+    strict=True: test = samples where ALL elements belong to group G.
     """
     n = len(elements_per_sample)
     splits: List[Split] = []
@@ -246,18 +227,11 @@ def build_kmeans_cluster_splits(
     min_train: int = 1,
     min_test: int = 1,
 ) -> List[Split]:
-    
-    """
-    Representation-space OOD (LOCO)
+    """Representation-space OOD (LOCO): KMeans on X, test = one cluster, train = the rest.
 
-    KMeans clustering on the full feature space.
-    Test = one cluster
-    Train = remaining clusters
-
-    Note:
-        Cluster assignments are derived unsupervised from the full feature matrix
-        before the train/test partition is formed. This is intended as a pragmatic
-        representation-space stress test, not a strict train-only clustering protocol.
+    Cluster assignments are computed unsupervised on the full feature matrix
+    before the train/test split, as a pragmatic stress test rather than a
+    strict train-only clustering protocol.
     """
 
     if k < 2:
@@ -306,22 +280,10 @@ def build_sparsex_splits(
     min_train: int = 1,
     min_test: int = 1,
 ) -> List[Split]:
-    """
-    SparseX OOD splits based on feature-space sparsity.
+    """OOD splits based on feature-space sparsity: hold out the most isolated samples.
 
-    Idea:
-        - compute average distance to k nearest neighbors in X
-        - samples with largest distances are the sparsest / most isolated
-        - hold out the top fraction as test set
-
-    Parameters
-    ----------
-    X : pd.DataFrame
-        Feature matrix.
-    fractions : sequence of float
-        Fractions of sparsest samples to hold out (e.g. 0.1, 0.2).
-    n_neighbors : int
-        Number of neighbors used to estimate local density/sparsity.
+    "Isolated" = largest mean distance to its `n_neighbors` nearest neighbors in X.
+    One split is built per fraction in `fractions`.
     """
     if n_neighbors < 1:
         raise ValueError("n_neighbors must be >= 1")
@@ -380,21 +342,10 @@ def build_sparsey_splits(
     min_train: int = 1,
     min_test: int = 1,
 ) -> List[Split]:
-    """
-    SparseY OOD splits based on sparsity in target/property space.
+    """OOD splits based on target-space sparsity: hold out the most extreme y values.
 
-    Idea:
-        - find samples with target values farthest from the central tendency
-        - hold out the top fraction as test set
-
-    Parameters
-    ----------
-    y : pd.Series
-        Target values.
-    fractions : sequence of float
-        Fractions of most extreme samples to hold out.
-    center : {"median", "mean"}
-        Reference point used to define extremeness.
+    "Extreme" = farthest from `center` ("median" or "mean"). One split is built
+    per fraction in `fractions`.
     """
     y_arr = np.asarray(y, dtype=float)
     n = y_arr.shape[0]

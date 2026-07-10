@@ -44,9 +44,7 @@ def extract_elements_series(
     df_raw: pd.DataFrame,
     formula_column: str = "chemical formula",
 ) -> List[List[str]]:
-    """
-    Return element list per sample aligned with dataframe rows.
-    """
+    """Return the parsed element list per row, aligned with `df_raw`'s row order."""
     if formula_column not in df_raw.columns:
         raise ValueError(f"Missing column: {formula_column}")
 
@@ -101,17 +99,12 @@ def load_periodic_table_map(
     period_col: str = "period",
     group_block_col: str = "group_block",
 ) -> Tuple[Dict[str, int], Dict[str, int]]:
-    """
-    Load periodic table mapping from periodic_table.xlsx.
+    """Load the periodic table spreadsheet into element->group and element->period maps.
 
-    Your file contains:
-        symbol
-        period
-        group_block (string like "group 1, s-block")
+    Expects `symbol`, `period`, and `group_block` columns (e.g. "group 1, s-block").
 
     Returns:
-        element_to_group
-        element_to_period
+        (element_to_group, element_to_period).
     """
     pt = pd.read_excel(pt_path)
 

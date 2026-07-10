@@ -1,20 +1,15 @@
 """
-Evaluation and visualization:
-- Quantitative metrics (MSE / MAE / R²)
-- Permutation importance
-- SHAP
-- FeAl / FeCo / FeCr case studies
-- Optional dataset distributions - Ms histograms and violin plots
+Core evaluation utilities shared by holdout, cross-validation, and OOD modes:
+- Quantitative metrics (MSE / MAE / MRE / R²)
+- K-fold cross-validation
+- Paired significance testing between two models' per-fold scores
 """
 
 from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
 from scipy import stats
-import shap
 
 from sklearn.model_selection import KFold
 from sklearn.metrics import (
@@ -23,18 +18,16 @@ from sklearn.metrics import (
     mean_squared_error,
     r2_score,
 )
-from sklearn.inspection import permutation_importance
-
-import alloys as al
 
 
 def format_mean_std(mean: float, std: float, decimals: int = 4) -> str:
+    """Format a "mean ± std" string, or "nan" if either value is missing."""
     if mean is None or std is None or np.isnan(mean) or np.isnan(std):
         return "nan"
     return f"{mean:.{decimals}f} ± {std:.{decimals}f}"
 
 
-def _compute_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
+def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
     """Compute MSE/MAE/MRE/R² using sklearn's metric implementations.
 
     MRE (mean relative error) is sklearn's mean_absolute_percentage_error,
@@ -106,7 +99,7 @@ def cross_validate_models(
             model = model_cfg["train"](X_train, y_train, params=params, random_state=model_random_state)
             y_pred = model.predict(X_valid)
 
-            metrics = _compute_metrics(y_valid, y_pred)
+            metrics = compute_metrics(y_valid, y_pred)
 
             name = model_cfg["name"]
             results[name]["mse"].append(metrics["mse"])
@@ -139,7 +132,7 @@ def print_holdout_results(y_true, predictions: Dict[str, np.ndarray]):
     """Print MSE, MAE, and R² for multiple regression models."""
     print("Regression Metrics:")
     for name, y_pred in predictions.items():
-        metrics = _compute_metrics(y_true, y_pred)
+        metrics = compute_metrics(y_true, y_pred)
         print(f"\n{name}:")
         print(f"MSE: {metrics['mse']:.4f}")
         print(f"MAE: {metrics['mae']:.4f}")
@@ -171,14 +164,10 @@ def compare_models_significance(
     model_b: str,
     metric: str = "mse",
 ):
-    
-    """
-    Significance tests comparing two models using per-fold CV scores.
+    """Paired t-test and Wilcoxon signed-rank test on per-fold CV scores.
 
-    - Paired t-test: stats.ttest_rel
-    - Wilcoxon signed-rank: stats.wilcoxon (non-parametric)
-
-    NOTE: Uses per-fold scores as paired samples.
+    Returns:
+        (t_stat, t_pvalue, wilcoxon_stat, wilcoxon_pvalue).
     """
 
     if model_a not in results or model_b not in results:
@@ -209,450 +198,3 @@ def compare_models_significance(
     print(f"  Wilcoxon signed-rank: W={w_stat}, p={w_p:.6g}")
 
     return float(t_stat), float(t_p), float(w_stat), float(w_p)
-
-# ====== OOD Evaluation ======
-
-def evaluate_splits_kfold_train_fixed_test(
-    X: pd.DataFrame,
-    y: pd.Series,
-    splits,
-    model_keys,
-    model_registry,
-    *,
-    scenario: str,
-    seed: int,
-    cv_folds: int,
-    shuffle: bool,
-    hyperparameter_tuning: bool,
-    best_params: Optional[Dict] = None,
-    model_random_state: int = 0,
-    rf_name: Optional[str],
-    xgb_name: Optional[str],
-):
-    """
-    KFold on TRAIN, evaluate on fixed OOD TEST.
-
-    model_random_state seeds model construction and hyperparameter search
-    (independent of `seed`, which seeds the inner KFold split on TRAIN).
-    """
-
-    summary_rows = []
-    metrics_rows = []
-    signif_rows = []
-
-    kf_seed = int(seed)
-
-    for split_id, train_idx, test_idx in splits:
-
-        X_train_full = X.iloc[train_idx]
-        y_train_full = y.iloc[train_idx]
-
-        X_test = X.iloc[test_idx]
-        y_test = y.iloc[test_idx]
-
-        if len(train_idx) < cv_folds:
-            print(
-                f"[WARN] Skipping split {split_id} in {scenario}: "
-                f"n_train={len(train_idx)} < cv_folds={cv_folds}"
-            )
-            continue
-
-        kf = KFold(
-            n_splits=cv_folds,
-            shuffle=shuffle,
-            random_state=kf_seed if shuffle else None,
-        )
-
-        per_fold = {}
-
-        for key in model_keys:
-            name = model_registry[key]["name"]
-            per_fold[name] = {"mse": [], "mae": [], "mre": [], "r2": []}
-
-        for train_sub_idx, _ in kf.split(X_train_full):
-
-            X_tr = X_train_full.iloc[train_sub_idx]
-            y_tr = y_train_full.iloc[train_sub_idx]
-
-            for key in model_keys:
-
-                model_cfg = model_registry[key]
-
-                params = None
-                if best_params is not None and key in best_params:
-                    params = best_params[key]
-                elif hyperparameter_tuning and model_cfg["tune"] is not None:
-                    params = model_cfg["tune"](
-                        X_tr, y_tr, cv_folds=cv_folds, random_state=model_random_state
-                    )
-
-                model = model_cfg["train"](X_tr, y_tr, params=params, random_state=model_random_state)
-
-                y_pred = model.predict(X_test)
-
-                metrics = _compute_metrics(y_test, y_pred)
-
-                name = model_cfg["name"]
-
-                for m in metrics:
-                    per_fold[name][m].append(metrics[m])
-
-        # Table 1
-        summary_rows.append(
-            dict(
-                scenario=scenario,
-                split_id=split_id,
-                heldout_target=split_id.split("=")[-1],
-                n_train=len(train_idx),
-                n_test=len(test_idx),
-                seed=seed,
-            )
-        )
-
-        # Table 2
-        for model_name, scores in per_fold.items():
-
-            metrics_rows.append(
-                dict(
-                    scenario=scenario,
-                    split_id=split_id,
-                    seed=seed,
-                    model=model_name,
-                    MSE=format_mean_std(
-                        np.mean(scores["mse"]),
-                        np.std(scores["mse"], ddof=1) if len(scores["mse"]) > 1 else 0.0,
-                    ),
-                    MAE=format_mean_std(
-                        np.mean(scores["mae"]),
-                        np.std(scores["mae"], ddof=1) if len(scores["mae"]) > 1 else 0.0,
-                    ),
-                    MRE=format_mean_std(
-                        np.mean(scores["mre"]),
-                        np.std(scores["mre"], ddof=1) if len(scores["mre"]) > 1 else 0.0,
-                        6,
-                    ),
-                    R2=format_mean_std(
-                        np.mean(scores["r2"]),
-                        np.std(scores["r2"], ddof=1) if len(scores["r2"]) > 1 else 0.0,
-                    ),
-                    n_test=len(test_idx),
-                )
-            )
-
-        # Table 3 — RF vs XGB
-        if rf_name and xgb_name and rf_name in per_fold and xgb_name in per_fold:
-
-            cv_like = {
-                rf_name: per_fold[rf_name],
-                xgb_name: per_fold[xgb_name],
-            }
-
-            for metric in ["mse", "mae"]:
-
-                _, t_p, _, w_p = compare_models_significance(
-                    cv_like,
-                    rf_name,
-                    xgb_name,
-                    metric=metric,
-                )
-
-                signif_rows.append(
-                    dict(
-                        scenario=scenario,
-                        split_id=split_id,
-                        seed=seed,
-                        metric=metric.upper(),
-                        t_pvalue=t_p,
-                        wilcoxon_pvalue=w_p,
-                        significant=(t_p < 0.05) or (w_p < 0.05),
-                    )
-                )
-
-    return (
-        pd.DataFrame(summary_rows),
-        pd.DataFrame(metrics_rows),
-        pd.DataFrame(signif_rows),
-    )
-
-
-def summarize_runs_across_splits(metrics_df: pd.DataFrame) -> pd.DataFrame:
-
-    rows = []
-
-    if metrics_df.empty:
-        return pd.DataFrame(rows)
-
-    def parse_mean(x):
-        return float(str(x).split("±")[0].strip())
-
-    for (scenario, model), g in metrics_df.groupby(["scenario", "model"]):
-
-        mse = g["MSE"].map(parse_mean).to_numpy()
-        mae = g["MAE"].map(parse_mean).to_numpy()
-        mre = g["MRE"].map(parse_mean).to_numpy()
-        r2 = g["R2"].map(parse_mean).to_numpy()
-
-        rows.append(
-            dict(
-                scenario=scenario,
-                model=model,
-                MSE=format_mean_std(np.mean(mse), np.std(mse, ddof=1) if len(mse) > 1 else 0.0),
-                MAE=format_mean_std(np.mean(mae), np.std(mae, ddof=1) if len(mae) > 1 else 0.0),
-                MRE=format_mean_std(np.mean(mre), np.std(mre, ddof=1) if len(mre) > 1 else 0.0, 6),
-                R2=format_mean_std(np.mean(r2), np.std(r2, ddof=1) if len(r2) > 1 else 0.0),
-                n_splits=len(g),
-            )
-        )
-
-    return pd.DataFrame(rows)
-
-
-def print_ood_tables(table1, table2, table3, table4):
-
-    print("\nTable 1: Scenario summary")
-    print(table1.to_string(index=False))
-
-    print("\nTable 2: Metrics by model")
-    print(table2.to_string(index=False))
-
-    print("\nTable 3: RF vs XGB significance")
-    print(table3.to_string(index=False))
-
-    print("\nTable 4: Combined comparison")
-    print(table4.to_string(index=False))
-
-# ====== Permutation Feature Importance & SHAP ======
-
-def plot_permutation_importance(
-    model,
-    X_valid,
-    y_valid,
-    title: str = "",
-    save_path: str = None,
-    random_state: int = 0,
-):
-    """Plot permutation importance for RFR / XGB / Ridge."""
-    perm_import = permutation_importance(
-        model, X_valid, y_valid, n_repeats=10, random_state=random_state
-    )
-
-    sorted_idx = perm_import.importances_mean.argsort()
-
-    plt.figure(figsize=(14, 7))
-    plt.barh(
-        range(len(sorted_idx)),
-        perm_import.importances_mean[sorted_idx],
-        align="center",
-    )
-    plt.yticks(range(len(sorted_idx)), X_valid.columns[sorted_idx], fontsize=16)
-    plt.xlabel("Permutation Feature Importance", fontsize=16)
-    plt.ylabel("Features", fontsize=16)
-    plt.xticks(fontsize=16)
-    if title:
-        plt.title(title, fontsize=18)
-    plt.tight_layout()
-
-    if save_path:
-        plt.savefig(save_path)
-        plt.close()
-    else:
-        plt.show() 
-
-
-def plot_shap_summary(model, X_train, X_valid, save_path: str = None):
-    """Generate SHAP summary plots."""
-    explainer = shap.Explainer(model, X_train)
-    shap_values = explainer(X_valid, check_additivity=False)
-
-    shap.summary_plot(shap_values, X_valid, feature_names=X_valid.columns, show=False)
-
-    if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches="tight")
-        plt.close()
-    else:
-        plt.show()
-
-# ====== Case studies: FeAl / FeCo / FeCr ======
-
-def _build_case_features(
-    formulas: List[str],
-    periodic_table,
-    miedema_weight,
-) -> pd.DataFrame:
-    """Build the full feature matrix for a list of chemical formulas.
-
-    Returns a DataFrame that includes the original "chemical formula" column
-    plus all nine engineered features used by the case-study models.
-    """
-    X = pd.DataFrame(formulas, columns=["chemical formula"])
-    stoich = al.get_stoich_array(X, periodic_table)
-    X["stoicentw"] = al.get_stoic_entw(stoich)
-    X["Zw"] = al.get_zw(periodic_table, stoich)
-    X["compoundradix"] = al.get_compound_radix(X)
-    X["periodw"] = al.get_periodw(periodic_table, stoich)
-    X["groupw"] = al.get_groupw(periodic_table, stoich)
-    X["meltingTw"] = al.get_melting_tw(periodic_table, stoich)
-    X["miedemaH"] = al.get_miedemaw(miedema_weight, stoich)
-    X["valencew"] = al.get_valencew(periodic_table, stoich)
-    X["electronegw"] = al.get_electronegw(periodic_table, stoich)
-    return X, stoich
-
-
-def feal_case(X_cols: List[str], rf_model, xgb_model, ridge_model, periodic_table, miedema_weight):
-    """Generate predictions and literature references for the FeAl case study (no plotting)."""
-    formulas = [
-        "Fe98Al2", "Fe96Al4", "Fe94Al6", "Fe93Al7", "Fe90Al10",
-        "Fe88Al12", "Fe85Al15", "Fe82Al18", "Fe78Al22", "Fe75Al25",
-        "Fe72Al28", "Fe68Al32", "Fe66Al34",
-    ]
-    X_FeAl, stoich_array_FeAl = _build_case_features(formulas, periodic_table, miedema_weight)
-
-    rfpreds_FeAl = rf_model.predict(X_FeAl[X_cols])
-    xgbpreds_FeAl = xgb_model.predict(X_FeAl[X_cols])
-    ridgepreds_FeAl = ridge_model.predict(X_FeAl[X_cols])
-
-    at_FeAl_fraction = al.get_atomic_frac(stoich_array_FeAl)
-
-    Exp_FeAl = pd.Series(
-        data=[2.14, 2.12, 2.09, 2.05, 2.01, 1.98, 1.92, 1.86, 1.80, 1.75, 1.69, 1.65, 1.60],
-        index=[0.02, 0.038, 0.058, 0.074, 0.099, 0.124, 0.152, 0.183, 0.219, 0.251, 0.281, 0.315, 0.341],
-    )
-
-    return at_FeAl_fraction, rfpreds_FeAl, xgbpreds_FeAl, ridgepreds_FeAl, Exp_FeAl
-
-
-def feco_case(X_cols, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight):
-    """Generate predictions and literature references for the FeCo case study."""
-    formulas = [
-        "Fe100Co0", "Fe96Co4", "Fe92Co8", "Fe90Co10", "Fe88Co12",
-        "Fe85Co15", "Fe82Co18", "Fe79Co21", "Fe71Co29", "Fe59Co41",
-        "Fe45Co55", "Fe26Co74", "Fe7Co93",
-    ]
-    X_FeCo, stoich_array_FeCo = _build_case_features(formulas, periodic_table, miedema_weight)
-
-    rfpreds_FeCo = rf_model.predict(X_FeCo[X_cols])
-    xgbpreds_FeCo = xgb_model.predict(X_FeCo[X_cols])
-    ridgepreds_FeCo = ridge_model.predict(X_FeCo[X_cols])
-
-    at_FeCo_fraction = al.get_atomic_frac(stoich_array_FeCo)
-
-    Exp_FeCo = pd.Series(
-        data=[2.18, 2.21, 2.24, 2.26, 2.30, 2.33, 2.36, 2.39, 2.43, 2.44, 2.31, 2.09, 1.8],
-        index=[0.00, 0.04, 0.08, 0.10, 0.12, 0.15, 0.18, 0.21, 0.29, 0.41, 0.55, 0.74, 0.93],
-    )
-
-    return at_FeCo_fraction, rfpreds_FeCo, xgbpreds_FeCo, ridgepreds_FeCo, Exp_FeCo
-
-
-def fecr_case(X_cols, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight):
-    """Generate predictions and literature references for the FeCr case study."""
-    formulas = [
-        "Fe99Cr1", "Fe98Cr2", "Fe96Cr4", "Fe95Cr5", "Fe93Cr7",
-        "Fe92Cr8", "Fe91Cr9", "Fe90Cr10", "Fe89Cr11", "Fe87Cr13",
-        "Fe85Cr15", "Fe83Cr17", "Fe80Cr20",
-    ]
-    X_FeCr, stoich_array_FeCr = _build_case_features(formulas, periodic_table, miedema_weight)
-
-    rfpreds_FeCr = rf_model.predict(X_FeCr[X_cols])
-    xgbpreds_FeCr = xgb_model.predict(X_FeCr[X_cols])
-    ridgepreds_FeCr = ridge_model.predict(X_FeCr[X_cols])
-
-    at_FeCr_fraction = al.get_atomic_frac(stoich_array_FeCr)
-
-    Exp_FeCr = pd.Series(
-        data=[2.14, 2.09, 2.05, 2.00, 1.96, 1.92, 1.89, 1.86, 1.83, 1.78, 1.73, 1.66, 1.60],
-        index=[0.01, 0.02, 0.04, 0.05, 0.07, 0.08, 0.09, 0.10, 0.11, 0.13, 0.15, 0.17, 0.20],
-    )
-
-    return at_FeCr_fraction, rfpreds_FeCr, xgbpreds_FeCr, ridgepreds_FeCr, Exp_FeCr
-
-
-def plot_case_studies(
-    feature_columns,
-    rf_model,
-    xgb_model,
-    ridge_model,
-    periodic_table,
-    miedema_weight,
-    save_path = None,
-):
-    """Plot three case studies (FeAl, FeCo, FeCr) side by side."""
-    (
-        at_FeAl_fraction,
-        rfpreds_FeAl,
-        xgbpreds_FeAl,
-        ridgepreds_FeAl,
-        Exp_FeAl,
-    ) = feal_case(feature_columns, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight)
-
-    (
-        at_FeCo_fraction,
-        rfpreds_FeCo,
-        xgbpreds_FeCo,
-        ridgepreds_FeCo,
-        Exp_FeCo,
-    ) = feco_case(feature_columns, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight)
-
-    (
-        at_FeCr_fraction,
-        rfpreds_FeCr,
-        xgbpreds_FeCr,
-        ridgepreds_FeCr,
-        Exp_FeCr,
-    ) = fecr_case(feature_columns, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight)
-
-    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(20, 4))
-
-    # FeAl
-    sns.scatterplot(x=at_FeAl_fraction["Al"], y=rfpreds_FeAl, ax=ax1)
-    sns.scatterplot(x=at_FeAl_fraction["Al"], y=xgbpreds_FeAl, ax=ax1)
-    sns.scatterplot(x=at_FeAl_fraction["Al"], y=ridgepreds_FeAl, ax=ax1)
-    sns.scatterplot(x=Exp_FeAl.index, y=Exp_FeAl.values, ax=ax1)
-    ax1.set_title("FeAl Case Study", fontsize=16)
-    ax1.set_xlabel("Al content [atomic fraction]", fontsize=16)
-    ax1.set_ylabel("Saturation Magnetisation [T]", fontsize=16)
-    legend1 = ax1.legend(
-        ["random forest", "xgboost", "ridge regression", "literature"],
-        loc="upper right",
-        fontsize=12,
-    )
-    legend1.get_frame().set_facecolor("white")
-
-    # FeCo
-    sns.scatterplot(x=at_FeCo_fraction["Co"], y=rfpreds_FeCo, ax=ax2)
-    sns.scatterplot(x=at_FeCo_fraction["Co"], y=xgbpreds_FeCo, ax=ax2)
-    sns.scatterplot(x=at_FeCo_fraction["Co"], y=ridgepreds_FeCo, ax=ax2)
-    sns.scatterplot(x=Exp_FeCo.index, y=Exp_FeCo.values, ax=ax2)
-    ax2.set_title("FeCo Case Study", fontsize=16)
-    ax2.set_xlabel("Co content [atomic fraction]", fontsize=16)
-    ax2.set_ylabel("Saturation Magnetisation [T]", fontsize=16)
-    legend2 = ax2.legend(
-        ["random forest", "xgboost", "ridge regression", "literature"],
-        loc="upper right",
-        fontsize=12,
-    )
-    legend2.get_frame().set_facecolor("white")
-
-    # FeCr
-    sns.scatterplot(x=at_FeCr_fraction["Cr"], y=rfpreds_FeCr, ax=ax3)
-    sns.scatterplot(x=at_FeCr_fraction["Cr"], y=xgbpreds_FeCr, ax=ax3)
-    sns.scatterplot(x=at_FeCr_fraction["Cr"], y=ridgepreds_FeCr, ax=ax3)
-    sns.scatterplot(x=Exp_FeCr.index, y=Exp_FeCr.values, ax=ax3)
-    ax3.set_title("FeCr Case Study", fontsize=16)
-    ax3.set_xlabel("Cr content [atomic fraction]", fontsize=16)
-    ax3.set_ylabel("Saturation Magnetisation [T]", fontsize=16)
-
-    legend3 = ax3.legend(
-        ["random forest", "xgboost", "ridge regression", "literature"],
-        loc="upper right",
-        fontsize=12,
-    )
-    legend3.get_frame().set_facecolor("white")
-
-    plt.tight_layout()
-
-    if save_path:
-        plt.savefig(save_path, dpi=300)
-        plt.close()
-    else:
-        plt.show()
