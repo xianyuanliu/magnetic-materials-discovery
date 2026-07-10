@@ -1,7 +1,7 @@
 """OOD evaluation orchestration: config resolution, split selection, and reporting.
 
 Reads train/test CSVs (or a single fixed split), builds the requested OOD
-split families via ood_splits.py, and scores each via ood_evaluate.py.
+split families via pipeline/ood_splits.py, and scores each via evaluate/ood_evaluation.py.
 """
 
 from __future__ import annotations
@@ -15,13 +15,13 @@ import pandas as pd
 
 import os
 
-from ood_evaluate import (
+from evaluate.ood_evaluation import (
     evaluate_splits_kfold_train_fixed_test,
     summarize_runs_across_splits,
     print_ood_tables,
 )
 
-from ood_splits import (
+from pipeline.ood_splits import (
     build_loeo_splits,
     build_period_splits,
     build_group_splits,
@@ -30,7 +30,7 @@ from ood_splits import (
     build_sparsey_splits,
 )
 
-from data import (
+from prepdata.alloy_transform import (
     extract_elements_series,
     load_periodic_table_map,
 )

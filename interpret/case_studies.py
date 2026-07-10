@@ -1,21 +1,13 @@
-"""Model interpretability: permutation importance, SHAP, and literature case studies.
-
-- Permutation feature importance and SHAP summary plots for a trained model.
-- FeAl / FeCo / FeCr case studies comparing model predictions against
-  literature saturation-magnetization measurements (see case_study_references.py).
-"""
+"""FeAl / FeCo / FeCr case studies: model predictions vs. literature measurements."""
 
 from typing import List
 
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-import shap
 
-from sklearn.inspection import permutation_importance
-
-import alloys as al
-from case_study_references import (
+import prepdata.alloy_transform as alloy_transform
+from interpret.case_study_references import (
     FEAL_FORMULAS,
     FEAL_LITERATURE_MS,
     FECO_FORMULAS,
@@ -24,59 +16,6 @@ from case_study_references import (
     FECR_LITERATURE_MS,
 )
 
-# ====== Permutation Feature Importance & SHAP ======
-
-
-def plot_permutation_importance(
-    model,
-    X_valid,
-    y_valid,
-    title: str = "",
-    save_path: str = None,
-    random_state: int = 0,
-):
-    """Plot permutation importance for RFR / XGB / Ridge."""
-    perm_import = permutation_importance(
-        model, X_valid, y_valid, n_repeats=10, random_state=random_state
-    )
-
-    sorted_idx = perm_import.importances_mean.argsort()
-
-    plt.figure(figsize=(14, 7))
-    plt.barh(
-        range(len(sorted_idx)),
-        perm_import.importances_mean[sorted_idx],
-        align="center",
-    )
-    plt.yticks(range(len(sorted_idx)), X_valid.columns[sorted_idx], fontsize=16)
-    plt.xlabel("Permutation Feature Importance", fontsize=16)
-    plt.ylabel("Features", fontsize=16)
-    plt.xticks(fontsize=16)
-    if title:
-        plt.title(title, fontsize=18)
-    plt.tight_layout()
-
-    if save_path:
-        plt.savefig(save_path)
-        plt.close()
-    else:
-        plt.show()
-
-
-def plot_shap_summary(model, X_train, X_valid, save_path: str = None):
-    """Generate SHAP summary plots."""
-    explainer = shap.Explainer(model, X_train)
-    shap_values = explainer(X_valid, check_additivity=False)
-
-    shap.summary_plot(shap_values, X_valid, feature_names=X_valid.columns, show=False)
-
-    if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches="tight")
-        plt.close()
-    else:
-        plt.show()
-
-# ====== Case studies: FeAl / FeCo / FeCr ======
 
 def _build_case_features(
     formulas: List[str],
@@ -89,16 +28,16 @@ def _build_case_features(
     plus all nine engineered features used by the case-study models.
     """
     X = pd.DataFrame(formulas, columns=["chemical formula"])
-    stoich = al.get_stoich_array(X, periodic_table)
-    X["stoicentw"] = al.get_stoic_entw(stoich)
-    X["Zw"] = al.get_zw(periodic_table, stoich)
-    X["compoundradix"] = al.get_compound_radix(X)
-    X["periodw"] = al.get_periodw(periodic_table, stoich)
-    X["groupw"] = al.get_groupw(periodic_table, stoich)
-    X["meltingTw"] = al.get_melting_tw(periodic_table, stoich)
-    X["miedemaH"] = al.get_miedemaw(miedema_weight, stoich)
-    X["valencew"] = al.get_valencew(periodic_table, stoich)
-    X["electronegw"] = al.get_electronegw(periodic_table, stoich)
+    stoich = alloy_transform.get_stoich_array(X, periodic_table)
+    X["stoicentw"] = alloy_transform.get_stoic_entw(stoich)
+    X["Zw"] = alloy_transform.get_zw(periodic_table, stoich)
+    X["compoundradix"] = alloy_transform.get_compound_radix(X)
+    X["periodw"] = alloy_transform.get_periodw(periodic_table, stoich)
+    X["groupw"] = alloy_transform.get_groupw(periodic_table, stoich)
+    X["meltingTw"] = alloy_transform.get_melting_tw(periodic_table, stoich)
+    X["miedemaH"] = alloy_transform.get_miedemaw(miedema_weight, stoich)
+    X["valencew"] = alloy_transform.get_valencew(periodic_table, stoich)
+    X["electronegw"] = alloy_transform.get_electronegw(periodic_table, stoich)
     return X, stoich
 
 
@@ -110,7 +49,7 @@ def feal_case(X_cols: List[str], rf_model, xgb_model, ridge_model, periodic_tabl
     xgbpreds_FeAl = xgb_model.predict(X_FeAl[X_cols])
     ridgepreds_FeAl = ridge_model.predict(X_FeAl[X_cols])
 
-    at_FeAl_fraction = al.get_atomic_frac(stoich_array_FeAl)
+    at_FeAl_fraction = alloy_transform.get_atomic_frac(stoich_array_FeAl)
 
     Exp_FeAl = pd.Series(FEAL_LITERATURE_MS)
 
@@ -125,7 +64,7 @@ def feco_case(X_cols, rf_model, xgb_model, ridge_model, periodic_table, miedema_
     xgbpreds_FeCo = xgb_model.predict(X_FeCo[X_cols])
     ridgepreds_FeCo = ridge_model.predict(X_FeCo[X_cols])
 
-    at_FeCo_fraction = al.get_atomic_frac(stoich_array_FeCo)
+    at_FeCo_fraction = alloy_transform.get_atomic_frac(stoich_array_FeCo)
 
     Exp_FeCo = pd.Series(FECO_LITERATURE_MS)
 
@@ -140,7 +79,7 @@ def fecr_case(X_cols, rf_model, xgb_model, ridge_model, periodic_table, miedema_
     xgbpreds_FeCr = xgb_model.predict(X_FeCr[X_cols])
     ridgepreds_FeCr = ridge_model.predict(X_FeCr[X_cols])
 
-    at_FeCr_fraction = al.get_atomic_frac(stoich_array_FeCr)
+    at_FeCr_fraction = alloy_transform.get_atomic_frac(stoich_array_FeCr)
 
     Exp_FeCr = pd.Series(FECR_LITERATURE_MS)
 

@@ -4,8 +4,9 @@ Training and tuning helpers for all models in models.py:
 - GridSearchCV for small search spaces (Ridge, Lasso, ElasticNet)
 - RandomizedSearchCV (n_iter=50) for large spaces (RF, XGBoost, SVR, MLP)
 
-All tune_*/train_* functions accept a random_state so a single seed can be
-threaded through model construction and hyperparameter search from the caller.
+Combines models.py's bare model builders with hyperparameter search into
+ready-to-fit units (MODEL_REGISTRY), keyed by a single random_state threaded through
+model construction and hyperparameter search from the caller.
 """
 
 import types

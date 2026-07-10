@@ -1,7 +1,7 @@
 """Reference formulas and literature saturation-magnetization data.
 
-Used by interpret.py to sanity-check trained models against experimentally
-measured saturation magnetization for the FeAl/FeCo/FeCr binary systems.
+Used by interpret/case_studies.py to sanity-check trained models against
+experimentally measured saturation magnetization for the FeAl/FeCo/FeCr binary systems.
 """
 
 FEAL_FORMULAS = [

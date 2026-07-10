@@ -1,8 +1,8 @@
 """Per-split evaluation and table-building for OOD stress tests.
 
-Given a set of (train_idx, test_idx) OOD splits (built by ood_splits.py) and
-orchestrated by ood.py, this module runs KFold on the TRAIN portion of each
-split and scores against the fixed, held-out OOD TEST portion, then rolls the
+Given a set of (train_idx, test_idx) OOD splits (built by pipeline/ood_splits.py) and
+orchestrated by pipeline/ood_pipeline.py, this module runs KFold on the TRAIN portion of
+each split and scores against the fixed, held-out OOD TEST portion, then rolls the
 results up into reportable tables.
 """
 
@@ -13,7 +13,8 @@ import pandas as pd
 
 from sklearn.model_selection import KFold
 
-from evaluate import compute_metrics, compare_models_significance, format_mean_std
+from evaluate.metrics import compute_metrics, format_mean_std
+from evaluate.cross_validation import compare_models_significance
 
 
 def evaluate_splits_kfold_train_fixed_test(

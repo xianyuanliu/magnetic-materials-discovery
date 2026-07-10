@@ -6,26 +6,22 @@ from typing import List
 
 import yaml
 
-from ood import run_ood_evaluation
+from loaddata.feature_csv_access import load_features_and_target, load_raw_data, split_dataset
+from loaddata.raw_loaders import load_elemental_data
 
-from data import (
-    load_features_and_target,
-    load_raw_data,
-    split_dataset,
-)
+from pipeline.train import MODEL_REGISTRY
+from pipeline.ood_pipeline import run_ood_evaluation
 
-from preprocess_data import load_elemental_data
-
-from train import MODEL_REGISTRY
-
-from evaluate import (
+from evaluate.cross_validation import (
     print_holdout_results,
     cross_validate_models,
     print_cv_results,
     compare_models_significance,
 )
-from interpret import plot_permutation_importance, plot_shap_summary, plot_case_studies
-from visualize import plot_ms_distribution_by_tm, plot_violin_ms_by_tm, summarize_compound_radix
+
+from interpret.model_weights import plot_permutation_importance, plot_shap_summary
+from interpret.case_studies import plot_case_studies
+from interpret.visualize import plot_ms_distribution_by_tm, plot_violin_ms_by_tm, summarize_compound_radix
 
 def parse_args():
     """Parse the --config CLI flag."""

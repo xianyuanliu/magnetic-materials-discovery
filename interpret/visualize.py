@@ -1,10 +1,12 @@
+"""Dataset distribution plots: Ms histograms/violin plots, compound-radix summaries."""
+
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
-import alloys
-from data import formula_contains_elements
+import prepdata.alloy_transform as alloy_transform
+from prepdata.alloy_transform import formula_contains_elements
 
 def plot_ms_distribution_by_tm(data, save_path=None):
     """Plot Ms histograms for the full dataset and Fe/Co/Cr/Mn-containing subsets.
@@ -80,7 +82,7 @@ def summarize_compound_radix(data):
     data = data.copy()
 
     # Compute compound radix (number of unique elements in formula)
-    data['compoundradix'] = alloys.get_compound_radix(data)
+    data['compoundradix'] = alloy_transform.get_compound_radix(data)
 
     total_compound_radix = data['compoundradix'].value_counts().sort_index()
 
