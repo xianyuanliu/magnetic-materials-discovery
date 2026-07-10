@@ -22,7 +22,7 @@ def load_novamag_raw_data(novamag_dir):
     """
     Load and prune raw Novamag data to chemical formula and saturation magnetization.
     """
-    data = alloys.importNovamag(novamag_dir)
+    data = alloys.import_novamag(novamag_dir)
 
     # Normalize literal 'none' entries
     data = data.replace({None: np.nan, "none": np.nan, "None": np.nan})
@@ -137,20 +137,20 @@ def build_features(
     data = raw_data.copy()
 
     # compoundradix: number of species in the compound (binary, ternary, etc.)
-    data["compoundradix"] = alloys.get_CompoundRadix(data)
+    data["compoundradix"] = alloys.get_compound_radix(data)
 
     # stoichiometric array
     stoich_array = alloys.get_stoich_array(data, pt)
 
     # Compute element-weighted features from the stoichiometric array
-    data["stoicentw"] = alloys.get_StoicEntw(stoich_array)           # mixing entropy
-    data["Zw"] = alloys.get_Zw(pt, stoich_array)                     # atomic weight
-    data["periodw"] = alloys.get_Periodw(pt, stoich_array)           # period
-    data["groupw"] = alloys.get_Groupw(pt, stoich_array)             # group
-    data["meltingTw"] = alloys.get_MeltingTw(pt, stoich_array)       # melting point
-    data["miedemaH"] = alloys.get_Miedemaw(mm, stoich_array)         # Miedema mixing enthalpy
-    data["valencew"] = alloys.get_Valencew(pt, stoich_array)         # valence
-    data["electronegw"] = alloys.get_Electronegw(pt, stoich_array)   # electronegativity
+    data["stoicentw"] = alloys.get_stoic_entw(stoich_array)           # mixing entropy
+    data["Zw"] = alloys.get_zw(pt, stoich_array)                     # atomic weight
+    data["periodw"] = alloys.get_periodw(pt, stoich_array)           # period
+    data["groupw"] = alloys.get_groupw(pt, stoich_array)             # group
+    data["meltingTw"] = alloys.get_melting_tw(pt, stoich_array)       # melting point
+    data["miedemaH"] = alloys.get_miedemaw(mm, stoich_array)         # Miedema mixing enthalpy
+    data["valencew"] = alloys.get_valencew(pt, stoich_array)         # valence
+    data["electronegw"] = alloys.get_electronegw(pt, stoich_array)   # electronegativity
 
     feature_columns = [
         "compoundradix",

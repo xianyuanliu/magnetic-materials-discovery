@@ -56,7 +56,7 @@ def _atomic_fraction(compound: pd.Series):
 #         )
 #     return pd.DataFrame(n_el_rows, columns=["element", "count"])
 
-def importNovamag(root_dir):
+def import_novamag(root_dir):
     """
     Load all Novamag JSON files into a flat DataFrame of chemistry, crystal, and magnetic properties.
     """
@@ -140,7 +140,7 @@ def get_stoich_array(x, pt):
     return stoich_array
 
 
-def get_Electronegw(pt, stoich_array):
+def get_electronegw(pt, stoich_array):
     """Calculate element-weighted electronegativity."""
     electronegw = pd.Series(index=stoich_array.index, dtype=float)
     en_list = pt["electronegativity"].str.extract(pat=r"(?P<digit>\d*\.\d+)").astype(float)
@@ -150,7 +150,7 @@ def get_Electronegw(pt, stoich_array):
     return electronegw
 
 
-def get_Zw(pt, stoich_array):
+def get_zw(pt, stoich_array):
     """Calculate element-weighted atomic weight."""
     zw = pd.Series(index=stoich_array.index, dtype=float)
     for i, compound in stoich_array.iterrows():
@@ -159,7 +159,7 @@ def get_Zw(pt, stoich_array):
     return zw
 
 
-def get_Groupw(pt, stoich_array):
+def get_groupw(pt, stoich_array):
     """Calculate element-weighted group number."""
     group_block = pt["group_block"].str.extract(r"(\d+)")[0]
     group_block = group_block.astype(float)
@@ -189,7 +189,7 @@ def get_Groupw(pt, stoich_array):
     return groupw
 
 
-def get_Periodw(pt, stoich_array):
+def get_periodw(pt, stoich_array):
     """Calculate element-weighted period number."""
     periodw = pd.Series(index=stoich_array.index, dtype=float)
 
@@ -199,7 +199,7 @@ def get_Periodw(pt, stoich_array):
     return periodw
 
 
-def get_MeltingTw(pt, stoich_array):
+def get_melting_tw(pt, stoich_array):
     """Calculate element-weighted melting temperature."""
     meltingTw = pd.Series(index=stoich_array.index, dtype=float)
     for i, compound in stoich_array.iterrows():
@@ -208,7 +208,7 @@ def get_MeltingTw(pt, stoich_array):
     return meltingTw
 
 
-def get_Valencew(pt, stoich_array):
+def get_valencew(pt, stoich_array):
     """Calculate element-weighted valence electron number."""
     valencew = pd.Series(index=stoich_array.index, dtype=float)
     for i, compound in stoich_array.iterrows():
@@ -217,7 +217,7 @@ def get_Valencew(pt, stoich_array):
     return valencew
 
 
-def get_Miedemaw(mm, stoich_array):
+def get_miedemaw(mm, stoich_array):
     """Calculate weighted Miedema enthalpy of formation (pairwise sum over elements)."""
     miedemaw = pd.Series(index=stoich_array.index, dtype=float)
     for i, compound in stoich_array.iterrows():
@@ -236,7 +236,7 @@ def get_Miedemaw(mm, stoich_array):
     return miedemaw
 
 
-def get_StoicEntw(stoich_array):
+def get_stoic_entw(stoich_array):
     """Calculate stoichiometric (mixing) entropy."""
     stoicentw = pd.Series(index=stoich_array.index, dtype=float)
     for i, compound in stoich_array.iterrows():
@@ -245,7 +245,7 @@ def get_StoicEntw(stoich_array):
     return stoicentw
 
 
-def get_AtomicFrac(stoich_array):
+def get_atomic_frac(stoich_array):
     """Calculate atomic fractions of each element for every compound."""
     rows = []
     for _, compound in stoich_array.iterrows():
@@ -256,7 +256,7 @@ def get_AtomicFrac(stoich_array):
     return pd.DataFrame(rows).reindex(columns=stoich_array.columns)
 
 
-def get_CompoundRadix(X):
+def get_compound_radix(X):
     """Calculate compound radix (number of distinct elements) for each formula."""
     if isinstance(X, pd.DataFrame):
         formulas = X["chemical formula"].copy()

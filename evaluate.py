@@ -488,15 +488,15 @@ def _build_case_features(
     """
     X = pd.DataFrame(formulas, columns=["chemical formula"])
     stoich = al.get_stoich_array(X, periodic_table)
-    X["stoicentw"] = al.get_StoicEntw(stoich)
-    X["Zw"] = al.get_Zw(periodic_table, stoich)
-    X["compoundradix"] = al.get_CompoundRadix(X)
-    X["periodw"] = al.get_Periodw(periodic_table, stoich)
-    X["groupw"] = al.get_Groupw(periodic_table, stoich)
-    X["meltingTw"] = al.get_MeltingTw(periodic_table, stoich)
-    X["miedemaH"] = al.get_Miedemaw(miedema_weight, stoich)
-    X["valencew"] = al.get_Valencew(periodic_table, stoich)
-    X["electronegw"] = al.get_Electronegw(periodic_table, stoich)
+    X["stoicentw"] = al.get_stoic_entw(stoich)
+    X["Zw"] = al.get_zw(periodic_table, stoich)
+    X["compoundradix"] = al.get_compound_radix(X)
+    X["periodw"] = al.get_periodw(periodic_table, stoich)
+    X["groupw"] = al.get_groupw(periodic_table, stoich)
+    X["meltingTw"] = al.get_melting_tw(periodic_table, stoich)
+    X["miedemaH"] = al.get_miedemaw(miedema_weight, stoich)
+    X["valencew"] = al.get_valencew(periodic_table, stoich)
+    X["electronegw"] = al.get_electronegw(periodic_table, stoich)
     return X, stoich
 
 
@@ -513,7 +513,7 @@ def feal_case(X_cols: List[str], rf_model, xgb_model, ridge_model, periodic_tabl
     xgbpreds_FeAl = xgb_model.predict(X_FeAl[X_cols])
     ridgepreds_FeAl = ridge_model.predict(X_FeAl[X_cols])
 
-    at_FeAl_fraction = al.get_AtomicFrac(stoich_array_FeAl)
+    at_FeAl_fraction = al.get_atomic_frac(stoich_array_FeAl)
 
     Exp_FeAl = pd.Series(
         data=[2.14, 2.12, 2.09, 2.05, 2.01, 1.98, 1.92, 1.86, 1.80, 1.75, 1.69, 1.65, 1.60],
@@ -536,7 +536,7 @@ def feco_case(X_cols, rf_model, xgb_model, ridge_model, periodic_table, miedema_
     xgbpreds_FeCo = xgb_model.predict(X_FeCo[X_cols])
     ridgepreds_FeCo = ridge_model.predict(X_FeCo[X_cols])
 
-    at_FeCo_fraction = al.get_AtomicFrac(stoich_array_FeCo)
+    at_FeCo_fraction = al.get_atomic_frac(stoich_array_FeCo)
 
     Exp_FeCo = pd.Series(
         data=[2.18, 2.21, 2.24, 2.26, 2.30, 2.33, 2.36, 2.39, 2.43, 2.44, 2.31, 2.09, 1.8],
@@ -559,7 +559,7 @@ def fecr_case(X_cols, rf_model, xgb_model, ridge_model, periodic_table, miedema_
     xgbpreds_FeCr = xgb_model.predict(X_FeCr[X_cols])
     ridgepreds_FeCr = ridge_model.predict(X_FeCr[X_cols])
 
-    at_FeCr_fraction = al.get_AtomicFrac(stoich_array_FeCr)
+    at_FeCr_fraction = al.get_atomic_frac(stoich_array_FeCr)
 
     Exp_FeCr = pd.Series(
         data=[2.14, 2.09, 2.05, 2.00, 1.96, 1.92, 1.89, 1.86, 1.83, 1.78, 1.73, 1.66, 1.60],

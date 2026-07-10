@@ -1,6 +1,7 @@
 """Data loading and feature engineering helpers for alloy datasets."""
 
 import re
+import warnings
 from typing import Dict, Iterable, List, Sequence, Tuple
 import numpy as np
 import pandas as pd
@@ -16,15 +17,26 @@ def parse_elements_from_formula(formula: str) -> List[str]:
     Uses the same parser as alloys.get_stoich_array so element identification
     is consistent across the pipeline.
 
+    A row whose elements come back empty is invisible to any element/period/
+    group-based OOD split (it can never be selected as train or test for a
+    given target), so a genuine parse failure is surfaced via warnings.warn
+    rather than swallowed. A missing formula (None/NaN) is not a failure and
+    stays silent.
+
     Example:
         Nd2Fe14B -> ["Nd", "Fe", "B"]
     """
-    if formula is None:
+    if pd.isna(formula):
         return []
     try:
         comp = Composition(str(formula))
         return [str(el) for el in comp.elements]
-    except Exception:
+    except Exception as exc:
+        warnings.warn(
+            f"Could not parse chemical formula {formula!r}; treating it as "
+            f"containing no elements, so it will be excluded from any "
+            f"element/period/group-based OOD split ({exc})."
+        )
         return []
 
 
@@ -38,10 +50,22 @@ def extract_elements_series(
     if formula_column not in df_raw.columns:
         raise ValueError(f"Missing column: {formula_column}")
 
-    return [
-        parse_elements_from_formula(x)
-        for x in df_raw[formula_column].tolist()
-    ]
+    formulas = df_raw[formula_column].tolist()
+    elements_per_row = [parse_elements_from_formula(x) for x in formulas]
+
+    n_unparsed = sum(
+        1
+        for formula, elements in zip(formulas, elements_per_row)
+        if not elements and not pd.isna(formula)
+    )
+    if n_unparsed:
+        print(
+            f"[WARN] {n_unparsed} of {len(formulas)} formulas in "
+            f"'{formula_column}' could not be parsed and will be excluded "
+            f"from any element/period/group-based filtering or splitting."
+        )
+
+    return elements_per_row
 
 
 def elements_mask(
