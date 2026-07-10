@@ -28,3 +28,5 @@ cv_shuffle: true
 cv_random_state: 0
 cv_seeds: [0, 5, 10, 15, 20]
 enable_hyperparameter_tuning: true
+
+random_state: 0

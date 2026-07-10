@@ -20,6 +20,8 @@ cv_shuffle: true
 cv_random_state: 0
 cv_seeds: [0, 1]
 
+random_state: 0
+
 target_column: saturation magnetization
 formula_column: chemical formula
 

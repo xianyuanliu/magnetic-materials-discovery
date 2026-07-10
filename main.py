@@ -66,6 +66,10 @@ def main():
     cv_random_state = cfg["cv_random_state"]
     cv_seeds = cfg.get("cv_seeds", [cv_random_state])
 
+    # Seeds model construction and hyperparameter search everywhere (independent
+    # of cv_random_state/cv_seeds, which seed data splitting).
+    model_random_state = int(cfg.get("random_state", 0))
+
     if evaluation_mode not in {"holdout", "cross_validation", "ood"}:
         raise ValueError("Invalid evaluation_mode. Choose 'holdout', 'cross_validation', or 'ood'.")
     need_cross_validation = evaluation_mode == "cross_validation"
@@ -103,14 +107,6 @@ def main():
         rf_name = _name_for_key("rf") if "rf" in models else None
         xgb_name = _name_for_key("xgb") if "xgb" in models else None
 
-        # Tune once on full data, reuse best params across all seeds and folds
-        if hyperparameter_tuning:
-            print("\n=== Hyperparameter Tuning (once on full dataset) ===")
-            for key in models:
-                model_cfg = MODEL_REGISTRY[key]
-                if model_cfg["tune"] is not None:
-                    best_params[key] = model_cfg["tune"](X, y, cv_folds=cv_folds)
-
         # Run CV for each seed
         for run_i, seed in enumerate(cv_seeds, start=1):
             seed = int(seed)
@@ -124,11 +120,12 @@ def main():
                 y,
                 models,
                 MODEL_REGISTRY,
-                hyperparameter_tuning=False,
-                best_params=best_params if best_params else None,
+                hyperparameter_tuning=hyperparameter_tuning,
+                best_params=None,
                 cv_folds=cv_folds,
                 shuffle=cv_shuffle,
                 random_state=seed,
+                model_random_state=model_random_state,
             )
 
             # Print per-model mean ± std across folds
@@ -167,11 +164,14 @@ def main():
             cv_shuffle=cv_shuffle,
             hyperparameter_tuning=hyperparameter_tuning,
             cv_random_state=cv_random_state,
+            model_random_state=model_random_state,
         )
 
     else:
         X, y, feature_columns = load_features_and_target(dataset_path)
-        X_train, X_valid, y_train, y_valid = split_dataset(X, y, train_size=0.8)
+        X_train, X_valid, y_train, y_valid = split_dataset(
+            X, y, train_size=0.8, random_state=model_random_state
+        )
 
 
         # 2) Tune once on training set, then train all models with fixed best params
@@ -180,7 +180,9 @@ def main():
             for key in models:
                 model_cfg = MODEL_REGISTRY[key]
                 if model_cfg["tune"] is not None:
-                    best_params[key] = model_cfg["tune"](X_train, y_train, cv_folds=cv_folds)
+                    best_params[key] = model_cfg["tune"](
+                        X_train, y_train, cv_folds=cv_folds, random_state=model_random_state
+                    )
 
         for key in models:
             if key not in MODEL_REGISTRY:
@@ -190,7 +192,7 @@ def main():
 
             params = best_params.get(key) if best_params else None
 
-            model = model_cfg["train"](X_train, y_train, params=params)
+            model = model_cfg["train"](X_train, y_train, params=params, random_state=model_random_state)
             trained_models[key] = model
             best_params[key] = params
             preds[model_cfg["name"]] = model.predict(X_valid)
