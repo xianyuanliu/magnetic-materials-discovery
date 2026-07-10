@@ -1,10 +1,12 @@
 """Run the magnetism pipeline for Novamag or Materials Project data."""
 
 import argparse
-import yaml
 from pathlib import Path
-from ood import run_ood_evaluation
+from typing import List
 
+import yaml
+
+from ood import run_ood_evaluation
 
 from data import (
     load_features_and_target,
@@ -53,6 +55,123 @@ def print_rf_vs_xgb_significance(cv_results, rf_name: str, xgb_name: str):
             f"(t_stat={t_stat:.4f}, w_stat={w_stat:.4f})"
         )
 
+
+def run_cross_validation(
+    *,
+    dataset_path: str,
+    models: List[str],
+    cv_folds: int,
+    cv_shuffle: bool,
+    cv_seeds: List[int],
+    hyperparameter_tuning: bool,
+    model_random_state: int,
+) -> None:
+    """Run K-fold CV once per seed in cv_seeds; print metrics and RF-vs-XGB significance."""
+    if len(cv_seeds) < 1:
+        raise ValueError("cv_seeds must contain at least one seed.")
+
+    X, y, _ = load_features_and_target(dataset_path)
+
+    def _name_for_key(model_key: str) -> str:
+        return MODEL_REGISTRY[model_key]["name"]
+
+    rf_name = _name_for_key("rf") if "rf" in models else None
+    xgb_name = _name_for_key("xgb") if "xgb" in models else None
+
+    for run_i, seed in enumerate(cv_seeds, start=1):
+        seed = int(seed)
+
+        print(f"\n==============================")
+        print(f"=== CV Run {run_i}/{len(cv_seeds)} (seed={seed}) ===")
+        print(f"==============================")
+
+        cv_results = cross_validate_models(
+            X,
+            y,
+            models,
+            MODEL_REGISTRY,
+            hyperparameter_tuning=hyperparameter_tuning,
+            best_params=None,
+            cv_folds=cv_folds,
+            shuffle=cv_shuffle,
+            random_state=seed,
+            model_random_state=model_random_state,
+        )
+
+        print_cv_results(cv_results)
+
+        if rf_name is not None and xgb_name is not None:
+            print_rf_vs_xgb_significance(cv_results, rf_name, xgb_name)
+
+
+def run_holdout(
+    *,
+    dataset_path: str,
+    pt_path: str,
+    mm_path: str,
+    models: List[str],
+    cv_folds: int,
+    hyperparameter_tuning: bool,
+    model_random_state: int,
+    ablation_study: bool,
+    prefix: str,
+    plots_save_dir: Path,
+) -> None:
+    """Train/validate on one 80/20 split; optionally run ablation + interpretability plots."""
+    X, y, feature_columns = load_features_and_target(dataset_path)
+    X_train, X_valid, y_train, y_valid = split_dataset(
+        X, y, train_size=0.8, random_state=model_random_state
+    )
+
+    best_params = {}
+    if hyperparameter_tuning:
+        print("\n=== Hyperparameter Tuning (once on training set) ===")
+        for key in models:
+            model_cfg = MODEL_REGISTRY[key]
+            if model_cfg["tune"] is not None:
+                best_params[key] = model_cfg["tune"](
+                    X_train, y_train, cv_folds=cv_folds, random_state=model_random_state
+                )
+
+    trained_models = {}
+    preds = {}
+    for key in models:
+        if key not in MODEL_REGISTRY:
+            raise ValueError(f"Unknown model key: {key}")
+
+        model_cfg = MODEL_REGISTRY[key]
+        params = best_params.get(key) if best_params else None
+
+        model = model_cfg["train"](X_train, y_train, params=params, random_state=model_random_state)
+        trained_models[key] = model
+        best_params[key] = params
+        preds[model_cfg["name"]] = model.predict(X_valid)
+
+    print_holdout_results(y_valid, preds)
+
+    if not ablation_study:
+        return
+
+    pt, mm = load_elemental_data(pt_path, mm_path)
+
+    # Permutation importance and SHAP summary for Random Forest
+    if "rf" in trained_models:
+        plot_permutation_importance(
+            trained_models["rf"], X_valid, y_valid, title=f"RF Permutation Importance ({prefix})",
+            save_path=plots_save_dir / f"{prefix}_perm_importance_rf.png",
+        )
+        plot_shap_summary(
+            trained_models["rf"], X_train, X_valid, save_path=plots_save_dir / f"{prefix}_shap_summary_rf.png"
+        )
+
+    # Comparative case studies across models (RF, XGBoost, and Ridge)
+    if "rf" in trained_models and "xgb" in trained_models and "ridge" in trained_models:
+        plot_case_studies(
+            feature_columns, trained_models["rf"], trained_models["xgb"], trained_models["ridge"], pt, mm,
+            save_path=plots_save_dir / f"{prefix}_case_studies.png",
+        )
+
+
 def main():
     """Run one holdout/cross_validation/ood evaluation, per the --config file."""
     plots_save_dir = Path("./plots/")
@@ -71,7 +190,7 @@ def main():
     hyperparameter_tuning = cfg["enable_hyperparameter_tuning"]
     ablation_study = cfg["enable_ablation_study"]
     models = cfg["models"]
-    
+
     evaluation_mode = cfg["evaluation_mode"].lower()
     cv_folds = cfg["cv_folds"]
     cv_shuffle = cfg["cv_shuffle"]
@@ -90,7 +209,7 @@ def main():
         raise ValueError("OOD mode requires train_dataset_path and test_dataset_path in the config.")
     if not need_ood and not dataset_path:
         raise ValueError("dataset_path is required for holdout or cross_validation modes.")
-    
+
     if dataset_name == "novamag":
         prefix = "novamag"
     elif dataset_name == "mp":
@@ -98,55 +217,16 @@ def main():
     else:
         raise ValueError("Invalid dataset name. Choose either 'Novamag' or 'Materials Project'.")
 
-    # 0) Load data and elemental tables
-    best_params = {}
-    trained_models = {}
-    preds = {}
-
-    
-    # 1) Train/validation split 
     if need_cross_validation:
-        # run multiple CV runs with different seeds (e.g. 0,5,10,15,20)
-        if len(cv_seeds) < 1:
-            raise ValueError("cv_seeds must contain at least one seed.")
-
-        # Load once
-        X, y, feature_columns = load_features_and_target(dataset_path)
-
-        def _name_for_key(model_key: str) -> str:
-            return MODEL_REGISTRY[model_key]["name"]
-
-        rf_name = _name_for_key("rf") if "rf" in models else None
-        xgb_name = _name_for_key("xgb") if "xgb" in models else None
-
-        # Run CV for each seed
-        for run_i, seed in enumerate(cv_seeds, start=1):
-            seed = int(seed)
-
-            print(f"\n==============================")
-            print(f"=== CV Run {run_i}/{len(cv_seeds)} (seed={seed}) ===")
-            print(f"==============================")
-
-            cv_results = cross_validate_models(
-                X,
-                y,
-                models,
-                MODEL_REGISTRY,
-                hyperparameter_tuning=hyperparameter_tuning,
-                best_params=None,
-                cv_folds=cv_folds,
-                shuffle=cv_shuffle,
-                random_state=seed,
-                model_random_state=model_random_state,
-            )
-
-            # Print per-model mean ± std across folds
-            print_cv_results(cv_results)
-
-            # p-values for RF vs XGB using paired tests across folds
-            if rf_name is not None and xgb_name is not None:
-                print_rf_vs_xgb_significance(cv_results, rf_name, xgb_name)
-
+        run_cross_validation(
+            dataset_path=dataset_path,
+            models=models,
+            cv_folds=cv_folds,
+            cv_shuffle=cv_shuffle,
+            cv_seeds=cv_seeds,
+            hyperparameter_tuning=hyperparameter_tuning,
+            model_random_state=model_random_state,
+        )
     elif need_ood:
         run_ood_evaluation(
             cfg=cfg,
@@ -161,66 +241,26 @@ def main():
             cv_random_state=cv_random_state,
             model_random_state=model_random_state,
         )
-
     else:
-        X, y, feature_columns = load_features_and_target(dataset_path)
-        X_train, X_valid, y_train, y_valid = split_dataset(
-            X, y, train_size=0.8, random_state=model_random_state
+        run_holdout(
+            dataset_path=dataset_path,
+            pt_path=pt_path,
+            mm_path=mm_path,
+            models=models,
+            cv_folds=cv_folds,
+            hyperparameter_tuning=hyperparameter_tuning,
+            model_random_state=model_random_state,
+            ablation_study=ablation_study,
+            prefix=prefix,
+            plots_save_dir=plots_save_dir,
         )
 
-
-        # 2) Tune once on training set, then train all models with fixed best params
-        if hyperparameter_tuning:
-            print("\n=== Hyperparameter Tuning (once on training set) ===")
-            for key in models:
-                model_cfg = MODEL_REGISTRY[key]
-                if model_cfg["tune"] is not None:
-                    best_params[key] = model_cfg["tune"](
-                        X_train, y_train, cv_folds=cv_folds, random_state=model_random_state
-                    )
-
-        for key in models:
-            if key not in MODEL_REGISTRY:
-                raise ValueError(f"Unknown model key: {key}")
-
-            model_cfg = MODEL_REGISTRY[key]
-
-            params = best_params.get(key) if best_params else None
-
-            model = model_cfg["train"](X_train, y_train, params=params, random_state=model_random_state)
-            trained_models[key] = model
-            best_params[key] = params
-            preds[model_cfg["name"]] = model.predict(X_valid)
-
-
-        # 3) Report validation metrics
-        print_holdout_results(y_valid, preds)
-   
-
-    # 4) Data visualisation
-    pt, mm = load_elemental_data(pt_path, mm_path)
+    # Data visualization (holdout and cross_validation modes only)
     if data_visualization and not need_ood:
         X_raw = load_raw_data(dataset_path)
         plot_ms_distribution_by_tm(X_raw, save_path=plots_save_dir / f"{prefix}_ms_distribution_by_tm.png")
         plot_violin_ms_by_tm(X_raw, title=f"{prefix.upper()} Violin Plot", save_path=plots_save_dir / f"{prefix}_violin_ms_by_tm.png")
         summarize_compound_radix(X_raw)
-
-    # 5) Model interpretability and ablation analyses
-    if ablation_study and (not need_cross_validation) and (not need_ood):
-
-        # Permutation feature importance evaluated on the validation set (Random Forest)
-        if "rf" in trained_models:
-            plot_permutation_importance(trained_models["rf"], X_valid, y_valid, title=f"RF Permutation Importance ({prefix})",
-                                    save_path=plots_save_dir / f"{prefix}_perm_importance_rf.png")
-
-        # SHAP summary plot for global feature attribution (Random Forest)
-        if "rf" in trained_models:
-            plot_shap_summary(trained_models["rf"], X_train, X_valid, save_path=plots_save_dir / f"{prefix}_shap_summary_rf.png")
-
-        # Comparative case studies across models (RF, XGBoost, and Ridge)
-        if "rf" in trained_models and "xgb" in trained_models and "ridge" in trained_models:
-            plot_case_studies(feature_columns, trained_models["rf"], trained_models["xgb"], trained_models["ridge"], pt, mm,
-                              save_path=plots_save_dir / f"{prefix}_case_studies.png")
 
 
 if __name__ == "__main__":
