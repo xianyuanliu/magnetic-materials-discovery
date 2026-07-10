@@ -55,9 +55,15 @@ def cross_validate_models(
     cv_folds: int = 5,
     shuffle: bool = True,
     random_state: int = 0,
+    model_random_state: int = 0,
     report_rf_xgb: bool = True,
 ):
-    """Run K-fold cross-validation for the requested models."""
+    """Run K-fold cross-validation for the requested models.
+
+    random_state seeds the KFold split; model_random_state seeds model
+    construction and hyperparameter search so the two sources of randomness
+    can be controlled independently.
+    """
     results = {}
     for key in model_keys:
         if key not in model_registry:
@@ -88,9 +94,11 @@ def cross_validate_models(
             if best_params is not None and key in best_params:
                 params = best_params[key]
             elif hyperparameter_tuning and model_cfg["tune"] is not None:
-                params = model_cfg["tune"](X_train, y_train, cv_folds=cv_folds)
+                params = model_cfg["tune"](
+                    X_train, y_train, cv_folds=cv_folds, random_state=model_random_state
+                )
 
-            model = model_cfg["train"](X_train, y_train, params=params)
+            model = model_cfg["train"](X_train, y_train, params=params, random_state=model_random_state)
             y_pred = model.predict(X_valid)
 
             mse = mean_squared_error(y_valid, y_pred)
@@ -219,11 +227,15 @@ def evaluate_splits_kfold_train_fixed_test(
     shuffle: bool,
     hyperparameter_tuning: bool,
     best_params: Optional[Dict] = None,
+    model_random_state: int = 0,
     rf_name: Optional[str],
     xgb_name: Optional[str],
 ):
     """
     KFold on TRAIN, evaluate on fixed OOD TEST.
+
+    model_random_state seeds model construction and hyperparameter search
+    (independent of `seed`, which seeds the inner KFold split on TRAIN).
     """
 
     summary_rows = []
@@ -272,9 +284,11 @@ def evaluate_splits_kfold_train_fixed_test(
                 if best_params is not None and key in best_params:
                     params = best_params[key]
                 elif hyperparameter_tuning and model_cfg["tune"] is not None:
-                    params = model_cfg["tune"](X_tr, y_tr, cv_folds=cv_folds)
+                    params = model_cfg["tune"](
+                        X_tr, y_tr, cv_folds=cv_folds, random_state=model_random_state
+                    )
 
-                model = model_cfg["train"](X_tr, y_tr, params=params)
+                model = model_cfg["train"](X_tr, y_tr, params=params, random_state=model_random_state)
 
                 y_pred = model.predict(X_test)
 

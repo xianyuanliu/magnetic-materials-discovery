@@ -58,6 +58,7 @@ def build_xgb_model(
     gamma: float = 0,
     reg_alpha: float = 0,
     reg_lambda: float = 1.0,
+    random_state: int = 0,
 ) -> xgb.XGBRegressor:
     """Construct an XGB Regressor."""
     return xgb.XGBRegressor(
@@ -70,6 +71,7 @@ def build_xgb_model(
         gamma=gamma,
         reg_alpha=reg_alpha,
         reg_lambda=reg_lambda,
+        random_state=random_state,
         verbosity=0,
     )
 
@@ -81,7 +83,11 @@ def build_svr_model(
     gamma: str = "scale",
     degree: int = 3,
 ) -> SVR:
-    """Construct an Support Vector Regression model."""
+    """Construct an Support Vector Regression model.
+
+    sklearn's SVR has no random_state parameter: epsilon-SVR is solved by a
+    deterministic dual algorithm (libsvm), so there is no stochasticity to seed.
+    """
     return SVR(C=C, epsilon=epsilon, kernel=kernel, gamma=gamma, degree=degree)
 
 
@@ -94,6 +100,7 @@ def build_mlp_model(
     learning_rate_init: float = 1e-3,
     max_iter: int = 1000,
     early_stopping: bool = True,
+    random_state: int = 0,
 ) -> MLPRegressor:
     """Construct a Multi-layer Perceptron model."""
     return MLPRegressor(
@@ -104,4 +111,5 @@ def build_mlp_model(
         learning_rate_init=learning_rate_init,
         max_iter=max_iter,
         early_stopping=early_stopping,
+        random_state=random_state,
     )
