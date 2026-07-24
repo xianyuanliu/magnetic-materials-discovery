@@ -1,0 +1,76 @@
+# =========================
+# DATASET CONFIGURATION
+# =========================
+dataset: mp
+evaluation_mode: ood
+
+# Use the SAME file for train and test (full dataset OOD framework)
+train_dataset_path: ./data/mp-magnetism.csv
+test_dataset_path: ./data/mp-magnetism.csv
+
+# =========================
+# COLUMN DEFINITIONS
+# =========================
+target_column: saturation magnetization
+formula_column: chemical formula
+
+# =========================
+# MODELS TO RUN
+# =========================
+models:
+  - ridge
+  - rf
+  - xgb
+  - svr
+  - mlp
+
+# =========================
+# GENERAL SWITCHES
+# =========================
+enable_data_visualization: false
+enable_hyperparameter_tuning: false
+enable_ablation_study: false
+
+# =========================
+# CROSS-VALIDATION SETTINGS
+# =========================
+cv_folds: 10
+cv_shuffle: true
+cv_random_state: 0
+cv_seeds: [0, 1]
+
+# =========================
+# OOD SETTINGS
+# =========================
+# Run main OOD scenarios:
+# LOEO (element), LOPO (period), LOGO (group), LOCO (cluster)
+ood_mode: all
+
+# LOCO (k-means clusters in descriptor space)
+ood_k: 10
+ood_seed: 0
+
+# Limit number of splits per scenario
+ood_max_splits: 10
+
+# If null -> automatically select most frequent elements/periods/groups
+ood_targets: null
+
+# =========================
+# OPTIONAL SPARSE OOD
+# Only used if enabled explicitly
+# =========================
+ood_fractions: [0.1, 0.2]
+sparsex_neighbors: 5
+sparsey_center: median
+
+# =========================
+# STRICTNESS
+# =========================
+ood_period_strict: false
+ood_group_strict: false
+
+# =========================
+# OUTPUT
+# =========================
+ood_output_dir: ./results/mp_ood
