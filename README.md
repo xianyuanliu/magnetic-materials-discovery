@@ -6,6 +6,9 @@ End-to-end pipeline for predicting saturation magnetization of alloys using engi
 - Data loaders/cleaners for Novamag CSV exports and Materials Project `mp-data.csv`, plus periodic table and Miedema weight helpers.
 - Alloy feature builder: stoichiometric array, mixing entropy, weighted atomic properties, and filtering of non-magnetic entries.
 - Model zoo with optional GridSearchCV tuning: linear/ridge/lasso/elasticnet, random forest, XGBoost, SVR, and MLP.
+  Scale-sensitive models (linear family, SVR, MLP) are fitted inside a `StandardScaler` pipeline, so the
+  scaler is fitted on training data only and never leaks across a split; the tree ensembles are left
+  unscaled on purpose (scale-invariant, and it keeps SHAP on the fast exact `TreeExplainer` path).
 - Evaluation utilities: MSE/MAE/R^2 reporting, permutation importance, SHAP summaries, and FeAl/FeCo/FeCr case studies.
 - Visualization helpers for magnetization histograms, violin plots, and compound radix summaries.
 

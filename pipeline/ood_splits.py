@@ -10,9 +10,27 @@ import numpy as np
 import pandas as pd
 from sklearn.cluster import KMeans
 from sklearn.neighbors import NearestNeighbors
+from sklearn.preprocessing import StandardScaler
 
 
 Split = Tuple[str, np.ndarray, np.ndarray]
+
+
+def _standardized(X: pd.DataFrame) -> np.ndarray:
+    """Return X as a z-scored array, for the distance-based split families.
+
+    KMeans and nearest-neighbour distances are Euclidean, so on raw features
+    meltingTw (~1.7e3) and Zw (~70) drown out electronegw (~1.8) and
+    compoundradix (~2.5): "representation-space" clusters and "feature-space
+    sparsity" would both collapse to melting-point outliers. Standardizing
+    first gives every engineered feature equal say in the geometry.
+
+    Fitting on all of X is intentional here — these are unsupervised split
+    *definitions*, not model inputs, and the LOCO docstring already notes the
+    same pragmatic choice for clustering. Model-facing scaling happens inside
+    the training pipeline (see pipeline/train.py:_scaled).
+    """
+    return StandardScaler().fit_transform(X.to_numpy())
 
 
 def _finalize_split(
@@ -171,7 +189,7 @@ def build_kmeans_cluster_splits(
     if k < 2:
         raise ValueError("k must be >= 2")
 
-    X_mat = X.to_numpy()
+    X_mat = _standardized(X)
 
     km = KMeans(
         n_clusters=k,
@@ -217,7 +235,7 @@ def build_sparsex_splits(
     if n_neighbors < 1:
         raise ValueError("n_neighbors must be >= 1")
 
-    X_mat = X.to_numpy()
+    X_mat = _standardized(X)
     n = X_mat.shape[0]
 
     if n < 2:
