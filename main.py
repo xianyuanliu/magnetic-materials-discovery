@@ -18,6 +18,7 @@ from evaluate.cross_validation import (
     print_cv_results,
     compare_models_significance,
 )
+from evaluate.metrics import compute_metrics
 
 from interpret.model_weights import plot_permutation_importance, plot_shap_summary
 from interpret.case_studies import plot_case_studies
@@ -106,6 +107,8 @@ def run_holdout(
     pt_path: str,
     mm_path: str,
     models: List[str],
+    holdout_seeds: List[int],
+    train_size: float,
     cv_folds: int,
     hyperparameter_tuning: bool,
     model_random_state: int,
@@ -113,40 +116,76 @@ def run_holdout(
     prefix: str,
     plots_save_dir: Path,
 ) -> None:
-    """Train/validate on one 80/20 split; optionally run ablation + interpretability plots."""
-    X, y, feature_columns = load_features_and_target(dataset_path)
-    X_train, X_valid, y_train, y_valid = split_dataset(
-        X, y, train_size=0.8, random_state=model_random_state
-    )
+    """Repeat a train/validate split once per seed in holdout_seeds; report mean ± std.
 
-    best_params = {}
-    if hyperparameter_tuning:
-        print("\n=== Hyperparameter Tuning (once on training set) ===")
-        for key in models:
-            model_cfg = MODEL_REGISTRY[key]
-            if model_cfg["tune"] is not None:
-                best_params[key] = model_cfg["tune"](
-                    X_train, y_train, cv_folds=cv_folds, random_state=model_random_state
-                )
+    holdout_seeds seeds the train/valid split only, and is deliberately
+    separate from model_random_state (which seeds model construction and the
+    hyperparameter search). A single split is one draw from a 460-sample
+    dataset, so its metrics move by more than the gaps between models; several
+    seeds give a spread to compare against.
 
-    trained_models = {}
-    preds = {}
+    Ablation plots are produced from the first seed's models only, so figure
+    filenames stay stable across runs.
+    """
+    if len(holdout_seeds) < 1:
+        raise ValueError("holdout_seeds must contain at least one seed.")
     for key in models:
         if key not in MODEL_REGISTRY:
             raise ValueError(f"Unknown model key: {key}")
 
-        model_cfg = MODEL_REGISTRY[key]
-        params = best_params.get(key) if best_params else None
+    X, y, feature_columns = load_features_and_target(dataset_path)
 
-        model = model_cfg["train"](X_train, y_train, params=params, random_state=model_random_state)
-        trained_models[key] = model
-        best_params[key] = params
-        preds[model_cfg["name"]] = model.predict(X_valid)
+    scores = {MODEL_REGISTRY[key]["name"]: {"mse": [], "mae": [], "mre": [], "r2": []} for key in models}
+    first_split_models = {}
 
-    print_holdout_results(y_valid, preds)
+    for run_i, seed in enumerate(holdout_seeds, start=1):
+        seed = int(seed)
+        print(f"\n=== Holdout Run {run_i}/{len(holdout_seeds)} (split seed={seed}) ===")
+
+        X_train, X_valid, y_train, y_valid = split_dataset(
+            X, y, train_size=train_size, random_state=seed
+        )
+
+        best_params = {}
+        if hyperparameter_tuning:
+            print("--- Hyperparameter Tuning (on this split's training set) ---")
+            for key in models:
+                model_cfg = MODEL_REGISTRY[key]
+                if model_cfg["tune"] is not None:
+                    best_params[key] = model_cfg["tune"](
+                        X_train, y_train, cv_folds=cv_folds, random_state=model_random_state
+                    )
+
+        trained_models = {}
+        preds = {}
+        for key in models:
+            model_cfg = MODEL_REGISTRY[key]
+            model = model_cfg["train"](
+                X_train, y_train, params=best_params.get(key), random_state=model_random_state
+            )
+            trained_models[key] = model
+            preds[model_cfg["name"]] = model.predict(X_valid)
+
+        print_holdout_results(y_valid, preds)
+
+        for name, y_pred in preds.items():
+            for metric, value in compute_metrics(y_valid, y_pred).items():
+                scores[name][metric].append(value)
+
+        if not first_split_models:
+            first_split_models = trained_models
+
+    if len(holdout_seeds) > 1:
+        print(f"\n=== Holdout across {len(holdout_seeds)} splits ===")
+        print_cv_results(scores, title="Holdout Metrics (mean ± std over split seeds):")
 
     if not ablation_study:
         return
+
+    trained_models = first_split_models
+    X_train, X_valid, y_train, y_valid = split_dataset(
+        X, y, train_size=train_size, random_state=int(holdout_seeds[0])
+    )
 
     pt, mm = load_elemental_data(pt_path, mm_path)
 
@@ -194,8 +233,13 @@ def main():
     cv_seeds = cfg.get("cv_seeds", [cv_random_state])
 
     # Seeds model construction and hyperparameter search everywhere (independent
-    # of cv_random_state/cv_seeds, which seed data splitting).
+    # of cv_random_state/cv_seeds/holdout_seeds, which seed data splitting).
     model_random_state = int(cfg.get("random_state", 0))
+
+    # Holdout splits are seeded separately from the models, and repeated, so a
+    # single lucky/unlucky 80/20 draw can't be mistaken for a model difference.
+    holdout_seeds = cfg.get("holdout_seeds", [cv_random_state])
+    holdout_train_size = float(cfg.get("holdout_train_size", 0.8))
 
     if evaluation_mode not in {"holdout", "cross_validation", "ood"}:
         raise ValueError("Invalid evaluation_mode. Choose 'holdout', 'cross_validation', or 'ood'.")
@@ -243,6 +287,8 @@ def main():
             pt_path=pt_path,
             mm_path=mm_path,
             models=models,
+            holdout_seeds=holdout_seeds,
+            train_size=holdout_train_size,
             cv_folds=cv_folds,
             hyperparameter_tuning=hyperparameter_tuning,
             model_random_state=model_random_state,

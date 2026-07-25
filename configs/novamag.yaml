@@ -29,4 +29,9 @@ cv_random_state: 0
 cv_seeds: [0, 5, 10, 15, 20]
 enable_hyperparameter_tuning: true
 
+# Holdout mode: repeat the split over these seeds and report mean ± std.
+# Seeds the split only — random_state below seeds the models.
+holdout_seeds: [0, 1, 2, 3, 4]
+holdout_train_size: 0.8
+
 random_state: 0

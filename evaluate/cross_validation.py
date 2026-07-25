@@ -107,18 +107,26 @@ def print_holdout_results(y_true, predictions: Dict[str, np.ndarray]):
         print(f"MRE: {metrics['mre']:.6f}")
         print(f"R2:  {metrics['r2']:.4f}")
 
-def print_cv_results(results: Dict[str, Dict[str, List[float]]]):
-    """Print mean ± std metrics for cross-validation results."""
-    print("Cross-Validation Metrics (mean ± std):")
+def print_cv_results(
+    results: Dict[str, Dict[str, List[float]]],
+    title: str = "Cross-Validation Metrics (mean ± std):",
+):
+    """Print mean ± std metrics across repeats, for CV folds or holdout splits."""
+    print(title)
+
+    def _std(values: List[float]) -> float:
+        # ddof=1 is undefined for a single repeat (one holdout split, say)
+        return float(np.std(values, ddof=1)) if len(values) > 1 else 0.0
+
     for name, scores in results.items():
         mse_mean = np.mean(scores["mse"])
-        mse_std = np.std(scores["mse"], ddof=1)
+        mse_std = _std(scores["mse"])
         mae_mean = np.mean(scores["mae"])
-        mae_std = np.std(scores["mae"], ddof=1)
+        mae_std = _std(scores["mae"])
         mre_mean = np.mean(scores["mre"])
-        mre_std = np.std(scores["mre"], ddof=1)
+        mre_std = _std(scores["mre"])
         r2_mean = np.mean(scores["r2"])
-        r2_std = np.std(scores["r2"], ddof=1)
+        r2_std = _std(scores["r2"])
 
         print(f"\n{name}:")
         print(f"MSE: {mse_mean:.4f} ± {mse_std:.4f}")

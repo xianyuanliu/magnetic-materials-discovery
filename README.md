@@ -63,3 +63,16 @@ python main.py --config configs/novamag.yaml
      `enable_hyperparameter_tuning`, `enable_ablation_study`, and
      `enable_data_visualization` toggle the optional stages.
 4) Check outputs in the console (metrics) and `plots/` (figures prefixed by the dataset name).
+
+## Seeds
+Three independent sources of randomness, each with its own config key:
+
+| Key | Seeds |
+| --- | --- |
+| `random_state` | model construction and hyperparameter sampling |
+| `cv_seeds` / `cv_random_state` | the K-fold split in `cross_validation` and `ood` modes |
+| `holdout_seeds` | the train/valid split in `holdout` mode |
+
+`holdout` mode repeats the split once per seed in `holdout_seeds` and reports mean ± std, because a
+single 80/20 draw on a 460-sample dataset moves R² by more than the gaps between models. Ablation
+plots come from the first seed only, so figure filenames stay stable.
