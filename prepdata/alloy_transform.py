@@ -157,7 +157,14 @@ def _sorted_elements(periodic_table):
 
 
 def _atomic_fraction(compound: pd.Series):
-    """Return atomic fractions and element labels for a stoichiometry row."""
+    """Return atomic fractions and element labels for a stoichiometry row.
+
+    An empty result means the row's formula produced no usable stoichiometry
+    (unparseable, or all its elements are absent from the periodic table
+    file). Callers must map that to NaN rather than 0, so build_features'
+    dropna removes the row instead of training on a fabricated all-zero
+    feature vector — see _weighted_mean.
+    """
     # mask of elements that appear in the compound
     mask = compound != 0
     subset = compound[mask]
@@ -176,6 +183,18 @@ def _atomic_fraction(compound: pd.Series):
     return af, af.index
 
 
+def _weighted_mean(at_fraction: pd.Series, values: pd.Series) -> float:
+    """Atomic-fraction-weighted mean of `values`, or NaN for an empty compound.
+
+    Returning NaN (not 0.0) for an empty compound is what makes a row with no
+    usable stoichiometry fail build_features' dropna instead of silently
+    entering the training set as a plausible-looking all-zero sample.
+    """
+    if at_fraction.empty:
+        return np.nan
+    return float(np.dot(at_fraction, values.loc[at_fraction.index]))
+
+
 def get_stoich_array(x, pt):
     """Create stoichiometry array (element counts) from chemical formulas.
 
@@ -185,7 +204,11 @@ def get_stoich_array(x, pt):
             used for element symbols.
 
     Returns:
-        DataFrame of per-compound element counts, columns = element symbols.
+        DataFrame of per-compound element amounts (float), columns = element
+        symbols. Amounts stay float because pymatgen reports fractional
+        stoichiometry for formulas like "Fe0.5Ni0.5"; casting to int would
+        floor those to 0, leaving an all-zero row whose features then come out
+        as a plausible-looking 0.0 rather than NaN.
     """
     if isinstance(x, pd.DataFrame):
         formulas = x["chemical formula"].copy()  # if user passes whole of Novamag
@@ -193,7 +216,6 @@ def get_stoich_array(x, pt):
     else:
         formulas = pd.Series(x)  # if user passes a single chemical formula string
         index = formulas.index
-        print(formulas)
 
     # Get a list of element symbols and sort in order of descending length
     # Need longest first as elements like S will be found within Si, As etc.
@@ -209,23 +231,34 @@ def get_stoich_array(x, pt):
     for idx, f in formulas.items():
         if pd.isna(f):
             continue
-        comp = Composition(str(f))
-        el_dict = comp.get_el_amt_dict()
+        try:
+            el_dict = Composition(str(f)).get_el_amt_dict()
+        except Exception as exc:
+            # Same contract as parse_elements_from_formula: warn and leave the
+            # row empty. Its features then come out NaN (see _weighted_mean),
+            # so build_features drops it instead of crashing the whole run.
+            warnings.warn(f"Could not parse chemical formula {f!r}; dropping the row ({exc}).")
+            continue
+        unknown = [el for el in el_dict if el not in stoich_array.columns]
+        if unknown:
+            warnings.warn(
+                f"Formula {f!r} contains element(s) {unknown} missing from the "
+                f"periodic table file; they are dropped from its stoichiometry."
+            )
         for el, amt in el_dict.items():
             if el in stoich_array.columns:
                 stoich_array.at[idx, el] = amt
 
-    stoich_array = stoich_array.astype(int)
     return stoich_array
 
 
 def get_electronegw(pt, stoich_array):
     """Calculate element-weighted electronegativity."""
     electronegw = pd.Series(index=stoich_array.index, dtype=float)
-    en_list = pt["electronegativity"].str.extract(pat=r"(?P<digit>\d*\.\d+)").astype(float)
+    en_list = pt["electronegativity"].str.extract(pat=r"(?P<digit>\d*\.\d+)").astype(float)["digit"]
     for i, compound in stoich_array.iterrows():
-        at_fraction, labels = _atomic_fraction(compound)
-        electronegw.loc[i] = np.dot(at_fraction, en_list.loc[labels])
+        at_fraction, _ = _atomic_fraction(compound)
+        electronegw.loc[i] = _weighted_mean(at_fraction, en_list)
     return electronegw
 
 
@@ -233,8 +266,8 @@ def get_zw(pt, stoich_array):
     """Calculate element-weighted atomic weight."""
     zw = pd.Series(index=stoich_array.index, dtype=float)
     for i, compound in stoich_array.iterrows():
-        at_fraction, labels = _atomic_fraction(compound)
-        zw.loc[i] = np.dot(at_fraction, pt.loc[labels, "atomic_weight"])
+        at_fraction, _ = _atomic_fraction(compound)
+        zw.loc[i] = _weighted_mean(at_fraction, pt["atomic_weight"])
     return zw
 
 
@@ -273,8 +306,8 @@ def get_periodw(pt, stoich_array):
     periodw = pd.Series(index=stoich_array.index, dtype=float)
 
     for idx, compound in stoich_array.iterrows():
-        af, labels = _atomic_fraction(compound)
-        periodw.loc[idx] = np.dot(af, pt.loc[labels, "period"])
+        af, _ = _atomic_fraction(compound)
+        periodw.loc[idx] = _weighted_mean(af, pt["period"])
     return periodw
 
 
@@ -282,8 +315,8 @@ def get_melting_tw(pt, stoich_array):
     """Calculate element-weighted melting temperature."""
     meltingTw = pd.Series(index=stoich_array.index, dtype=float)
     for i, compound in stoich_array.iterrows():
-        at_fraction, labels = _atomic_fraction(compound)
-        meltingTw.loc[i] = np.dot(at_fraction, pt.loc[labels]["melting_point"])
+        at_fraction, _ = _atomic_fraction(compound)
+        meltingTw.loc[i] = _weighted_mean(at_fraction, pt["melting_point"])
     return meltingTw
 
 
@@ -291,8 +324,8 @@ def get_valencew(pt, stoich_array):
     """Calculate element-weighted valence electron number."""
     valencew = pd.Series(index=stoich_array.index, dtype=float)
     for i, compound in stoich_array.iterrows():
-        at_fraction, labels = _atomic_fraction(compound)
-        valencew.loc[i] = np.dot(at_fraction, pt.loc[labels]["valence"])
+        at_fraction, _ = _atomic_fraction(compound)
+        valencew.loc[i] = _weighted_mean(at_fraction, pt["valence"])
     return valencew
 
 
@@ -301,6 +334,10 @@ def get_miedemaw(mm, stoich_array):
     miedemaw = pd.Series(index=stoich_array.index, dtype=float)
     for i, compound in stoich_array.iterrows():
         at_fraction, labels = _atomic_fraction(compound)
+
+        if at_fraction.empty:
+            miedemaw.loc[i] = np.nan
+            continue
 
         # Calculate pairwise contributions
         H = 0
@@ -320,6 +357,9 @@ def get_stoic_entw(stoich_array):
     stoicentw = pd.Series(index=stoich_array.index, dtype=float)
     for i, compound in stoich_array.iterrows():
         at_fraction, _ = _atomic_fraction(compound)
+        if at_fraction.empty:
+            stoicentw.loc[i] = np.nan
+            continue
         stoicentw.loc[i] = -np.dot(at_fraction, np.log(at_fraction))
     return stoicentw
 
@@ -342,7 +382,11 @@ def get_compound_radix(X):
     else:
         formulas = pd.Series(X)
 
-    # compound radix = number of distinct elements in the formula
-    radix = formulas.apply(lambda f: len(Composition(str(f)).get_el_amt_dict()))
+    # compound radix = number of distinct elements in the formula. Routed
+    # through the guarded parser so an unparseable formula yields NaN (and is
+    # dropped by build_features) rather than raising mid-run.
+    def _radix(formula):
+        n_elements = len(parse_elements_from_formula(formula))
+        return n_elements if n_elements else np.nan
 
-    return radix
+    return formulas.apply(_radix)
