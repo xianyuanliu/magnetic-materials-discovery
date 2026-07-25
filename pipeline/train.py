@@ -1,8 +1,9 @@
 """
 Training and tuning helpers for all models in models.py:
 - Train linear, tree/boosting, kernel, and neural regressors
-- GridSearchCV for small search spaces (Ridge, Lasso, ElasticNet)
-- RandomizedSearchCV for large spaces (RF, XGBoost, SVR, MLP)
+- GridSearchCV, exhaustive, for the trimmed grids (Ridge, Lasso, ElasticNet,
+  RF, XGBoost, SVR)
+- RandomizedSearchCV for the one large space left (MLP)
 
 Combines models.py's bare model builders with hyperparameter search into
 ready-to-fit units (MODEL_REGISTRY), keyed by a single random_state threaded through
@@ -15,7 +16,9 @@ nested search re-runs for every outer fold (see evaluate/cross_validation.py).
 """
 
 import types
-from typing import Dict
+from typing import Dict, List, Union
+
+ParamGrid = Union[Dict, List[Dict]]
 
 from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 from sklearn.pipeline import Pipeline
@@ -63,8 +66,15 @@ def _scaled(estimator) -> Pipeline:
     return Pipeline([("scaler", StandardScaler()), (_ESTIMATOR_STEP, estimator)])
 
 
-def _prefix_params(params: Dict) -> Dict:
-    """Rewrite bare param names for a scaled pipeline ("alpha" -> "model__alpha")."""
+def _prefix_params(params: ParamGrid) -> ParamGrid:
+    """Rewrite bare param names for a scaled pipeline ("alpha" -> "model__alpha").
+
+    Accepts a list of dicts too, which is how GridSearchCV expresses a union of
+    sub-grids (see tune_xgb_hyperparams, which ties learning_rate to
+    n_estimators instead of taking their full product).
+    """
+    if isinstance(params, list):
+        return [_prefix_params(sub) for sub in params]
     return {f"{_ESTIMATOR_STEP}__{key}": value for key, value in params.items()}
 
 
@@ -75,7 +85,7 @@ def _strip_params(params: Dict) -> Dict:
 
 def _grid_search_best_params(
     model,
-    param_grid: Dict,
+    param_grid: ParamGrid,
     X_train,
     y_train,
     cv_folds: int,
@@ -193,32 +203,63 @@ def tune_rf_hyperparams(
     X_train, y_train, cv_folds: int = DEFAULT_TUNE_CV_FOLDS, random_state: int = 0,
     n_iter: int = DEFAULT_TUNE_N_ITER,
 ) -> Dict:
-    """Run RandomizedSearchCV to search optimized Random Forest hyperparameters."""
-    param_dist = {
-        "max_depth": [None, 5, 10, 15, 20],
+    """Run GridSearchCV to search optimized Random Forest hyperparameters.
+
+    27 combinations, searched exhaustively — cheaper than sampling 20 points
+    out of the old 45 and no longer luck-dependent. n_iter is accepted (but
+    unused) for call-signature uniformity.
+
+    max_features is a fraction rather than "sqrt"/"log2": on the 9 engineered
+    features both of those resolve to int(sqrt(9)) == int(log2(9)) == 3, so
+    they were the same setting listed twice, and the value that actually wins
+    (1.0, i.e. consider every feature) was absent from the grid entirely.
+    n_estimators stays at the builder's 300 — more trees only ever help a
+    little and cost linearly.
+    """
+    param_grid = {
+        "max_depth": [None, 10, 20],
         "min_samples_leaf": [1, 2, 4],
-        "max_features": ["sqrt", "log2", 0.5],
+        "max_features": [0.5, 0.75, 1.0],
     }
-    return _randomized_search_best_params(
-        build_rf_model(random_state=random_state), param_dist, X_train, y_train, cv_folds,
-        random_state, "RF", n_iter=n_iter,
+    return _grid_search_best_params(
+        build_rf_model(random_state=random_state), param_grid, X_train, y_train, cv_folds, "RF"
     )
 
 def tune_xgb_hyperparams(
     X_train, y_train, cv_folds: int = DEFAULT_TUNE_CV_FOLDS, random_state: int = 0,
     n_iter: int = DEFAULT_TUNE_N_ITER,
 ) -> Dict:
-    """Run RandomizedSearchCV to search optimized XGBoost hyperparameters."""
-    param_dist = {
-        "learning_rate": [0.01, 0.05, 0.1, 0.2, 0.3],
-        "max_depth": [3, 5, 7, 9],
-        "min_child_weight": [1, 3, 5, 7],
-        "subsample": [0.6, 0.8, 1.0],
-        "colsample_bytree": [0.6, 0.8, 1.0],
-    }
-    return _randomized_search_best_params(
-        build_xgb_model(random_state=random_state), param_dist, X_train, y_train, cv_folds,
-        random_state, "XGB", n_iter=n_iter,
+    """Run GridSearchCV to search optimized XGBoost hyperparameters.
+
+    54 combinations (3 sub-grids x 3 x 2 x 3), searched exhaustively. n_iter
+    is accepted (but unused) for call-signature uniformity.
+
+    learning_rate is tied to n_estimators instead of taking their product: the
+    old grid swept learning_rate over 0.01-0.3 while pinning n_estimators=300,
+    so its low-rate candidates were simply undertrained models the search
+    would reject, burning budget. Each sub-grid below holds
+    learning_rate * n_estimators roughly constant, which is what lets the
+    search reach the (0.01, 1500) region that wins on this data.
+
+    colsample_bytree is dropped, since with 9 features column subsampling has
+    almost nothing to choose from, and the freed budget goes to reg_lambda.
+    subsample is kept: it subsamples *rows*, so at n=460 it is a real
+    regularizer rather than a feature-count question — dropping it costs about
+    0.013 R^2 on Novamag. min_child_weight is left out to hold the grid near
+    50 combinations; adding it back gains roughly 0.003 R^2 for 33% more fits.
+    """
+    param_grid = [
+        {
+            "learning_rate": [learning_rate],
+            "n_estimators": [n_estimators],
+            "max_depth": [3, 5, 7],
+            "reg_lambda": [1.0, 10.0],
+            "subsample": [0.6, 0.8, 1.0],
+        }
+        for learning_rate, n_estimators in [(0.01, 1500), (0.05, 600), (0.1, 300)]
+    ]
+    return _grid_search_best_params(
+        build_xgb_model(random_state=random_state), param_grid, X_train, y_train, cv_folds, "XGB"
     )
 
 # 3) Hyperparameter tuning for kernel and neural network models
@@ -227,20 +268,25 @@ def tune_svr_hyperparams(
     X_train, y_train, cv_folds: int = DEFAULT_TUNE_CV_FOLDS, random_state: int = 0,
     n_iter: int = DEFAULT_TUNE_N_ITER,
 ) -> Dict:
-    """Run RandomizedSearchCV to search optimized Support Vector Regressor hyperparameters.
+    """Run GridSearchCV to search optimized Support Vector Regressor hyperparameters.
 
-    SVR itself has no random_state (deterministic solver); random_state here only
-    seeds which hyperparameter combinations RandomizedSearchCV samples.
+    48 combinations, searched exhaustively. random_state and n_iter are
+    accepted (but unused): SVR has a deterministic solver, and the grid is now
+    enumerated rather than sampled.
+
+    Restricted to the rbf kernel. The old grid crossed kernel with gamma, but
+    gamma is meaningless for a linear kernel, so every linear candidate was
+    duplicated six times and roughly half the sampled points were redundant.
+    Scaled (see _scaled), rbf beats linear clearly, so linear is not worth the
+    budget.
     """
-    param_dist = {
-        "C": [0.1, 1.0, 10.0, 100.0, 1000.0],
-        "epsilon": [0.01, 0.05, 0.1, 0.5],
-        "kernel": ["rbf", "linear"],
-        "gamma": ["scale", "auto", 0.001, 0.01, 0.1, 1.0],
+    param_grid = {
+        "C": [1.0, 10.0, 100.0, 1000.0],
+        "gamma": ["scale", 0.01, 0.1, 1.0],
+        "epsilon": [0.01, 0.05, 0.1],
     }
-    return _randomized_search_best_params(
-        build_svr_model(), param_dist, X_train, y_train, cv_folds, random_state, "SVR",
-        n_iter=n_iter, scale=True,
+    return _grid_search_best_params(
+        build_svr_model(), param_grid, X_train, y_train, cv_folds, "SVR", scale=True
     )
 
 
@@ -320,7 +366,9 @@ def train_rf(X_train, y_train, params: Dict = None, random_state: int = 0):
         rf_model = build_rf_model(
             max_depth=15,
             min_samples_leaf=2,
-            max_features='sqrt',
+            # 1.0, not "sqrt": with 9 features "sqrt" builds trees from 3 of
+            # them and measurably underperforms (see tune_rf_hyperparams).
+            max_features=1.0,
             random_state=random_state,
         )
     rf_model.fit(X_train, y_train)

@@ -1,6 +1,6 @@
 """Builders for the regression models used to predict material properties."""
 
-from typing import Optional
+from typing import Optional, Union
 
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.svm import SVR
@@ -32,7 +32,7 @@ def build_rf_model(
     max_depth: Optional[int] = None,
     min_samples_split: int = 5,
     min_samples_leaf: int = 2,
-    max_features: str = "sqrt",
+    max_features: Union[str, float] = "sqrt",
     random_state: int = 0,
 ) -> RandomForestRegressor:
     """Construct a Random Forest Regressor."""
