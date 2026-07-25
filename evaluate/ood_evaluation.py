@@ -17,6 +17,11 @@ from evaluate.metrics import compute_metrics, format_mean_std
 from evaluate.cross_validation import compare_models_significance
 from pipeline.train import DEFAULT_TUNE_CV_FOLDS, DEFAULT_TUNE_N_ITER
 
+# Metric keys carried through Tables 2 and 4, and the decimals each is printed
+# with. MRE is a small fraction, so it needs more places than the rest.
+METRICS = ("mse", "mae", "mre", "r2")
+METRIC_DECIMALS = {"mse": 4, "mae": 4, "mre": 6, "r2": 4}
+
 
 def evaluate_splits_kfold_train_fixed_test(
     X: pd.DataFrame,
@@ -124,35 +129,20 @@ def evaluate_splits_kfold_train_fixed_test(
             )
         )
 
-        # Table 2
+        # Table 2 — numeric mean/std columns; formatting happens at print time
+        # only, so downstream aggregation (Table 4) and the exported CSV stay
+        # machine-readable at full precision.
         for model_name, scores in per_fold.items():
 
-            metrics_rows.append(
-                dict(
-                    scenario=scenario,
-                    split_id=split_id,
-                    seed=seed,
-                    model=model_name,
-                    MSE=format_mean_std(
-                        np.mean(scores["mse"]),
-                        np.std(scores["mse"], ddof=1) if len(scores["mse"]) > 1 else 0.0,
-                    ),
-                    MAE=format_mean_std(
-                        np.mean(scores["mae"]),
-                        np.std(scores["mae"], ddof=1) if len(scores["mae"]) > 1 else 0.0,
-                    ),
-                    MRE=format_mean_std(
-                        np.mean(scores["mre"]),
-                        np.std(scores["mre"], ddof=1) if len(scores["mre"]) > 1 else 0.0,
-                        6,
-                    ),
-                    R2=format_mean_std(
-                        np.mean(scores["r2"]),
-                        np.std(scores["r2"], ddof=1) if len(scores["r2"]) > 1 else 0.0,
-                    ),
-                    n_test=len(test_idx),
+            row = dict(scenario=scenario, split_id=split_id, seed=seed, model=model_name)
+            for metric in METRICS:
+                values = scores[metric]
+                row[f"{metric.upper()}_mean"] = float(np.mean(values))
+                row[f"{metric.upper()}_std"] = (
+                    float(np.std(values, ddof=1)) if len(values) > 1 else 0.0
                 )
-            )
+            row["n_test"] = len(test_idx)
+            metrics_rows.append(row)
 
         # Table 3 — RF vs XGB
         if rf_name and xgb_name and rf_name in per_fold and xgb_name in per_fold:
@@ -191,7 +181,18 @@ def evaluate_splits_kfold_train_fixed_test(
 
 
 def summarize_runs_across_splits(metrics_df: pd.DataFrame) -> pd.DataFrame:
-    """Average per-split "mean ± std" metrics into one row per (scenario, model).
+    """Average Table 2's per-split means into one row per (scenario, model).
+
+    Reads the numeric `<METRIC>_mean` columns directly. It used to re-parse
+    them out of "mean ± std" display strings, which truncated every value to
+    the formatter's 4 decimals and turned a single NaN split into a silently
+    NaN row for the whole scenario.
+
+    The reported spread is the std *of the per-split means*, i.e. how much a
+    model's score moves between OOD splits — not the within-split fold spread,
+    which stays in Table 2. n_splits is how many splits the row summarizes; a
+    NaN metric is dropped from that metric's mean only, and stays visible in
+    Table 2 rather than propagating into everything.
 
     Args:
         metrics_df: Table 2 output of evaluate_splits_kfold_train_fixed_test,
@@ -203,29 +204,46 @@ def summarize_runs_across_splits(metrics_df: pd.DataFrame) -> pd.DataFrame:
     if metrics_df.empty:
         return pd.DataFrame(rows)
 
-    def parse_mean(x):
-        return float(str(x).split("±")[0].strip())
-
     for (scenario, model), g in metrics_df.groupby(["scenario", "model"]):
 
-        mse = g["MSE"].map(parse_mean).to_numpy()
-        mae = g["MAE"].map(parse_mean).to_numpy()
-        mre = g["MRE"].map(parse_mean).to_numpy()
-        r2 = g["R2"].map(parse_mean).to_numpy()
+        row = dict(scenario=scenario, model=model)
 
-        rows.append(
-            dict(
-                scenario=scenario,
-                model=model,
-                MSE=format_mean_std(np.mean(mse), np.std(mse, ddof=1) if len(mse) > 1 else 0.0),
-                MAE=format_mean_std(np.mean(mae), np.std(mae, ddof=1) if len(mae) > 1 else 0.0),
-                MRE=format_mean_std(np.mean(mre), np.std(mre, ddof=1) if len(mre) > 1 else 0.0, 6),
-                R2=format_mean_std(np.mean(r2), np.std(r2, ddof=1) if len(r2) > 1 else 0.0),
-                n_splits=len(g),
+        for metric in METRICS:
+            values = g[f"{metric.upper()}_mean"].to_numpy(dtype=float)
+            values = values[~np.isnan(values)]
+            row[f"{metric.upper()}_mean"] = float(np.mean(values)) if len(values) else np.nan
+            row[f"{metric.upper()}_std"] = (
+                float(np.std(values, ddof=1)) if len(values) > 1 else 0.0
             )
-        )
+
+        row["n_splits"] = len(g)
+        rows.append(row)
 
     return pd.DataFrame(rows)
+
+
+def format_metric_table(df: pd.DataFrame) -> pd.DataFrame:
+    """Collapse `<METRIC>_mean`/`<METRIC>_std` column pairs into display strings.
+
+    Display only — the underlying frames keep full-precision numbers so the
+    saved CSVs stay usable for arithmetic.
+    """
+    if df.empty:
+        return df
+
+    out = df.copy()
+    for metric in METRICS:
+        mean_col, std_col = f"{metric.upper()}_mean", f"{metric.upper()}_std"
+        if mean_col not in out.columns or std_col not in out.columns:
+            continue
+        decimals = METRIC_DECIMALS[metric]
+        out[metric.upper()] = [
+            format_mean_std(mean, std, decimals)
+            for mean, std in zip(out[mean_col], out[std_col])
+        ]
+        out = out.drop(columns=[mean_col, std_col])
+
+    return out
 
 
 def print_ood_tables(table1, table2, table3, table4):
@@ -235,10 +253,10 @@ def print_ood_tables(table1, table2, table3, table4):
     print(table1.to_string(index=False))
 
     print("\nTable 2: Metrics by model")
-    print(table2.to_string(index=False))
+    print(format_metric_table(table2).to_string(index=False))
 
     print("\nTable 3: RF vs XGB significance")
     print(table3.to_string(index=False))
 
     print("\nTable 4: Combined comparison")
-    print(table4.to_string(index=False))
+    print(format_metric_table(table4).to_string(index=False))
