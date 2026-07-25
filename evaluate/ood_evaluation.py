@@ -15,6 +15,7 @@ from sklearn.model_selection import KFold
 
 from evaluate.metrics import compute_metrics, format_mean_std
 from evaluate.cross_validation import compare_models_significance
+from pipeline.train import DEFAULT_TUNE_CV_FOLDS, DEFAULT_TUNE_N_ITER
 
 
 def evaluate_splits_kfold_train_fixed_test(
@@ -33,11 +34,17 @@ def evaluate_splits_kfold_train_fixed_test(
     model_random_state: int = 0,
     rf_name: Optional[str],
     xgb_name: Optional[str],
+    tune_cv_folds: int = DEFAULT_TUNE_CV_FOLDS,
+    tune_n_iter: int = DEFAULT_TUNE_N_ITER,
 ):
     """Run inner KFold on each split's TRAIN portion, score against its fixed OOD TEST.
 
     model_random_state seeds model construction and hyperparameter search
     (independent of `seed`, which seeds the inner KFold split on TRAIN).
+
+    tune_cv_folds/tune_n_iter bound the hyperparameter search, which re-runs
+    per fold per split per seed — the most expensive place in the codebase to
+    leave the budget unbounded.
     """
 
     summary_rows = []
@@ -87,7 +94,11 @@ def evaluate_splits_kfold_train_fixed_test(
                     params = best_params[key]
                 elif hyperparameter_tuning and model_cfg["tune"] is not None:
                     params = model_cfg["tune"](
-                        X_tr, y_tr, cv_folds=cv_folds, random_state=model_random_state
+                        X_tr,
+                        y_tr,
+                        cv_folds=tune_cv_folds,
+                        random_state=model_random_state,
+                        n_iter=tune_n_iter,
                     )
 
                 model = model_cfg["train"](X_tr, y_tr, params=params, random_state=model_random_state)

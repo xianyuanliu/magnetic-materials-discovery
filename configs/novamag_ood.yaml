@@ -20,6 +20,11 @@ cv_shuffle: true
 cv_random_state: 0
 cv_seeds: [0, 1]
 
+# Hyperparameter-search budget. In OOD mode the search would re-run per fold
+# per split per seed, so keep it small if enable_hyperparameter_tuning is on.
+tune_cv_folds: 3
+tune_n_iter: 20
+
 random_state: 0
 
 target_column: saturation magnetization

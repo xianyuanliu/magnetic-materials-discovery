@@ -9,7 +9,7 @@ import yaml
 from loaddata.feature_csv_access import load_features_and_target, load_raw_data, split_dataset
 from loaddata.raw_loaders import load_elemental_data
 
-from pipeline.train import MODEL_REGISTRY
+from pipeline.train import MODEL_REGISTRY, DEFAULT_TUNE_CV_FOLDS, DEFAULT_TUNE_N_ITER
 from pipeline.ood_pipeline import run_ood_evaluation
 
 from evaluate.cross_validation import (
@@ -62,12 +62,27 @@ def run_cross_validation(
     cv_seeds: List[int],
     hyperparameter_tuning: bool,
     model_random_state: int,
+    tune_cv_folds: int,
+    tune_n_iter: int,
 ) -> None:
     """Run K-fold CV once per seed in cv_seeds; print metrics and RF-vs-XGB significance."""
     if len(cv_seeds) < 1:
         raise ValueError("cv_seeds must contain at least one seed.")
 
     X, y, _ = load_features_and_target(dataset_path)
+
+    if hyperparameter_tuning:
+        # The search is nested inside every outer fold, so its cost multiplies
+        # out fast; surface the budget before spending an hour on it.
+        tunable = [k for k in models if MODEL_REGISTRY[k]["tune"] is not None]
+        searches = len(cv_seeds) * cv_folds * len(tunable)
+        print(
+            f"\n[INFO] Nested hyperparameter search: {len(cv_seeds)} seed(s) x "
+            f"{cv_folds} folds x {len(tunable)} tunable model(s) = {searches} searches, "
+            f"each up to {tune_n_iter} candidates x {tune_cv_folds} inner folds "
+            f"(~{searches * tune_n_iter * tune_cv_folds} model fits). "
+            f"Lower tune_n_iter / tune_cv_folds in the config to shrink this."
+        )
 
     def _name_for_key(model_key: str) -> str:
         return MODEL_REGISTRY[model_key]["name"]
@@ -93,6 +108,8 @@ def run_cross_validation(
             shuffle=cv_shuffle,
             random_state=seed,
             model_random_state=model_random_state,
+            tune_cv_folds=tune_cv_folds,
+            tune_n_iter=tune_n_iter,
         )
 
         print_cv_results(cv_results)
@@ -109,9 +126,10 @@ def run_holdout(
     models: List[str],
     holdout_seeds: List[int],
     train_size: float,
-    cv_folds: int,
     hyperparameter_tuning: bool,
     model_random_state: int,
+    tune_cv_folds: int,
+    tune_n_iter: int,
     ablation_study: bool,
     prefix: str,
     plots_save_dir: Path,
@@ -153,7 +171,11 @@ def run_holdout(
                 model_cfg = MODEL_REGISTRY[key]
                 if model_cfg["tune"] is not None:
                     best_params[key] = model_cfg["tune"](
-                        X_train, y_train, cv_folds=cv_folds, random_state=model_random_state
+                        X_train,
+                        y_train,
+                        cv_folds=tune_cv_folds,
+                        random_state=model_random_state,
+                        n_iter=tune_n_iter,
                     )
 
         trained_models = {}
@@ -241,6 +263,11 @@ def main():
     holdout_seeds = cfg.get("holdout_seeds", [cv_random_state])
     holdout_train_size = float(cfg.get("holdout_train_size", 0.8))
 
+    # Hyperparameter-search budget, kept separate from cv_folds: the search is
+    # nested inside every outer fold/split, so cv_folds would multiply its cost.
+    tune_cv_folds = int(cfg.get("tune_cv_folds", DEFAULT_TUNE_CV_FOLDS))
+    tune_n_iter = int(cfg.get("tune_n_iter", DEFAULT_TUNE_N_ITER))
+
     if evaluation_mode not in {"holdout", "cross_validation", "ood"}:
         raise ValueError("Invalid evaluation_mode. Choose 'holdout', 'cross_validation', or 'ood'.")
     need_cross_validation = evaluation_mode == "cross_validation"
@@ -266,6 +293,8 @@ def main():
             cv_seeds=cv_seeds,
             hyperparameter_tuning=hyperparameter_tuning,
             model_random_state=model_random_state,
+            tune_cv_folds=tune_cv_folds,
+            tune_n_iter=tune_n_iter,
         )
     elif need_ood:
         run_ood_evaluation(
@@ -280,6 +309,8 @@ def main():
             hyperparameter_tuning=hyperparameter_tuning,
             cv_random_state=cv_random_state,
             model_random_state=model_random_state,
+            tune_cv_folds=tune_cv_folds,
+            tune_n_iter=tune_n_iter,
         )
     else:
         run_holdout(
@@ -289,9 +320,10 @@ def main():
             models=models,
             holdout_seeds=holdout_seeds,
             train_size=holdout_train_size,
-            cv_folds=cv_folds,
             hyperparameter_tuning=hyperparameter_tuning,
             model_random_state=model_random_state,
+            tune_cv_folds=tune_cv_folds,
+            tune_n_iter=tune_n_iter,
             ablation_study=ablation_study,
             prefix=prefix,
             plots_save_dir=plots_save_dir,

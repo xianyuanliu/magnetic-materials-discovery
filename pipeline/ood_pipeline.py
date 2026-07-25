@@ -22,6 +22,8 @@ from evaluate.ood_evaluation import (
     print_ood_tables,
 )
 
+from pipeline.train import DEFAULT_TUNE_CV_FOLDS, DEFAULT_TUNE_N_ITER
+
 from pipeline.ood_splits import (
     build_loeo_splits,
     build_period_splits,
@@ -170,6 +172,8 @@ def _run_scenario(
     model_random_state: int,
     rf_name: Optional[str],
     xgb_name: Optional[str],
+    tune_cv_folds: int,
+    tune_n_iter: int,
 ) -> Tuple[List[pd.DataFrame], List[pd.DataFrame], List[pd.DataFrame]]:
     """Evaluate one OOD scenario's splits across all seeds.
 
@@ -193,6 +197,8 @@ def _run_scenario(
             model_random_state=model_random_state,
             rf_name=rf_name,
             xgb_name=xgb_name,
+            tune_cv_folds=tune_cv_folds,
+            tune_n_iter=tune_n_iter,
         )
         t1_frames.append(t1)
         t2_frames.append(t2)
@@ -213,6 +219,8 @@ def run_ood_evaluation(
     hyperparameter_tuning: bool,
     cv_random_state: int,
     model_random_state: int = 0,
+    tune_cv_folds: int = DEFAULT_TUNE_CV_FOLDS,
+    tune_n_iter: int = DEFAULT_TUNE_N_ITER,
 ) -> None:
     """Run the OOD evaluation pipeline: build split families, score each, report tables.
 
@@ -302,6 +310,8 @@ def run_ood_evaluation(
         model_random_state=model_random_state,
         rf_name=rf_name,
         xgb_name=xgb_name,
+        tune_cv_folds=tune_cv_folds,
+        tune_n_iter=tune_n_iter,
     )
 
     all_t1: List[pd.DataFrame] = []

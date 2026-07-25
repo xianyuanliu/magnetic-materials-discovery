@@ -2,7 +2,7 @@
 Training and tuning helpers for all models in models.py:
 - Train linear, tree/boosting, kernel, and neural regressors
 - GridSearchCV for small search spaces (Ridge, Lasso, ElasticNet)
-- RandomizedSearchCV (n_iter=50) for large spaces (RF, XGBoost, SVR, MLP)
+- RandomizedSearchCV for large spaces (RF, XGBoost, SVR, MLP)
 
 Combines models.py's bare model builders with hyperparameter search into
 ready-to-fit units (MODEL_REGISTRY), keyed by a single random_state threaded through
@@ -10,6 +10,8 @@ model construction and hyperparameter search from the caller.
 
 Scale-sensitive models (linear, kernel, neural) are wrapped in a
 StandardScaler pipeline; see _scaled for why the tree ensembles are not.
+Search cost is controlled by the caller via cv_folds and n_iter, because a
+nested search re-runs for every outer fold (see evaluate/cross_validation.py).
 """
 
 import types
@@ -29,6 +31,12 @@ from models import (
     build_svr_model,
     build_mlp_model,
 )
+
+# Default hyperparameter-search budget. Deliberately smaller than the outer
+# cv_folds: the search is nested inside every outer fold, so its cost is
+# multiplied by (outer folds x seeds x models).
+DEFAULT_TUNE_CV_FOLDS = 3
+DEFAULT_TUNE_N_ITER = 20
 
 # Name of the estimator step inside the StandardScaler pipeline.
 _ESTIMATOR_STEP = "model"
@@ -101,9 +109,10 @@ def _randomized_search_best_params(
     cv_folds: int,
     random_state: int,
     label: str,
+    n_iter: int = DEFAULT_TUNE_N_ITER,
     scale: bool = False,
 ) -> Dict:
-    """Run RandomizedSearchCV (n_iter=50) for a given model instance, print and return the best params.
+    """Run RandomizedSearchCV for a given model instance, print and return the best params.
 
     Returns bare (un-prefixed) parameter names even when `scale` is set; see
     _grid_search_best_params.
@@ -111,7 +120,7 @@ def _randomized_search_best_params(
     random_search = RandomizedSearchCV(
         estimator=_scaled(model) if scale else model,
         param_distributions=_prefix_params(param_dist) if scale else param_dist,
-        n_iter=50,
+        n_iter=n_iter,
         cv=cv_folds,
         scoring="neg_mean_squared_error",
         n_jobs=-1,
@@ -127,13 +136,15 @@ def _randomized_search_best_params(
 # 1) Hyperparameter tuning for linear models
 
 def tune_ridge_hyperparams(
-    X_train, y_train, cv_folds: int = 5, random_state: int = 0,
+    X_train, y_train, cv_folds: int = DEFAULT_TUNE_CV_FOLDS, random_state: int = 0,
+    n_iter: int = DEFAULT_TUNE_N_ITER,
 ) -> Dict:
     """Run GridSearchCV to search optimized Ridge hyperparameters.
 
-    random_state is accepted (but unused) so every MODEL_REGISTRY["tune"]
-    callable shares the same call signature; Ridge/GridSearchCV has no
-    stochastic element to seed.
+    random_state and n_iter are accepted (but unused) so every
+    MODEL_REGISTRY["tune"] callable shares the same call signature;
+    Ridge/GridSearchCV has no stochastic element to seed and enumerates its
+    whole grid rather than sampling from it.
     """
     param_grid = {
         "alpha": [0.001, 0.01, 0.1, 1.0, 10.0, 100.0, 1000.0],
@@ -143,12 +154,13 @@ def tune_ridge_hyperparams(
     )
 
 def tune_lasso_hyperparams(
-    X_train, y_train, cv_folds: int = 5, random_state: int = 0,
+    X_train, y_train, cv_folds: int = DEFAULT_TUNE_CV_FOLDS, random_state: int = 0,
+    n_iter: int = DEFAULT_TUNE_N_ITER,
 ) -> Dict:
     """Run GridSearchCV to search optimized Lasso hyperparameters.
 
-    random_state is accepted (but unused) for call-signature uniformity;
-    see tune_ridge_hyperparams.
+    random_state and n_iter are accepted (but unused) for call-signature
+    uniformity; see tune_ridge_hyperparams.
     """
     param_grid = {
         "alpha": [0.0001, 0.001, 0.01, 0.1, 1.0, 10.0],
@@ -159,12 +171,13 @@ def tune_lasso_hyperparams(
 
 
 def tune_elasticnet_hyperparams(
-    X_train, y_train, cv_folds: int = 5, random_state: int = 0,
+    X_train, y_train, cv_folds: int = DEFAULT_TUNE_CV_FOLDS, random_state: int = 0,
+    n_iter: int = DEFAULT_TUNE_N_ITER,
 ) -> Dict:
     """Run GridSearchCV to search optimized ElasticNet hyperparameters.
 
-    random_state is accepted (but unused) for call-signature uniformity;
-    see tune_ridge_hyperparams.
+    random_state and n_iter are accepted (but unused) for call-signature
+    uniformity; see tune_ridge_hyperparams.
     """
     param_grid = {
         "alpha": [0.0001, 0.001, 0.01, 0.1, 1.0, 10.0],
@@ -177,7 +190,8 @@ def tune_elasticnet_hyperparams(
 # 2) Hyperparameter tuning for tree/boosting models
 
 def tune_rf_hyperparams(
-    X_train, y_train, cv_folds: int = 5, random_state: int = 0,
+    X_train, y_train, cv_folds: int = DEFAULT_TUNE_CV_FOLDS, random_state: int = 0,
+    n_iter: int = DEFAULT_TUNE_N_ITER,
 ) -> Dict:
     """Run RandomizedSearchCV to search optimized Random Forest hyperparameters."""
     param_dist = {
@@ -187,11 +201,12 @@ def tune_rf_hyperparams(
     }
     return _randomized_search_best_params(
         build_rf_model(random_state=random_state), param_dist, X_train, y_train, cv_folds,
-        random_state, "RF",
+        random_state, "RF", n_iter=n_iter,
     )
 
 def tune_xgb_hyperparams(
-    X_train, y_train, cv_folds: int = 5, random_state: int = 0,
+    X_train, y_train, cv_folds: int = DEFAULT_TUNE_CV_FOLDS, random_state: int = 0,
+    n_iter: int = DEFAULT_TUNE_N_ITER,
 ) -> Dict:
     """Run RandomizedSearchCV to search optimized XGBoost hyperparameters."""
     param_dist = {
@@ -203,13 +218,14 @@ def tune_xgb_hyperparams(
     }
     return _randomized_search_best_params(
         build_xgb_model(random_state=random_state), param_dist, X_train, y_train, cv_folds,
-        random_state, "XGB",
+        random_state, "XGB", n_iter=n_iter,
     )
 
 # 3) Hyperparameter tuning for kernel and neural network models
 
 def tune_svr_hyperparams(
-    X_train, y_train, cv_folds: int = 5, random_state: int = 0,
+    X_train, y_train, cv_folds: int = DEFAULT_TUNE_CV_FOLDS, random_state: int = 0,
+    n_iter: int = DEFAULT_TUNE_N_ITER,
 ) -> Dict:
     """Run RandomizedSearchCV to search optimized Support Vector Regressor hyperparameters.
 
@@ -223,12 +239,14 @@ def tune_svr_hyperparams(
         "gamma": ["scale", "auto", 0.001, 0.01, 0.1, 1.0],
     }
     return _randomized_search_best_params(
-        build_svr_model(), param_dist, X_train, y_train, cv_folds, random_state, "SVR", scale=True
+        build_svr_model(), param_dist, X_train, y_train, cv_folds, random_state, "SVR",
+        n_iter=n_iter, scale=True,
     )
 
 
 def tune_mlp_hyperparams(
-    X_train, y_train, cv_folds: int = 5, random_state: int = 0,
+    X_train, y_train, cv_folds: int = DEFAULT_TUNE_CV_FOLDS, random_state: int = 0,
+    n_iter: int = DEFAULT_TUNE_N_ITER,
 ) -> Dict:
     """Run RandomizedSearchCV to search optimized Multi-Layer Perceptron hyperparameters."""
     param_dist = {
@@ -239,7 +257,7 @@ def tune_mlp_hyperparams(
     }
     return _randomized_search_best_params(
         build_mlp_model(random_state=random_state), param_dist, X_train, y_train, cv_folds,
-        random_state, "MLP", scale=True
+        random_state, "MLP", n_iter=n_iter, scale=True,
     )
 
 

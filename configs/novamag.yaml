@@ -34,4 +34,10 @@ enable_hyperparameter_tuning: true
 holdout_seeds: [0, 1, 2, 3, 4]
 holdout_train_size: 0.8
 
+# Hyperparameter-search budget. The search re-runs inside every outer fold, so
+# its cost is (cv_seeds x cv_folds x tunable models x tune_n_iter x
+# tune_cv_folds) model fits — keep these well below cv_folds.
+tune_cv_folds: 3
+tune_n_iter: 20
+
 random_state: 0

@@ -9,6 +9,7 @@ from scipy import stats
 from sklearn.model_selection import KFold
 
 from evaluate.metrics import compute_metrics
+from pipeline.train import DEFAULT_TUNE_CV_FOLDS, DEFAULT_TUNE_N_ITER
 
 
 def cross_validate_models(
@@ -23,12 +24,21 @@ def cross_validate_models(
     random_state: int = 0,
     model_random_state: int = 0,
     report_rf_xgb: bool = True,
+    tune_cv_folds: int = DEFAULT_TUNE_CV_FOLDS,
+    tune_n_iter: int = DEFAULT_TUNE_N_ITER,
 ):
     """Run K-fold cross-validation for the requested models.
 
     random_state seeds the KFold split; model_random_state seeds model
     construction and hyperparameter search so the two sources of randomness
     can be controlled independently.
+
+    When hyperparameter_tuning is set, the search re-runs inside every outer
+    fold (proper nested CV — the outer fold's validation data never informs
+    the search). That is why the search budget is a separate, smaller pair of
+    knobs: tune_cv_folds inner folds and tune_n_iter sampled candidates, whose
+    cost is multiplied by cv_folds x len(model_keys). Pass best_params to skip
+    the search entirely and reuse one fixed set of parameters.
     """
     results = {}
     for key in model_keys:
@@ -61,7 +71,11 @@ def cross_validate_models(
                 params = best_params[key]
             elif hyperparameter_tuning and model_cfg["tune"] is not None:
                 params = model_cfg["tune"](
-                    X_train, y_train, cv_folds=cv_folds, random_state=model_random_state
+                    X_train,
+                    y_train,
+                    cv_folds=tune_cv_folds,
+                    random_state=model_random_state,
+                    n_iter=tune_n_iter,
                 )
 
             model = model_cfg["train"](X_train, y_train, params=params, random_state=model_random_state)

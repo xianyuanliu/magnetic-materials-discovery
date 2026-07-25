@@ -64,7 +64,7 @@ python main.py --config configs/novamag.yaml
      `enable_data_visualization` toggle the optional stages.
 4) Check outputs in the console (metrics) and `plots/` (figures prefixed by the dataset name).
 
-## Seeds
+## Seeds and Search Budget
 Three independent sources of randomness, each with its own config key:
 
 | Key | Seeds |
@@ -76,3 +76,14 @@ Three independent sources of randomness, each with its own config key:
 `holdout` mode repeats the split once per seed in `holdout_seeds` and reports mean ± std, because a
 single 80/20 draw on a 460-sample dataset moves R² by more than the gaps between models. Ablation
 plots come from the first seed only, so figure filenames stay stable.
+
+When `enable_hyperparameter_tuning` is on, the search re-runs inside every outer fold (proper nested
+CV — an outer fold's validation data never informs its own search). That makes the total cost
+`cv_seeds x cv_folds x tunable_models x tune_n_iter x tune_cv_folds` model fits, which is why the
+search budget has its own two keys, deliberately smaller than `cv_folds`:
+
+- `tune_cv_folds` (default 3): inner CV folds for the search.
+- `tune_n_iter` (default 20): candidates sampled by `RandomizedSearchCV` (RF/XGB/SVR/MLP).
+
+`main.py` prints the resulting fit count before starting a tuned cross-validation run. In `ood` mode
+the search additionally re-runs per split, so keep these low there.
