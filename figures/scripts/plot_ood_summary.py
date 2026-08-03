@@ -11,7 +11,7 @@ novamag_csv = repo_root / "results" / "ood" / "table4_combined_comparison.csv"
 mp_csv = repo_root / "results" / "mp_ood" / "table4_combined_comparison.csv"
 
 output_png = repo_root / "figures" / "paper" / "figure1_ood_summary_mse.png"
-
+output_png.parent.mkdir(parents=True, exist_ok=True)
 # -----------------------------
 # Settings
 # -----------------------------

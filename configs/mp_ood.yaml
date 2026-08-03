@@ -3,6 +3,8 @@
 # =========================
 dataset: mp
 evaluation_mode: ood
+pt_path: data/Periodic-table/periodic_table.xlsx
+mm_path: data/Miedema-model/Miedema-model-reduced.xlsx
 
 # Use the SAME file for train and test (full dataset OOD framework)
 train_dataset_path: ./data/mp-magnetism.csv
