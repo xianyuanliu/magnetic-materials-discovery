@@ -415,10 +415,7 @@ def format_worksheet(ws):
     )[:250]
 
     if max_row >= 2 and max_col >= 1:
-
-
-     ws.auto_filter.ref = table_ref
-
+        ws.auto_filter.ref = table_ref
     for row in ws.iter_rows(min_row=2, max_row=max_row, max_col=max_col):
         for cell in row:
             if isinstance(cell.value, float):
