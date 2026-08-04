@@ -1,0 +1,20 @@
+dataset: Novamag
+dataset_path: data/novamag-magnetism.csv
+dataset: Novamag
+dataset_path: data/novamag-magnetism.csv
+pt_path: data/Periodic-table/periodic_table.xlsx
+mm_path: data/Miedema-model/Miedema-model-reduced.xlsx
+evaluation_mode: holdout
+
+models:
+  - rf
+  - xgb
+  - ridge
+
+enable_data_visualization: false
+enable_hyperparameter_tuning: false
+enable_ablation_study: true
+
+cv_folds: 5
+cv_shuffle: true
+cv_random_state: 0
