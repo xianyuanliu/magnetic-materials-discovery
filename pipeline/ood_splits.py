@@ -2,6 +2,10 @@
 
 Each build_*_splits function returns a list of (split_id, train_idx, test_idx)
 tuples. Splits are deterministic where seeded.
+
+Two of the builders describe in-distribution references rather than shifts —
+build_kfold_splits and build_size_matched_split — so that an OOD score can be
+compared against a baseline produced by the identical evaluation code path.
 """
 
 from typing import Dict, List, Sequence, Tuple, Optional
@@ -9,6 +13,7 @@ from typing import Dict, List, Sequence, Tuple, Optional
 import numpy as np
 import pandas as pd
 from sklearn.cluster import KMeans
+from sklearn.model_selection import KFold
 from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import StandardScaler
 
@@ -53,6 +58,55 @@ def _finalize_split(
         return None
 
     return split_id, train_idx, test_idx
+
+
+# ============================================================
+# In-distribution references
+# ============================================================
+
+def build_kfold_splits(
+    n_samples: int,
+    n_splits: int = 5,
+    shuffle: bool = True,
+    seed: int = 0,
+    min_train: int = 1,
+    min_test: int = 1,
+) -> List[Split]:
+    """Plain K-fold, expressed as splits so the ID baseline reuses the OOD code path."""
+    kf = KFold(n_splits=n_splits, shuffle=shuffle, random_state=seed if shuffle else None)
+
+    splits: List[Split] = []
+    for fold, (train_idx, test_idx) in enumerate(kf.split(np.arange(n_samples))):
+        split = _finalize_split(f"ID_fold{fold}", train_idx, test_idx, min_train, min_test)
+        if split is not None:
+            splits.append(split)
+
+    return splits
+
+
+def build_size_matched_split(
+    n_samples: int,
+    n_train: int,
+    n_test: int,
+    seed: int,
+    split_id: str = "RandomControl",
+) -> Optional[Split]:
+    """A random disjoint train/test split with prescribed sizes.
+
+    The in-distribution control for one OOD split: same amount of training data
+    and same test-set size, but drawn at random. The OOD-minus-control
+    difference is therefore attributable to the shift, not to the smaller
+    training set an OOD split leaves behind (holding out Fe on Novamag costs
+    more than half the training data).
+
+    Returns:
+        The split, or None if the requested sizes do not fit in `n_samples`.
+    """
+    if n_train + n_test > n_samples:
+        return None
+
+    order = np.random.default_rng(seed).permutation(n_samples)
+    return _finalize_split(split_id, order[:n_train], order[n_train:n_train + n_test])
 
 
 # ============================================================
