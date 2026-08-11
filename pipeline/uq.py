@@ -1,0 +1,120 @@
+"""Predictive-uncertainty estimators and split-conformal calibration.
+
+Three ways to attach an interval to a point prediction, in increasing order of
+how much they promise:
+
+  rf_std            Spread of the forest's own trees, read as a Gaussian sigma.
+                    Cheap and interpretable, but it only measures disagreement
+                    between trees — it carries no noise or bias term, so it has
+                    no reason to be calibrated and is included as the naive
+                    reference, not as a recommendation.
+  conformal         Split conformal on absolute residuals. Constant width, and
+                    the only one of the three with a finite-sample coverage
+                    guarantee (in-distribution, exchangeable data).
+  conformal_norm    Split conformal on residuals divided by rf_std. Keeps the
+                    guarantee while letting the width follow the model's own
+                    uncertainty, so it is the adaptive baseline rf_std should
+                    be judged against.
+"""
+
+from dataclasses import dataclass
+from typing import Optional
+
+import numpy as np
+
+from evaluate.calibration import DEFAULT_ALPHA
+
+# Half-width of a two-sided Gaussian interval at the default alpha, used to read
+# an RF tree-std as if it were a calibrated standard deviation.
+GAUSSIAN_Z = 1.959963984540054
+
+# rf_std can be exactly 0 where every tree agrees; floor it before dividing.
+_MIN_SIGMA = 1e-12
+
+RF_STD = "rf_std"
+CONFORMAL = "conformal"
+CONFORMAL_NORM = "conformal_norm"
+
+
+def rf_tree_std(model, X) -> np.ndarray:
+    """Standard deviation of the per-tree predictions of a fitted forest.
+
+    Args:
+        model: A fitted RandomForestRegressor. Tree ensembles are trained
+            unscaled (see pipeline/train.py:_scaled), so `estimators_` accept
+            the same X as the forest itself.
+        X: Feature matrix to predict.
+
+    Raises:
+        TypeError: If `model` exposes no `estimators_`.
+    """
+    if not hasattr(model, "estimators_"):
+        raise TypeError(f"{type(model).__name__} has no estimators_; rf_std needs a forest.")
+
+    # The forest fits its trees on a bare array, so hand them one too — a
+    # DataFrame here only earns a feature-names warning per tree per call.
+    values = X.to_numpy() if hasattr(X, "to_numpy") else np.asarray(X)
+    return np.stack([tree.predict(values) for tree in model.estimators_]).std(axis=0)
+
+
+def _conformal_quantile(scores: np.ndarray, alpha: float) -> float:
+    """The finite-sample-corrected (1 - alpha) quantile of calibration scores.
+
+    The ceil((n+1)(1-alpha))/n level, rather than a plain quantile, is what
+    makes split conformal's coverage guarantee hold at finite n.
+    """
+    n = scores.size
+    if n == 0:
+        raise ValueError("Conformal calibration needs at least one residual.")
+    level = min(1.0, np.ceil((n + 1) * (1.0 - alpha)) / n)
+    return float(np.quantile(scores, level, method="higher"))
+
+
+@dataclass(frozen=True)
+class ConformalCalibrator:
+    """A fitted split-conformal interval width.
+
+    Attributes:
+        quantile: Calibrated score quantile — an absolute half-width when
+            `normalized` is False, a multiplier on sigma when it is True.
+        normalized: Whether widths scale with the model's own sigma.
+    """
+
+    quantile: float
+    normalized: bool
+
+    @classmethod
+    def fit(
+        cls,
+        y_cal: np.ndarray,
+        y_pred_cal: np.ndarray,
+        alpha: float = DEFAULT_ALPHA,
+        sigma_cal: Optional[np.ndarray] = None,
+    ) -> "ConformalCalibrator":
+        """Calibrate on residuals the model never trained on.
+
+        Args:
+            y_cal: Targets of the calibration set.
+            y_pred_cal: Predictions for the calibration set.
+            alpha: Nominal miscoverage.
+            sigma_cal: Per-sample sigma on the calibration set. Supplying it
+                switches to the normalized (locally adaptive) variant.
+        """
+        residuals = np.abs(np.asarray(y_cal, dtype=float) - np.asarray(y_pred_cal, dtype=float))
+        normalized = sigma_cal is not None
+        if normalized:
+            residuals = residuals / np.clip(np.asarray(sigma_cal, dtype=float), _MIN_SIGMA, None)
+
+        return cls(quantile=_conformal_quantile(residuals, alpha), normalized=normalized)
+
+    def half_width(self, sigma: np.ndarray) -> np.ndarray:
+        """Per-sample interval half-width for the test points behind `sigma`."""
+        sigma = np.asarray(sigma, dtype=float)
+        if self.normalized:
+            return self.quantile * np.clip(sigma, _MIN_SIGMA, None)
+        return np.full(sigma.shape, self.quantile, dtype=float)
+
+
+def gaussian_half_width(sigma: np.ndarray, z: float = GAUSSIAN_Z) -> np.ndarray:
+    """Read a sigma estimate as a Gaussian interval half-width."""
+    return z * np.asarray(sigma, dtype=float)
