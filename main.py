@@ -11,6 +11,7 @@ from loaddata.raw_loaders import load_elemental_data
 
 from pipeline.train import MODEL_REGISTRY, DEFAULT_TUNE_CV_FOLDS, DEFAULT_TUNE_N_ITER
 from pipeline.ood_pipeline import run_ood_evaluation
+from pipeline.uq_pipeline import run_uq_evaluation
 
 from evaluate.cross_validation import (
     print_holdout_results,
@@ -268,14 +269,17 @@ def main():
     tune_cv_folds = int(cfg.get("tune_cv_folds", DEFAULT_TUNE_CV_FOLDS))
     tune_n_iter = int(cfg.get("tune_n_iter", DEFAULT_TUNE_N_ITER))
 
-    if evaluation_mode not in {"holdout", "cross_validation", "ood"}:
-        raise ValueError("Invalid evaluation_mode. Choose 'holdout', 'cross_validation', or 'ood'.")
+    if evaluation_mode not in {"holdout", "cross_validation", "ood", "uq"}:
+        raise ValueError(
+            "Invalid evaluation_mode. Choose 'holdout', 'cross_validation', 'ood', or 'uq'."
+        )
     need_cross_validation = evaluation_mode == "cross_validation"
     need_ood = evaluation_mode == "ood"
+    need_uq = evaluation_mode == "uq"
     if need_ood and (not train_dataset_path or not test_dataset_path):
         raise ValueError("OOD mode requires train_dataset_path and test_dataset_path in the config.")
     if not need_ood and not dataset_path:
-        raise ValueError("dataset_path is required for holdout or cross_validation modes.")
+        raise ValueError("dataset_path is required for holdout, cross_validation, or uq modes.")
 
     if dataset_name == "novamag":
         prefix = "novamag"
@@ -312,6 +316,17 @@ def main():
             tune_cv_folds=tune_cv_folds,
             tune_n_iter=tune_n_iter,
         )
+    elif need_uq:
+        run_uq_evaluation(
+            cfg=cfg,
+            dataset_path=dataset_path,
+            pt_path=pt_path,
+            model_registry=MODEL_REGISTRY,
+            cv_folds=cv_folds,
+            cv_shuffle=cv_shuffle,
+            cv_random_state=cv_random_state,
+            model_random_state=model_random_state,
+        )
     else:
         run_holdout(
             dataset_path=dataset_path,
@@ -330,7 +345,7 @@ def main():
         )
 
     # Data visualization (holdout and cross_validation modes only)
-    if data_visualization and not need_ood:
+    if data_visualization and not (need_ood or need_uq):
         X_raw = load_raw_data(dataset_path)
         plot_ms_distribution_by_tm(X_raw, save_path=plots_save_dir / f"{prefix}_ms_distribution_by_tm.png")
         plot_violin_ms_by_tm(X_raw, title=f"{prefix.upper()} Violin Plot", save_path=plots_save_dir / f"{prefix}_violin_ms_by_tm.png")

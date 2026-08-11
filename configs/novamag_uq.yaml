@@ -1,0 +1,49 @@
+dataset: Novamag
+evaluation_mode: uq
+dataset_path: data/novamag-magnetism.csv
+
+pt_path: data/Periodic-table/periodic_table.xlsx
+mm_path: data/Miedema-model/Miedema-model-reduced.xlsx
+
+# UQ reads a forest's tree spread, so the model is fixed to rf regardless.
+models:
+  - rf
+
+enable_data_visualization: false
+enable_hyperparameter_tuning: false
+enable_ablation_study: false
+
+# Folds of the in-distribution K-fold reference.
+cv_folds: 10
+cv_shuffle: true
+cv_random_state: 0
+
+random_state: 0
+
+target_column: saturation magnetization
+formula_column: chemical formula
+
+# Five seeds, because one seed moves coverage and the error/uncertainty ratio
+# by more than the effects being compared.
+uq_seeds: [0, 1, 2, 3, 4]
+
+# Nominal miscoverage of the reported intervals (0.05 -> 95%).
+uq_alpha: 0.05
+
+# Fraction of each training set withheld to calibrate the conformal intervals.
+uq_calibration_fraction: 0.25
+
+ood_mode: all
+ood_k: 10
+ood_seed: 0
+ood_fractions: [0.1, 0.2]
+sparsex_neighbors: 5
+sparsey_center: median
+
+ood_max_splits: null
+ood_min_test: 10
+ood_min_train: 50
+
+ood_size_matched_control: true
+
+uq_output_dir: ./results/novamag_uq
