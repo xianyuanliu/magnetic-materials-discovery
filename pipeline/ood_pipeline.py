@@ -1,209 +1,103 @@
-"""OOD evaluation orchestration: config resolution, split selection, and reporting.
+"""OOD evaluation orchestration: data loading, split selection, and reporting.
 
-Reads train/test CSVs (or a single fixed split), builds the requested OOD
-split families via pipeline/ood_splits.py, and scores each via evaluate/ood_evaluation.py.
+Reads the dataset CSV, asks pipeline/ood_scenarios.py which splits to build,
+scores each via evaluate/ood_evaluation.py, and writes the result tables.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import os
 from functools import partial
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple, Any
+from typing import Dict, List, Optional, Sequence, Tuple
 
-import numpy as np
 import pandas as pd
-
-import os
 
 from evaluate.ood_evaluation import (
     evaluate_splits_kfold_train_fixed_test,
-    summarize_runs_across_splits,
     print_ood_tables,
+    summarize_generalisation_gap,
+    summarize_runs_across_splits,
 )
-
+from pipeline.ood_scenarios import build_scenarios, load_ood_config
+from pipeline.ood_splits import Split
 from pipeline.train import DEFAULT_TUNE_CV_FOLDS, DEFAULT_TUNE_N_ITER
+from prepdata.alloy_transform import extract_elements_series, load_periodic_table_map
 
-from pipeline.ood_splits import (
-    build_loeo_splits,
-    build_period_splits,
-    build_group_splits,
-    build_kmeans_cluster_splits,
-    build_sparsex_splits,
-    build_sparsey_splits,
+# Result tables, in the order print_ood_tables takes them, paired with the file
+# each is written to.
+TABLE_FILENAMES = (
+    "table1_splits_summary.csv",
+    "table2_metrics_by_model.csv",
+    "table3_rf_vs_xgb_significance.csv",
+    "table4_combined_comparison.csv",
+    "table5_generalisation_gap.csv",
 )
 
-from prepdata.alloy_transform import (
-    extract_elements_series,
-    load_periodic_table_map,
-)
 
-Split = Tuple[str, np.ndarray, np.ndarray]
+def load_ood_dataset(
+    train_dataset_path: str,
+    test_dataset_path: Optional[str],
+    target_column: str,
+    formula_column: str,
+) -> Tuple[pd.DataFrame, pd.Series, pd.DataFrame]:
+    """Load the pool the OOD splits are carved out of.
 
+    Both config paths are read and concatenated, because the OOD splits define
+    their own train/test boundary — the two files are only a way of pointing at
+    the data, not a pre-existing split that is honoured here.
 
-@dataclass
-class OODConfig:
-    """Resolved OOD settings for one run_ood_evaluation call (see _load_ood_cfg)."""
+    Returns:
+        (X, y, df_full), where X excludes the target and formula columns.
 
-    target_column: str = "saturation magnetization"
-    formula_column: str = "chemical formula"
+    Raises:
+        ValueError: If a required column is missing or no feature column is left.
+    """
+    if not train_dataset_path:
+        raise ValueError("OOD mode requires train_dataset_path (can be the full dataset CSV).")
 
-    # which OOD scenarios to run: element | period | group | cluster | all
-    ood_mode: str = "all"
+    same_file = (not test_dataset_path) or (
+        os.path.normpath(test_dataset_path) == os.path.normpath(train_dataset_path)
+    )
+    if same_file:
+        df_full = pd.read_csv(train_dataset_path).reset_index(drop=True)
+    else:
+        df_full = pd.concat(
+            [pd.read_csv(train_dataset_path), pd.read_csv(test_dataset_path)],
+            ignore_index=True,
+        )
 
-    # LOCO settings
-    ood_k: int = 10
+    for column in (target_column, formula_column):
+        if column not in df_full.columns:
+            raise ValueError(f"Missing column '{column}' in the dataset CSV(s)")
 
-    # selection / limits
-    ood_seed: int = 0
-    ood_max_splits: int = 10
-    ood_targets: Optional[Sequence[Any]] = None  # list of elements OR periods OR groups (depending on mode)
-    ood_fractions: Sequence[float] = (0.1, 0.2)
-    sparsex_neighbors: int = 5
-    sparsey_center: str = "median"
-    cv_seeds: Optional[Sequence[int]] = None
+    feature_cols = [c for c in df_full.columns if c not in (target_column, formula_column)]
+    if not feature_cols:
+        raise ValueError("No feature columns found after excluding target/formula columns.")
 
-    # strict settings for period/group (optional)
-    period_strict: bool = False
-    group_strict: bool = False
-
-    # output (optional)
-    output_dir: str = "./results/ood"
-
-
-def _safe_int_list(x: Optional[Sequence[Any]]) -> Optional[List[int]]:
-    """Coerce a sequence to ints, or return None if x is None."""
-    if x is None:
-        return None
-    return [int(v) for v in x]
-
-
-def _ensure_dir(path: str) -> Path:
-    """Create `path` (including parents) if missing, and return it."""
-    p = Path(path)
-    p.mkdir(parents=True, exist_ok=True)
-    return p
-
-
-def _top_elements(elements_per_row: Sequence[Sequence[str]], max_n: int) -> List[str]:
-    """Return up to `max_n` elements, most-frequent-in-the-dataset first."""
-    counts: Dict[str, int] = {}
-    for els in elements_per_row:
-        for e in set(els):
-            counts[e] = counts.get(e, 0) + 1
-    ordered = sorted(counts.items(), key=lambda kv: kv[1], reverse=True)
-    return [e for e, _ in ordered[:max_n]]
-
-
-def _top_periods(
-    elements_per_row: Sequence[Sequence[str]],
-    element_to_period: Dict[str, int],
-    max_n: int,
-) -> List[int]:
-    """Return up to `max_n` periods, most-frequent-in-the-dataset first."""
-    counts: Dict[int, int] = {}
-    for els in elements_per_row:
-        periods = set()
-        for e in set(els):
-            p = element_to_period.get(e)
-            if p is not None:
-                periods.add(int(p))
-        for p in periods:
-            counts[p] = counts.get(p, 0) + 1
-    ordered = sorted(counts.items(), key=lambda kv: kv[1], reverse=True)
-    return [int(p) for p, _ in ordered[:max_n]]
-
-
-def _top_groups(
-    elements_per_row: Sequence[Sequence[str]],
-    element_to_group: Dict[str, int],
-    max_n: int,
-) -> List[int]:
-    """Return up to `max_n` groups, most-frequent-in-the-dataset first."""
-    counts: Dict[int, int] = {}
-    for els in elements_per_row:
-        groups = set()
-        for e in set(els):
-            g = element_to_group.get(e)
-            if g is not None:
-                groups.add(int(g))
-        for g in groups:
-            counts[g] = counts.get(g, 0) + 1
-    ordered = sorted(counts.items(), key=lambda kv: kv[1], reverse=True)
-    return [int(g) for g, _ in ordered[:max_n]]
+    return df_full[feature_cols].copy(), df_full[target_column].copy(), df_full
 
 
 def _name_for_key(model_registry: Dict, model_key: str) -> str:
     return str(model_registry[model_key]["name"])
 
 
-def _load_ood_cfg(cfg: dict, default_seed: int) -> OODConfig:
-    """Build an OODConfig from the run config dict, filling in defaults."""
-    return OODConfig(
-        target_column=str(cfg.get("target_column", "saturation magnetization")),
-        formula_column=str(cfg.get("formula_column", "chemical formula")),
-        ood_mode=str(cfg.get("ood_mode", "all")).lower(),
-        ood_k=int(cfg.get("ood_k", 10)),
-        ood_seed=int(cfg.get("ood_seed", default_seed)),
-        ood_max_splits=int(cfg.get("ood_max_splits", 10)),
-        ood_targets=cfg.get("ood_targets"),
-        ood_fractions=tuple(cfg.get("ood_fractions", [0.1, 0.2])),
-        sparsex_neighbors=int(cfg.get("sparsex_neighbors", 5)),
-        sparsey_center=str(cfg.get("sparsey_center", "median")),
-        cv_seeds=cfg.get("cv_seeds"),
-        period_strict=bool(cfg.get("ood_period_strict", False)),
-        group_strict=bool(cfg.get("ood_group_strict", False)),
-        output_dir=str(cfg.get("ood_output_dir", "./results/ood")),
-    )
-
-
 def _run_scenario(
     scenario: str,
     splits: List[Split],
-    *,
-    X_full: pd.DataFrame,
-    y_full: pd.Series,
-    models: List[str],
-    model_registry: Dict,
     seeds: Sequence[int],
-    cv_folds: int,
-    cv_shuffle: bool,
-    hyperparameter_tuning: bool,
-    model_random_state: int,
-    rf_name: Optional[str],
-    xgb_name: Optional[str],
-    tune_cv_folds: int,
-    tune_n_iter: int,
+    evaluate,
 ) -> Tuple[List[pd.DataFrame], List[pd.DataFrame], List[pd.DataFrame]]:
-    """Evaluate one OOD scenario's splits across all seeds.
+    """Evaluate one scenario's splits across all seeds.
 
     Returns:
         (t1_frames, t2_frames, t3_frames) — one triple of tables per seed.
     """
-    t1_frames, t2_frames, t3_frames = [], [], []
+    frames: Tuple[List, List, List] = ([], [], [])
     for seed in seeds:
-        t1, t2, t3 = evaluate_splits_kfold_train_fixed_test(
-            X_full,
-            y_full,
-            splits,
-            models,
-            model_registry,
-            scenario=scenario,
-            seed=int(seed),
-            cv_folds=cv_folds,
-            shuffle=cv_shuffle,
-            hyperparameter_tuning=hyperparameter_tuning,
-            best_params=None,
-            model_random_state=model_random_state,
-            rf_name=rf_name,
-            xgb_name=xgb_name,
-            tune_cv_folds=tune_cv_folds,
-            tune_n_iter=tune_n_iter,
-        )
-        t1_frames.append(t1)
-        t2_frames.append(t2)
-        t3_frames.append(t3)
-    return t1_frames, t2_frames, t3_frames
+        for collected, table in zip(frames, evaluate(splits, scenario=scenario, seed=int(seed))):
+            collected.append(table)
+    return frames
 
 
 def run_ood_evaluation(
@@ -222,172 +116,65 @@ def run_ood_evaluation(
     tune_cv_folds: int = DEFAULT_TUNE_CV_FOLDS,
     tune_n_iter: int = DEFAULT_TUNE_N_ITER,
 ) -> None:
-    """Run the OOD evaluation pipeline: build split families, score each, report tables.
+    """Run the OOD pipeline: build split families, score each, print and save tables.
 
-    Called from main.py when evaluation_mode == 'ood'. Loads and merges the
-    train/test CSVs, builds the requested OOD split families (LOEO/LOPO/LOGO/
-    LOCO/SparseX/SparseY), evaluates each via evaluate_splits_kfold_train_fixed_test,
-    then prints and saves 4 result tables under ood_cfg.output_dir.
+    Called from main.py when evaluation_mode == 'ood'. Every OOD split is scored
+    alongside its in-distribution references (see evaluate/ood_evaluation.py),
+    so the saved tables carry a `split_type` column and Table 5 splits the
+    degradation into a shift part and a training-pool part.
     """
-    ood_cfg = _load_ood_cfg(cfg, default_seed=int(cv_random_state))
+    ood_cfg = load_ood_config(cfg, default_seed=int(cv_random_state))
 
-    # ---------- Load data ----------
-    # 1) Build a FULL dataset
-
-    if not train_dataset_path:
-        raise ValueError("OOD mode requires train_dataset_path (can be the full dataset CSV).")
-
-    # If train and test are the same file → use single dataset
-    if (not test_dataset_path) or (
-        os.path.normpath(test_dataset_path) == os.path.normpath(train_dataset_path)
-    ):
-        df_full = pd.read_csv(train_dataset_path).reset_index(drop=True)
-
-    else:
-        df_train = pd.read_csv(train_dataset_path).reset_index(drop=True)
-        df_test = pd.read_csv(test_dataset_path).reset_index(drop=True)
-        df_full = pd.concat([df_train, df_test], ignore_index=True)
-
-    target_col = ood_cfg.target_column
-    formula_col = ood_cfg.formula_column
-
-    if target_col not in df_full.columns:
-        raise ValueError(f"Missing target column '{target_col}' in train/test CSVs")
-    if formula_col not in df_full.columns:
-        raise ValueError(f"Missing formula column '{formula_col}' in train/test CSVs")
-
-    # Features = everything except target and formula
-    feature_cols = [c for c in df_full.columns if c not in (target_col, formula_col)]
-    if len(feature_cols) == 0:
-        raise ValueError("No feature columns found after excluding target/formula columns.")
-
-    X_full = df_full[feature_cols].copy()
-    y_full = df_full[target_col].copy()
-
-    # ---------- Chemistry helpers ----------
+    X_full, y_full, df_full = load_ood_dataset(
+        train_dataset_path, test_dataset_path, ood_cfg.target_column, ood_cfg.formula_column,
+    )
     element_to_group, element_to_period = load_periodic_table_map(pt_path)
-    elements_per_row = extract_elements_series(df_full, formula_column=formula_col)
+    elements_per_row = extract_elements_series(df_full, formula_column=ood_cfg.formula_column)
 
-    # ---------- RF vs XGB names for significance table ----------
-    rf_name = _name_for_key(model_registry, "rf") if "rf" in models else None
-    xgb_name = _name_for_key(model_registry, "xgb") if "xgb" in models else None
-
-    # ---------- Decide what to run ----------
-    mode = ood_cfg.ood_mode
-    supported_modes = {"element", "period", "group", "cluster", "sparsex", "sparsey", "all"}
-    if mode not in supported_modes:
-        raise ValueError(
-            f"Invalid ood_mode '{mode}'. Supported values are: {sorted(supported_modes)}"
-        )
-
-    run_element = mode in {"element", "all"}
-    run_period = mode in {"period", "all"}
-    run_group = mode in {"group", "all"}
-    run_cluster = mode in {"cluster", "all"}
-    run_sparsex = mode in {"sparsex", "all"}
-    run_sparsey = mode in {"sparsey", "all"}
-
-    # ---------- Collect tables ----------
+    scenarios = build_scenarios(
+        ood_cfg, X_full, y_full, elements_per_row, element_to_group, element_to_period,
+    )
     seeds = list(ood_cfg.cv_seeds) if ood_cfg.cv_seeds is not None else [int(ood_cfg.ood_seed)]
-    max_splits = int(ood_cfg.ood_max_splits)
 
-    # If user supplies ood_targets, we use it for whichever mode is active.
-    # NOTE: for period/group you should pass ints; we coerce to int list.
-    user_targets = ood_cfg.ood_targets
+    print(
+        f"\n[INFO] OOD run: {len(scenarios)} scenario(s), "
+        f"{sum(len(s) for _, s in scenarios)} split(s), {len(seeds)} seed(s), "
+        f"size-matched control {'on' if ood_cfg.size_matched_control else 'off'}."
+    )
+    for name, splits in scenarios:
+        print(f"         {name}: {len(splits)} split(s) — {[s[0] for s in splits]}")
 
-    # Every scenario below just picks its own `splits`, then runs the same
-    # per-seed evaluate-and-collect loop, so bind everything else once.
-    run_scenario = partial(
-        _run_scenario,
-        X_full=X_full,
-        y_full=y_full,
-        models=models,
-        model_registry=model_registry,
-        seeds=seeds,
-        cv_folds=cv_folds,
-        cv_shuffle=cv_shuffle,
-        hyperparameter_tuning=hyperparameter_tuning,
+    evaluate = partial(
+        evaluate_splits_kfold_train_fixed_test,
+        X_full, y_full,
+        model_keys=models, model_registry=model_registry,
+        cv_folds=cv_folds, shuffle=cv_shuffle,
+        hyperparameter_tuning=hyperparameter_tuning, best_params=None,
         model_random_state=model_random_state,
-        rf_name=rf_name,
-        xgb_name=xgb_name,
-        tune_cv_folds=tune_cv_folds,
-        tune_n_iter=tune_n_iter,
+        rf_name=_name_for_key(model_registry, "rf") if "rf" in models else None,
+        xgb_name=_name_for_key(model_registry, "xgb") if "xgb" in models else None,
+        tune_cv_folds=tune_cv_folds, tune_n_iter=tune_n_iter,
+        size_matched_control=ood_cfg.size_matched_control,
     )
 
-    all_t1: List[pd.DataFrame] = []
-    all_t2: List[pd.DataFrame] = []
-    all_t3: List[pd.DataFrame] = []
+    collected: Tuple[List, List, List] = ([], [], [])
+    for scenario, splits in scenarios:
+        for target, frames in zip(collected, _run_scenario(scenario, splits, seeds, evaluate)):
+            target.extend(frames)
 
-    def _collect(scenario: str, splits: List[Split]) -> None:
-        t1s, t2s, t3s = run_scenario(scenario, splits)
-        all_t1.extend(t1s)
-        all_t2.extend(t2s)
-        all_t3.extend(t3s)
+    table1, table2, table3 = (
+        pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+        for frames in collected
+    )
+    table4 = summarize_runs_across_splits(table2)
+    table5 = summarize_generalisation_gap(table4)
 
-    # ---------- LOEO ----------
-    if run_element:
-        targets = [str(x) for x in user_targets] if user_targets is not None else _top_elements(
-            elements_per_row, max_splits
-        )
-        _collect("LOEO", build_loeo_splits(elements_per_row, targets)[:max_splits])
+    print_ood_tables(table1, table2, table3, table4, table5)
 
-    # ---------- LOPO ----------
-    if run_period:
-        targets = _safe_int_list(user_targets) or [] if user_targets is not None else _top_periods(
-            elements_per_row, element_to_period, max_splits
-        )
-        splits = build_period_splits(
-            elements_per_row, element_to_period, targets, strict=bool(ood_cfg.period_strict)
-        )[:max_splits]
-        _collect("LOPO", splits)
-
-    # ---------- LOGO ----------
-    if run_group:
-        targets = _safe_int_list(user_targets) or [] if user_targets is not None else _top_groups(
-            elements_per_row, element_to_group, max_splits
-        )
-        splits = build_group_splits(
-            elements_per_row, element_to_group, targets, strict=bool(ood_cfg.group_strict)
-        )[:max_splits]
-        _collect("LOGO", splits)
-
-    # ---------- LOCO-k ----------
-    if run_cluster:
-        k = int(ood_cfg.ood_k)
-        splits = build_kmeans_cluster_splits(X_full, k=k, seed=int(ood_cfg.ood_seed))[:max_splits]
-        _collect(f"LOCO(k={k})", splits)
-
-    # ---------- SparseX ----------
-    if run_sparsex:
-        splits = build_sparsex_splits(
-            X_full, fractions=ood_cfg.ood_fractions, n_neighbors=ood_cfg.sparsex_neighbors
-        )[:max_splits]
-        _collect("SparseX", splits)
-
-    # ---------- SparseY ----------
-    if run_sparsey:
-        splits = build_sparsey_splits(
-            y_full, fractions=ood_cfg.ood_fractions, center=ood_cfg.sparsey_center
-        )[:max_splits]
-        _collect("SparseY", splits)
-
-    # ---------- Finalize / print ----------
-    table1 = pd.concat(all_t1, ignore_index=True) if all_t1 else pd.DataFrame()
-    table2 = pd.concat(all_t2, ignore_index=True) if all_t2 else pd.DataFrame()
-    table3 = pd.concat(all_t3, ignore_index=True) if all_t3 else pd.DataFrame()
-    table4 = summarize_runs_across_splits(table2) if not table2.empty else pd.DataFrame()
-
-    print_ood_tables(table1, table2, table3, table4)
-
-    # ---------- Save ----------
-    out_dir = _ensure_dir(ood_cfg.output_dir)
-    if not table1.empty:
-        table1.to_csv(out_dir / "table1_splits_summary.csv", index=False)
-    if not table2.empty:
-        table2.to_csv(out_dir / "table2_metrics_by_model.csv", index=False)
-    if not table3.empty:
-        table3.to_csv(out_dir / "table3_rf_vs_xgb_significance.csv", index=False)
-    if not table4.empty:
-        table4.to_csv(out_dir / "table4_combined_comparison.csv", index=False)
+    out_dir = Path(ood_cfg.output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for table, filename in zip((table1, table2, table3, table4, table5), TABLE_FILENAMES):
+        if not table.empty:
+            table.to_csv(out_dir / filename, index=False)
 
     print(f"\nSaved OOD tables to: {out_dir.resolve()}")
