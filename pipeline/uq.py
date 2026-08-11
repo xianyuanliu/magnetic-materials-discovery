@@ -28,8 +28,18 @@ from evaluate.calibration import DEFAULT_ALPHA
 # an RF tree-std as if it were a calibrated standard deviation.
 GAUSSIAN_Z = 1.959963984540054
 
-# rf_std can be exactly 0 where every tree agrees; floor it before dividing.
+# rf_std is exactly 0 where every tree agrees, and the normalized variant
+# divides by it. Flooring at a small fraction of the calibration set's mean
+# keeps that score bounded while leaving ordinary sigmas untouched; the
+# absolute fallback only applies if every calibration sigma is 0.
+_SIGMA_FLOOR_FRACTION = 1e-3
 _MIN_SIGMA = 1e-12
+
+
+def _sigma_floor(sigma: np.ndarray) -> float:
+    """A positive lower bound for sigma, scaled to the data it came from."""
+    mean = float(np.mean(sigma))
+    return _SIGMA_FLOOR_FRACTION * mean if mean > 0 else _MIN_SIGMA
 
 RF_STD = "rf_std"
 CONFORMAL = "conformal"
@@ -78,10 +88,13 @@ class ConformalCalibrator:
         quantile: Calibrated score quantile — an absolute half-width when
             `normalized` is False, a multiplier on sigma when it is True.
         normalized: Whether widths scale with the model's own sigma.
+        sigma_floor: Lower bound applied to sigma, fixed at calibration time so
+            fit and predict divide by the same thing. Unused when not normalized.
     """
 
     quantile: float
     normalized: bool
+    sigma_floor: float = 0.0
 
     @classmethod
     def fit(
@@ -102,16 +115,23 @@ class ConformalCalibrator:
         """
         residuals = np.abs(np.asarray(y_cal, dtype=float) - np.asarray(y_pred_cal, dtype=float))
         normalized = sigma_cal is not None
+        floor = 0.0
         if normalized:
-            residuals = residuals / np.clip(np.asarray(sigma_cal, dtype=float), _MIN_SIGMA, None)
+            sigma_cal = np.asarray(sigma_cal, dtype=float)
+            floor = _sigma_floor(sigma_cal)
+            residuals = residuals / np.maximum(sigma_cal, floor)
 
-        return cls(quantile=_conformal_quantile(residuals, alpha), normalized=normalized)
+        return cls(
+            quantile=_conformal_quantile(residuals, alpha),
+            normalized=normalized,
+            sigma_floor=floor,
+        )
 
     def half_width(self, sigma: np.ndarray) -> np.ndarray:
         """Per-sample interval half-width for the test points behind `sigma`."""
         sigma = np.asarray(sigma, dtype=float)
         if self.normalized:
-            return self.quantile * np.clip(sigma, _MIN_SIGMA, None)
+            return self.quantile * np.maximum(sigma, self.sigma_floor)
         return np.full(sigma.shape, self.quantile, dtype=float)
 
 

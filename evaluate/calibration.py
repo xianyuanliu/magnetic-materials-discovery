@@ -52,6 +52,7 @@ def compute_calibration_metrics(
             the scale-sensitive numbers, so they detect the miscalibration that
             any max-normalised score would divide away.
         n: Sample count behind the row, so the pooling stays auditable.
+        n_zero_sigma: How many of those samples were left out of the z columns.
     """
     y_true = np.asarray(y_true, dtype=float)
     y_pred = np.asarray(y_pred, dtype=float)
@@ -59,20 +60,25 @@ def compute_calibration_metrics(
     sigma = np.asarray(sigma, dtype=float)
 
     error = np.abs(y_pred - y_true)
-    # sigma can legitimately be 0 where every tree agrees; clip so z stays finite.
-    z = error / np.clip(sigma, np.finfo(float).tiny, None)
     coverage = float(np.mean(error <= half_width))
+
+    # A sample where every tree agrees has sigma = 0 and no finite z. Those are
+    # dropped from the z columns only — one of them would otherwise send the
+    # whole group's rms_z to infinity — and counted so the omission is visible.
+    scored = sigma > 0
+    z = error[scored] / sigma[scored]
 
     return {
         "n": int(error.size),
+        "n_zero_sigma": int((~scored).sum()),
         "mae": float(np.mean(error)),
         "rmse": float(np.sqrt(np.mean(error ** 2))),
         "mean_sigma": float(np.mean(sigma)),
         "coverage": coverage,
         "coverage_error": coverage - (1.0 - alpha),
         "mean_width": float(np.mean(2.0 * half_width)),
-        "mean_abs_z": float(np.mean(z)),
-        "rms_z": float(np.sqrt(np.mean(z ** 2))),
+        "mean_abs_z": float(np.mean(z)) if z.size else np.nan,
+        "rms_z": float(np.sqrt(np.mean(z ** 2))) if z.size else np.nan,
     }
 
 
