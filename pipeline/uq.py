@@ -41,6 +41,7 @@ def _sigma_floor(sigma: np.ndarray) -> float:
     mean = float(np.mean(sigma))
     return _SIGMA_FLOOR_FRACTION * mean if mean > 0 else _MIN_SIGMA
 
+
 RF_STD = "rf_std"
 CONFORMAL = "conformal"
 CONFORMAL_NORM = "conformal_norm"

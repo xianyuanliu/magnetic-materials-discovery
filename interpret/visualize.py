@@ -8,6 +8,7 @@ import seaborn as sns
 import prepdata.alloy_transform as alloy_transform
 from prepdata.alloy_transform import formula_contains_elements
 
+
 def plot_ms_distribution_by_tm(data, save_path=None):
     """Plot Ms histograms for the full dataset and Fe/Co/Cr/Mn-containing subsets.
 
@@ -74,7 +75,8 @@ def plot_violin_ms_by_tm(data, title: str = "Violin Plot", save_path=None):
         plt.close()
     else:
         plt.show()
-    
+
+
 def summarize_compound_radix(data):
     """
     Print the number of compounds in the dataset.

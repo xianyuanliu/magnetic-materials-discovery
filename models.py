@@ -14,17 +14,21 @@ def build_linear_regression_model() -> LinearRegression:
     """Construct a Linear Regression model."""
     return LinearRegression()
 
+
 def build_ridge_model(alpha: float = 1.0) -> Ridge:
     """Construct a Ridge Regression model."""
     return Ridge(alpha=alpha, max_iter=10000)
+
 
 def build_lasso_model(alpha: float = 0.01) -> Lasso:
     """Construct a Lasso Regression model."""
     return Lasso(alpha=alpha, max_iter=10000)
 
+
 def build_elasticnet_model(alpha: float = 0.01, l1_ratio: float = 0.5) -> ElasticNet:
     """Construct an ElasticNet Regression model."""
     return ElasticNet(alpha=alpha, l1_ratio=l1_ratio, max_iter=10000)
+
 
 # 2) Tree-based Models
 def build_rf_model(
@@ -44,6 +48,7 @@ def build_rf_model(
         max_features=max_features,
         random_state=random_state,
     )
+
 
 def build_xgb_model(
     n_estimators: int = 300,
@@ -71,6 +76,7 @@ def build_xgb_model(
         random_state=random_state,
         verbosity=0,
     )
+
 
 # 3) Kernel-based Models
 def build_svr_model(

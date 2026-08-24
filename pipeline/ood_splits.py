@@ -64,6 +64,7 @@ def _finalize_split(
 # In-distribution references
 # ============================================================
 
+
 def build_kfold_splits(
     n_samples: int,
     n_splits: int = 5,
@@ -113,6 +114,7 @@ def build_size_matched_split(
 # Leave-One-Element-Out (LOEO)
 # ============================================================
 
+
 def build_loeo_splits(
     elements_per_sample: Sequence[Sequence[str]],
     element_list: Sequence[str],
@@ -146,6 +148,7 @@ def build_loeo_splits(
 # ============================================================
 # Leave-One-Period-Out (LOPO) / Leave-One-Group-Out (LOGO)
 # ============================================================
+
 
 def _build_membership_splits(
     elements_per_sample: Sequence[Sequence[str]],
@@ -226,6 +229,7 @@ def build_group_splits(
 # Representation Space OOD — KMeans (LOCO)
 # ============================================================
 
+
 def build_kmeans_cluster_splits(
     X: pd.DataFrame,
     k: int = 10,
@@ -270,9 +274,11 @@ def build_kmeans_cluster_splits(
 
     return splits
 
+
 # ============================================================
 # SparseX OOD — Feature-space sparsity
 # ============================================================
+
 
 def build_sparsex_splits(
     X: pd.DataFrame,
@@ -332,6 +338,7 @@ def build_sparsex_splits(
 # ============================================================
 # SparseY OOD — Target-space sparsity
 # ============================================================
+
 
 def build_sparsey_splits(
     y: pd.Series,

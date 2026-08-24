@@ -25,6 +25,7 @@ from interpret.model_weights import plot_permutation_importance, plot_shap_summa
 from interpret.case_studies import plot_case_studies
 from interpret.visualize import plot_ms_distribution_by_tm, plot_violin_ms_by_tm, summarize_compound_radix
 
+
 def parse_args():
     """Parse the --config CLI flag."""
     parser = argparse.ArgumentParser(description="Train ML models for material property prediction")
@@ -36,10 +37,12 @@ def parse_args():
     )
     return parser.parse_args()
 
+
 def load_config(path: str):
     """Load a YAML run config."""
     with open(path, "r") as f:
         return yaml.safe_load(f)
+
 
 def print_rf_vs_xgb_significance(cv_results, rf_name: str, xgb_name: str):
     """Print paired t-test / Wilcoxon significance for RF vs XGB, on MSE and MAE."""

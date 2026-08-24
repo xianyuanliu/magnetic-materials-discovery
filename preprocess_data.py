@@ -33,7 +33,6 @@ def main():
 
     novamag_mag.to_csv("./data/novamag-magnetism.csv", index=True)
 
-
     # Process Materials Project dataset
     print("\nProcessing Materials Project dataset...")
     mp_csv_path = "./data/materials_project/mp-data.csv"

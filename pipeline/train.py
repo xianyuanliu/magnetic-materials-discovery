@@ -144,7 +144,6 @@ def _randomized_search_best_params(
 
 
 # 1) Hyperparameter tuning for linear models
-
 def tune_ridge_hyperparams(
     X_train, y_train, cv_folds: int = DEFAULT_TUNE_CV_FOLDS, random_state: int = 0,
     n_iter: int = DEFAULT_TUNE_N_ITER,
@@ -162,6 +161,7 @@ def tune_ridge_hyperparams(
     return _grid_search_best_params(
         build_ridge_model(), param_grid, X_train, y_train, cv_folds, "Ridge", scale=True
     )
+
 
 def tune_lasso_hyperparams(
     X_train, y_train, cv_folds: int = DEFAULT_TUNE_CV_FOLDS, random_state: int = 0,
@@ -197,8 +197,8 @@ def tune_elasticnet_hyperparams(
         build_elasticnet_model(), param_grid, X_train, y_train, cv_folds, "ElasticNet", scale=True
     )
 
-# 2) Hyperparameter tuning for tree/boosting models
 
+# 2) Hyperparameter tuning for tree/boosting models
 def tune_rf_hyperparams(
     X_train, y_train, cv_folds: int = DEFAULT_TUNE_CV_FOLDS, random_state: int = 0,
     n_iter: int = DEFAULT_TUNE_N_ITER,
@@ -224,6 +224,7 @@ def tune_rf_hyperparams(
     return _grid_search_best_params(
         build_rf_model(random_state=random_state), param_grid, X_train, y_train, cv_folds, "RF"
     )
+
 
 def tune_xgb_hyperparams(
     X_train, y_train, cv_folds: int = DEFAULT_TUNE_CV_FOLDS, random_state: int = 0,
@@ -262,8 +263,8 @@ def tune_xgb_hyperparams(
         build_xgb_model(random_state=random_state), param_grid, X_train, y_train, cv_folds, "XGB"
     )
 
-# 3) Hyperparameter tuning for kernel and neural network models
 
+# 3) Hyperparameter tuning for kernel and neural network models
 def tune_svr_hyperparams(
     X_train, y_train, cv_folds: int = DEFAULT_TUNE_CV_FOLDS, random_state: int = 0,
     n_iter: int = DEFAULT_TUNE_N_ITER,
@@ -308,7 +309,6 @@ def tune_mlp_hyperparams(
 
 
 # 4) Training linear models
-
 def train_linear_regression(X_train, y_train, params: Dict = None, random_state: int = 0):
     """Train Linear Regression (no hyperparameters, no randomness to seed)."""
     del random_state  # unused; accepted for a uniform MODEL_REGISTRY["train"] signature
@@ -354,7 +354,6 @@ def train_elasticnet(X_train, y_train, params: Dict = None, random_state: int = 
 
 
 # 5) Training tree/boosting models
-
 def train_rf(X_train, y_train, params: Dict = None, random_state: int = 0):
     """Train a random forest with searched optimized parameters or manually provided parameters.
 
@@ -373,6 +372,7 @@ def train_rf(X_train, y_train, params: Dict = None, random_state: int = 0):
         )
     rf_model.fit(X_train, y_train)
     return rf_model
+
 
 def train_xgb(X_train, y_train, params: Dict = None, random_state: int = 0):
     """Train XGBoost with searched optimized parameters or manually provided parameters.
@@ -393,8 +393,8 @@ def train_xgb(X_train, y_train, params: Dict = None, random_state: int = 0):
     xgb_model.fit(X_train, y_train)
     return xgb_model
 
-# 6) Training kernel and neural network models
 
+# 6) Training kernel and neural network models
 def train_svr(X_train, y_train, params: Dict = None, random_state: int = 0):
     """Train Support Vector Regression with searched optimized parameters or manually provided parameters."""
     del random_state  # unused; SVR has no random_state (deterministic solver)

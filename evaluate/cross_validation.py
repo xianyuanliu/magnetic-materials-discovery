@@ -108,7 +108,9 @@ def cross_validate_models(
 
     return results
 
+
 # ====== Quantitative metrics ======
+
 
 def print_holdout_results(y_true, predictions: Dict[str, np.ndarray]):
     """Print MSE, MAE, and R² for multiple regression models."""
@@ -120,6 +122,7 @@ def print_holdout_results(y_true, predictions: Dict[str, np.ndarray]):
         print(f"MAE: {metrics['mae']:.4f}")
         print(f"MRE: {metrics['mre']:.6f}")
         print(f"R2:  {metrics['r2']:.4f}")
+
 
 def print_cv_results(
     results: Dict[str, Dict[str, List[float]]],
@@ -147,6 +150,7 @@ def print_cv_results(
         print(f"MAE: {mae_mean:.4f} ± {mae_std:.4f}")
         print(f"MRE: {mre_mean:.6f} ± {mre_std:.6f}")
         print(f"R2:  {r2_mean:.4f} ± {r2_std:.4f}")
+
 
 def compare_models_significance(
     results: Dict[str, Dict[str, List[float]]],
