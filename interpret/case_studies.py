@@ -1,7 +1,8 @@
 """FeAl / FeCo / FeCr case studies: model predictions vs. literature measurements."""
 
-from typing import Dict, List
+from typing import Dict, List, NamedTuple, Tuple
 
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -21,11 +22,20 @@ def _build_case_features(
     formulas: List[str],
     periodic_table,
     miedema_weight,
-) -> pd.DataFrame:
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """Build the full feature matrix for a list of chemical formulas.
 
-    Returns a DataFrame that includes the original "chemical formula" column
-    plus all nine engineered features used by the case-study models.
+    Args:
+        formulas: Chemical formulas to featurize.
+        periodic_table: Periodic table data, indexed by element symbol.
+        miedema_weight: Symmetrised Miedema mixing-enthalpy matrix.
+
+    Returns:
+        (features, stoich_array). `features` carries the original
+        "chemical formula" column plus all nine engineered features used by
+        the case-study models; `stoich_array` is the per-element
+        stoichiometry the features were derived from, returned so callers can
+        convert it to atomic fractions without re-parsing the formulas.
     """
     X = pd.DataFrame(formulas, columns=["chemical formula"])
     stoich = alloy_transform.get_stoich_array(X, periodic_table)
@@ -41,6 +51,22 @@ def _build_case_features(
     return X, stoich
 
 
+class CaseStudyResult(NamedTuple):
+    """Model predictions and literature values for one binary-alloy case study.
+
+    Attributes:
+        atomic_fraction: Per-element atomic fractions, one row per formula.
+        predictions: Predicted saturation magnetization per model name, in the
+            order the models were passed in.
+        literature: Measured saturation magnetization, indexed by the alloying
+            element's atomic fraction.
+    """
+
+    atomic_fraction: pd.DataFrame
+    predictions: Dict[str, np.ndarray]
+    literature: pd.Series
+
+
 def _run_case(
     formulas: List[str],
     literature_ms: Dict[float, float],
@@ -50,18 +76,35 @@ def _run_case(
     ridge_model,
     periodic_table,
     miedema_weight,
-):
-    """Generate predictions and literature references for one case study (no plotting)."""
-    X, stoich_array = _build_case_features(formulas, periodic_table, miedema_weight)
+) -> CaseStudyResult:
+    """Generate predictions and literature references for one case study (no plotting).
 
-    rf_preds = rf_model.predict(X[X_cols])
-    xgb_preds = xgb_model.predict(X[X_cols])
-    ridge_preds = ridge_model.predict(X[X_cols])
+    Args:
+        formulas: Chemical formulas spanning the alloy series.
+        literature_ms: Measured saturation magnetization, keyed by the
+            alloying element's atomic fraction.
+        X_cols: Feature columns the models were trained on, in training order.
+        rf_model: Fitted random forest.
+        xgb_model: Fitted XGBoost regressor.
+        ridge_model: Fitted ridge regressor.
+        periodic_table: Periodic table data, indexed by element symbol.
+        miedema_weight: Symmetrised Miedema mixing-enthalpy matrix.
 
-    at_fraction = alloy_transform.get_atomic_frac(stoich_array)
-    exp = pd.Series(literature_ms)
+    Returns:
+        A CaseStudyResult holding the atomic fractions, one prediction array
+        per model, and the literature series.
+    """
+    features, stoich_array = _build_case_features(formulas, periodic_table, miedema_weight)
 
-    return at_fraction, rf_preds, xgb_preds, ridge_preds, exp
+    return CaseStudyResult(
+        atomic_fraction=alloy_transform.get_atomic_frac(stoich_array),
+        predictions={
+            "random forest": rf_model.predict(features[X_cols]),
+            "xgboost": xgb_model.predict(features[X_cols]),
+            "ridge regression": ridge_model.predict(features[X_cols]),
+        },
+        literature=pd.Series(literature_ms),
+    )
 
 
 def feal_case(X_cols: List[str], rf_model, xgb_model, ridge_model, periodic_table, miedema_weight):
@@ -85,17 +128,20 @@ def fecr_case(X_cols, rf_model, xgb_model, ridge_model, periodic_table, miedema_
     )
 
 
-def _plot_one_case(ax, at_fraction, element_col, rf_preds, xgb_preds, ridge_preds, exp, title):
-    """Plot one case study's predictions + literature scatter onto `ax`."""
-    sns.scatterplot(x=at_fraction[element_col], y=rf_preds, ax=ax)
-    sns.scatterplot(x=at_fraction[element_col], y=xgb_preds, ax=ax)
-    sns.scatterplot(x=at_fraction[element_col], y=ridge_preds, ax=ax)
-    sns.scatterplot(x=exp.index, y=exp.values, ax=ax)
+def _plot_one_case(ax, result: CaseStudyResult, element_col: str, title: str):
+    """Plot one case study's predictions + literature scatter onto `ax`.
+
+    The legend is built from `result.predictions` rather than hard-coded, so
+    it stays correct if the set of compared models changes.
+    """
+    for y_pred in result.predictions.values():
+        sns.scatterplot(x=result.atomic_fraction[element_col], y=y_pred, ax=ax)
+    sns.scatterplot(x=result.literature.index, y=result.literature.values, ax=ax)
     ax.set_title(f"{title} Case Study", fontsize=16)
     ax.set_xlabel(f"{element_col} content [atomic fraction]", fontsize=16)
     ax.set_ylabel("Saturation Magnetisation [T]", fontsize=16)
     legend = ax.legend(
-        ["random forest", "xgboost", "ridge regression", "literature"],
+        [*result.predictions, "literature"],
         loc="upper right",
         fontsize=12,
     )
@@ -121,10 +167,10 @@ def plot_case_studies(
     ]
 
     for case_fn, element_col, title, ax in cases:
-        at_fraction, rf_preds, xgb_preds, ridge_preds, exp = case_fn(
+        result = case_fn(
             feature_columns, rf_model, xgb_model, ridge_model, periodic_table, miedema_weight
         )
-        _plot_one_case(ax, at_fraction, element_col, rf_preds, xgb_preds, ridge_preds, exp, title)
+        _plot_one_case(ax, result, element_col, title)
 
     plt.tight_layout()
 
