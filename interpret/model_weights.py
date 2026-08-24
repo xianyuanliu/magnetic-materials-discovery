@@ -1,5 +1,7 @@
 """Permutation feature importance and SHAP summary plots for a trained model."""
 
+from typing import Optional
+
 import matplotlib.pyplot as plt
 import shap
 
@@ -11,7 +13,7 @@ def plot_permutation_importance(
     X_valid,
     y_valid,
     title: str = "",
-    save_path: str = None,
+    save_path: Optional[str] = None,
     random_state: int = 0,
 ):
     """Plot permutation importance for RFR / XGB / Ridge."""
@@ -42,7 +44,7 @@ def plot_permutation_importance(
         plt.show()
 
 
-def plot_shap_summary(model, X_train, X_valid, save_path: str = None):
+def plot_shap_summary(model, X_train, X_valid, save_path: Optional[str] = None):
     """Generate SHAP summary plots."""
     explainer = shap.Explainer(model, X_train)
     shap_values = explainer(X_valid, check_additivity=False)

@@ -16,7 +16,7 @@ nested search re-runs for every outer fold (see evaluate/cross_validation.py).
 """
 
 import types
-from typing import Dict, List, Union
+from typing import Dict, List, Optional, Union
 
 from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 from sklearn.pipeline import Pipeline
@@ -311,7 +311,7 @@ def tune_mlp_hyperparams(
 
 
 # 4) Training linear models
-def train_linear_regression(X_train, y_train, params: Dict = None, random_state: int = 0):
+def train_linear_regression(X_train, y_train, params: Optional[Dict] = None, random_state: int = 0):
     """Train Linear Regression (no hyperparameters, no randomness to seed)."""
     del random_state  # unused; accepted for a uniform MODEL_REGISTRY["train"] signature
     model = _scaled(build_linear_regression_model())
@@ -319,7 +319,7 @@ def train_linear_regression(X_train, y_train, params: Dict = None, random_state:
     return model
 
 
-def train_ridge(X_train, y_train, params: Dict = None, random_state: int = 0):
+def train_ridge(X_train, y_train, params: Optional[Dict] = None, random_state: int = 0):
     """Train Ridge regression with searched optimized parameters or manually provided parameters."""
     del random_state  # unused; Ridge's default solver is deterministic
     if params is not None:
@@ -331,7 +331,7 @@ def train_ridge(X_train, y_train, params: Dict = None, random_state: int = 0):
     return ridge_model
 
 
-def train_lasso(X_train, y_train, params: Dict = None, random_state: int = 0):
+def train_lasso(X_train, y_train, params: Optional[Dict] = None, random_state: int = 0):
     """Train Lasso regression with searched optimized parameters or manually provided parameters."""
     del random_state  # unused; default selection="cyclic" is deterministic
     if params is not None:
@@ -343,7 +343,7 @@ def train_lasso(X_train, y_train, params: Dict = None, random_state: int = 0):
     return lasso_model
 
 
-def train_elasticnet(X_train, y_train, params: Dict = None, random_state: int = 0):
+def train_elasticnet(X_train, y_train, params: Optional[Dict] = None, random_state: int = 0):
     """Train ElasticNet regression with searched optimized parameters or manually provided parameters."""
     del random_state  # unused; default selection="cyclic" is deterministic
     if params is not None:
@@ -356,7 +356,7 @@ def train_elasticnet(X_train, y_train, params: Dict = None, random_state: int = 
 
 
 # 5) Training tree/boosting models
-def train_rf(X_train, y_train, params: Dict = None, random_state: int = 0):
+def train_rf(X_train, y_train, params: Optional[Dict] = None, random_state: int = 0):
     """Train a random forest with searched optimized parameters or manually provided parameters.
 
     Left unscaled on purpose — see _scaled.
@@ -376,7 +376,7 @@ def train_rf(X_train, y_train, params: Dict = None, random_state: int = 0):
     return rf_model
 
 
-def train_xgb(X_train, y_train, params: Dict = None, random_state: int = 0):
+def train_xgb(X_train, y_train, params: Optional[Dict] = None, random_state: int = 0):
     """Train XGBoost with searched optimized parameters or manually provided parameters.
 
     Left unscaled on purpose — see _scaled.
@@ -397,7 +397,7 @@ def train_xgb(X_train, y_train, params: Dict = None, random_state: int = 0):
 
 
 # 6) Training kernel and neural network models
-def train_svr(X_train, y_train, params: Dict = None, random_state: int = 0):
+def train_svr(X_train, y_train, params: Optional[Dict] = None, random_state: int = 0):
     """Train Support Vector Regression with searched optimized parameters or manually provided parameters."""
     del random_state  # unused; SVR has no random_state (deterministic solver)
     if params is not None:
@@ -411,7 +411,7 @@ def train_svr(X_train, y_train, params: Dict = None, random_state: int = 0):
     return svr_model
 
 
-def train_mlp(X_train, y_train, params: Dict = None, random_state: int = 0):
+def train_mlp(X_train, y_train, params: Optional[Dict] = None, random_state: int = 0):
     """Train MLP regression with searched optimized parameters or manually provided parameters."""
     if params is not None:
         mlp_model = build_mlp_model(**params, random_state=random_state)
