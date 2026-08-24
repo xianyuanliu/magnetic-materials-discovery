@@ -6,7 +6,7 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.svm import SVR
 from sklearn.neural_network import MLPRegressor
 from sklearn.linear_model import LinearRegression, Lasso, Ridge, ElasticNet
-import xgboost as xgb
+import xgboost
 
 
 # 1) Linear Models
@@ -61,9 +61,9 @@ def build_xgb_model(
     reg_alpha: float = 0,
     reg_lambda: float = 1.0,
     random_state: int = 0,
-) -> xgb.XGBRegressor:
+) -> xgboost.XGBRegressor:
     """Construct an XGB Regressor."""
-    return xgb.XGBRegressor(
+    return xgboost.XGBRegressor(
         n_estimators=n_estimators,
         learning_rate=learning_rate,
         max_depth=max_depth,
