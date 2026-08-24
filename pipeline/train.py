@@ -18,8 +18,6 @@ nested search re-runs for every outer fold (see evaluate/cross_validation.py).
 import types
 from typing import Dict, List, Union
 
-ParamGrid = Union[Dict, List[Dict]]
-
 from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
@@ -34,6 +32,10 @@ from models import (
     build_svr_model,
     build_mlp_model,
 )
+
+# One hyperparameter grid, or the union of several sub-grids that
+# GridSearchCV expresses as a list (see tune_xgb_hyperparams).
+ParamGrid = Union[Dict, List[Dict]]
 
 # Default hyperparameter-search budget. Deliberately smaller than the outer
 # cv_folds: the search is nested inside every outer fold, so its cost is
