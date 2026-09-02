@@ -22,7 +22,7 @@ from typing import Optional
 
 import numpy as np
 
-from evaluate.calibration import DEFAULT_ALPHA
+from core import DEFAULT_ALPHA
 
 # Half-width of a two-sided Gaussian interval at the default alpha, used to read
 # an RF tree-std as if it were a calibrated standard deviation.
