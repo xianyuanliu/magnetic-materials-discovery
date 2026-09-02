@@ -14,8 +14,7 @@ from typing import Dict, List, Sequence
 import numpy as np
 import pandas as pd
 
-# Nominal miscoverage of the reported intervals; 0.05 gives the usual 95%.
-DEFAULT_ALPHA = 0.05
+from core import DEFAULT_ALPHA
 
 # Columns a per-sample prediction frame must carry for the summaries below.
 SAMPLE_COLUMNS = ("y_true", "y_pred", "sigma", "half_width")

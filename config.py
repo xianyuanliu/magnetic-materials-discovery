@@ -10,13 +10,13 @@ types are coerced once, and the rest of the codebase receives frozen dataclasses
 carry the settings specific to one evaluation mode.
 """
 
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Mapping, Optional, Sequence, Tuple
 
 import yaml
 
-from core import DEFAULT_TUNE_CV_FOLDS, DEFAULT_TUNE_N_ITER
+from core import DEFAULT_ALPHA, DEFAULT_TUNE_CV_FOLDS, DEFAULT_TUNE_N_ITER
 
 # Evaluation modes main.py can dispatch to.
 EVALUATION_MODES = ("predict", "holdout", "cross_validation", "ood", "uq")
@@ -32,9 +32,6 @@ DEFAULT_MIN_TRAIN = 50
 
 # Fraction of each training set held back to calibrate conformal intervals.
 DEFAULT_CALIBRATION_FRACTION = 0.25
-
-# Nominal miscoverage of the reported intervals; 0.05 gives the usual 95%.
-DEFAULT_ALPHA = 0.05
 
 
 @dataclass(frozen=True)

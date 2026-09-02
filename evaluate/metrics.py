@@ -1,4 +1,7 @@
-"""Regression metric primitives: MSE / MAE / MRE / R², and mean±std formatting."""
+"""Regression metric primitives: MSE / MAE / MRE / R².
+
+Formatting lives in reporting.py so this module stays free of display concerns.
+"""
 
 from typing import Dict
 
@@ -9,13 +12,6 @@ from sklearn.metrics import (
     mean_squared_error,
     r2_score,
 )
-
-
-def format_mean_std(mean: float, std: float, decimals: int = 4) -> str:
-    """Format a "mean ± std" string, or "nan" if either value is missing."""
-    if mean is None or std is None or np.isnan(mean) or np.isnan(std):
-        return "nan"
-    return f"{mean:.{decimals}f} ± {std:.{decimals}f}"
 
 
 def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
