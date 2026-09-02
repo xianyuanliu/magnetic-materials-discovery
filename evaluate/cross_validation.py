@@ -1,6 +1,12 @@
-"""K-fold cross-validation, holdout reporting, and paired significance testing."""
+"""K-fold cross-validation scoring and paired significance testing.
 
-from typing import Dict, List, Optional
+Every function here returns data. Formatting and printing live in reporting.py,
+so these can be called from a notebook or another library without a run's
+console output appearing as a side effect.
+"""
+
+from dataclasses import dataclass
+from typing import Dict, List, Mapping, Optional, Sequence
 
 import numpy as np
 import pandas as pd
@@ -8,44 +14,105 @@ from scipy import stats
 
 from sklearn.model_selection import KFold
 
+from core import DEFAULT_TUNE_CV_FOLDS, DEFAULT_TUNE_N_ITER, METRICS, ModelSpec
 from evaluate.metrics import compute_metrics
-from pipeline.train import DEFAULT_TUNE_CV_FOLDS, DEFAULT_TUNE_N_ITER
+
+# Below this many paired observations a signed-rank test cannot reach any
+# conventional significance level at all: with n pairs the smallest attainable
+# two-sided Wilcoxon p is 2 / 2**n, so n = 3 bottoms out at 0.25 and n = 5 at
+# 0.0625. Reporting "p = 0.25, not significant" from three pairs reads as
+# evidence of no difference when it is really the floor of the test.
+MIN_PAIRS_FOR_TEST = 6
+
+# Per-model, per-metric fold scores: {model name: {metric: [score per fold]}}.
+FoldScores = Dict[str, Dict[str, List[float]]]
+
+
+@dataclass(frozen=True)
+class SignificanceResult:
+    """Outcome of a paired comparison between two models.
+
+    Attributes:
+        metric: Which metric was compared.
+        model_a, model_b: The compared model names.
+        n_pairs: Number of paired observations behind the test.
+        t_stat, t_pvalue: Paired t-test on the differences.
+        w_stat, w_pvalue: Wilcoxon signed-rank on the same differences.
+        mean_difference: mean(a) - mean(b); negative favours `model_a` for
+            lower-is-better metrics.
+        note: Why the p-values are absent or should not be read, when that
+            applies; None when the test ran normally.
+    """
+
+    metric: str
+    model_a: str
+    model_b: str
+    n_pairs: int
+    t_stat: float
+    t_pvalue: float
+    w_stat: float
+    w_pvalue: float
+    mean_difference: float
+    note: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class WinCounts:
+    """How often one model beat another across paired observations."""
+
+    model_a: str
+    model_b: str
+    metric: str
+    a_wins: int
+    b_wins: int
+    ties: int
 
 
 def cross_validate_models(
     X: pd.DataFrame,
     y: pd.Series,
-    model_keys: List[str],
-    model_registry: Dict,
+    specs: Sequence[ModelSpec],
     hyperparameter_tuning: bool = False,
-    best_params: Optional[Dict] = None,
+    best_params: Optional[Mapping[str, Dict]] = None,
     cv_folds: int = 5,
     shuffle: bool = True,
     random_state: int = 0,
     model_random_state: int = 0,
-    report_rf_xgb: bool = True,
     tune_cv_folds: int = DEFAULT_TUNE_CV_FOLDS,
     tune_n_iter: int = DEFAULT_TUNE_N_ITER,
-):
-    """Run K-fold cross-validation for the requested models.
+) -> FoldScores:
+    """Run K-fold cross-validation for the given models.
 
     random_state seeds the KFold split; model_random_state seeds model
-    construction and hyperparameter search so the two sources of randomness
-    can be controlled independently.
+    construction and hyperparameter search so the two sources of randomness can
+    be controlled independently.
 
     When hyperparameter_tuning is set, the search re-runs inside every outer
-    fold (proper nested CV — the outer fold's validation data never informs
-    the search). That is why the search budget is a separate, smaller pair of
-    knobs: tune_cv_folds inner folds and tune_n_iter sampled candidates, whose
-    cost is multiplied by cv_folds x len(model_keys). Pass best_params to skip
-    the search entirely and reuse one fixed set of parameters.
+    fold (proper nested CV — the outer fold's validation data never informs the
+    search). That is why the search budget is a separate, smaller pair of knobs:
+    tune_cv_folds inner folds and tune_n_iter sampled candidates, whose cost is
+    multiplied by cv_folds x len(specs). Pass best_params to skip the search
+    entirely and reuse one fixed set of parameters.
+
+    Args:
+        X: Feature matrix.
+        y: Target.
+        specs: Resolved model specifications to score.
+        hyperparameter_tuning: Search inside every outer fold.
+        best_params: Fixed parameters per model key, bypassing the search.
+        cv_folds: Number of outer folds.
+        shuffle: Shuffle before splitting.
+        random_state: Seed for the outer KFold split.
+        model_random_state: Seed for model construction and the search.
+        tune_cv_folds: Inner folds for the search.
+        tune_n_iter: Candidates sampled by a randomized search.
+
+    Returns:
+        {model name: {metric: [one score per fold]}}.
     """
-    results = {}
-    for key in model_keys:
-        if key not in model_registry:
-            raise ValueError(f"Unknown model key: {key}")
-        name = model_registry[key]["name"]
-        results[name] = {"mse": [], "mae": [], "mre": [], "r2": []}
+    results: FoldScores = {
+        spec.name: {metric: [] for metric in METRICS} for spec in specs
+    }
 
     kf = KFold(
         n_splits=cv_folds,
@@ -53,24 +120,16 @@ def cross_validate_models(
         random_state=random_state if shuffle else None,
     )
 
-    # Track RF vs XGB per-fold MSE (only if requested and both models exist)
-    track_rf_xgb = report_rf_xgb and ("rf" in model_keys) and ("xgb" in model_keys)
-    rf_fold_mse = []
-    xgb_fold_mse = []
-
     for train_idx, valid_idx in kf.split(X):
-        X_train = X.iloc[train_idx]
-        X_valid = X.iloc[valid_idx]
-        y_train = y.iloc[train_idx]
-        y_valid = y.iloc[valid_idx]
+        X_train, X_valid = X.iloc[train_idx], X.iloc[valid_idx]
+        y_train, y_valid = y.iloc[train_idx], y.iloc[valid_idx]
 
-        for key in model_keys:
-            model_cfg = model_registry[key]
+        for spec in specs:
             params = None
-            if best_params is not None and key in best_params:
-                params = best_params[key]
-            elif hyperparameter_tuning and model_cfg["tune"] is not None:
-                params = model_cfg["tune"](
+            if best_params is not None and spec.key in best_params:
+                params = best_params[spec.key]
+            elif hyperparameter_tuning and spec.tune is not None:
+                params = spec.tune(
                     X_train,
                     y_train,
                     cv_folds=tune_cv_folds,
@@ -78,117 +137,110 @@ def cross_validate_models(
                     n_iter=tune_n_iter,
                 )
 
-            model = model_cfg["train"](X_train, y_train, params=params, random_state=model_random_state)
-            y_pred = model.predict(X_valid)
+            model = spec.train(X_train, y_train, params=params, random_state=model_random_state)
+            metrics = compute_metrics(y_valid, model.predict(X_valid))
 
-            metrics = compute_metrics(y_valid, y_pred)
-
-            name = model_cfg["name"]
-            results[name]["mse"].append(metrics["mse"])
-            results[name]["mae"].append(metrics["mae"])
-            results[name]["mre"].append(metrics["mre"])
-            results[name]["r2"].append(metrics["r2"])
-
-            if track_rf_xgb:
-                if key == "rf":
-                    rf_fold_mse.append(metrics["mse"])
-                elif key == "xgb":
-                    xgb_fold_mse.append(metrics["mse"])
-
-    # how many times RF outperforms XGB
-    if track_rf_xgb and len(rf_fold_mse) == cv_folds and len(xgb_fold_mse) == cv_folds:
-        wins_rf = sum(m_rf < m_xgb for m_rf, m_xgb in zip(rf_fold_mse, xgb_fold_mse))
-        wins_xgb = sum(m_xgb < m_rf for m_rf, m_xgb in zip(rf_fold_mse, xgb_fold_mse))
-        ties = cv_folds - wins_rf - wins_xgb
-
-        print("\nFold-by-fold win count (metric=MSE): Random Forest vs XGBoost")
-        print(f"RF wins:  {wins_rf}/{cv_folds}")
-        print(f"XGB wins: {wins_xgb}/{cv_folds}")
-        print(f"Ties:     {ties}/{cv_folds}")
+            for metric in METRICS:
+                results[spec.name][metric].append(metrics[metric])
 
     return results
 
 
-# ====== Quantitative metrics ======
-
-
-def print_holdout_results(y_true, predictions: Dict[str, np.ndarray]):
-    """Print MSE, MAE, and R² for multiple regression models."""
-    print("Regression Metrics:")
-    for name, y_pred in predictions.items():
-        metrics = compute_metrics(y_true, y_pred)
-        print(f"\n{name}:")
-        print(f"MSE: {metrics['mse']:.4f}")
-        print(f"MAE: {metrics['mae']:.4f}")
-        print(f"MRE: {metrics['mre']:.6f}")
-        print(f"R2:  {metrics['r2']:.4f}")
-
-
-def print_cv_results(
-    results: Dict[str, Dict[str, List[float]]],
-    title: str = "Cross-Validation Metrics (mean ± std):",
-):
-    """Print mean ± std metrics across repeats, for CV folds or holdout splits."""
-    print(title)
-
-    def _std(values: List[float]) -> float:
-        # ddof=1 is undefined for a single repeat (one holdout split, say)
-        return float(np.std(values, ddof=1)) if len(values) > 1 else 0.0
-
-    for name, scores in results.items():
-        mse_mean = np.mean(scores["mse"])
-        mse_std = _std(scores["mse"])
-        mae_mean = np.mean(scores["mae"])
-        mae_std = _std(scores["mae"])
-        mre_mean = np.mean(scores["mre"])
-        mre_std = _std(scores["mre"])
-        r2_mean = np.mean(scores["r2"])
-        r2_std = _std(scores["r2"])
-
-        print(f"\n{name}:")
-        print(f"MSE: {mse_mean:.4f} ± {mse_std:.4f}")
-        print(f"MAE: {mae_mean:.4f} ± {mae_std:.4f}")
-        print(f"MRE: {mre_mean:.6f} ± {mre_std:.6f}")
-        print(f"R2:  {r2_mean:.4f} ± {r2_std:.4f}")
-
-
-def compare_models_significance(
-    results: Dict[str, Dict[str, List[float]]],
+def count_wins(
+    results: FoldScores,
     model_a: str,
     model_b: str,
     metric: str = "mse",
-):
-    """Paired t-test and Wilcoxon signed-rank test on per-fold CV scores.
+) -> WinCounts:
+    """Count how often `model_a` beat `model_b` fold by fold (lower is better).
+
+    Raises:
+        ValueError: If either model is absent or the two have unequal counts.
+    """
+    a, b = _paired_scores(results, model_a, model_b, metric)
+    return WinCounts(
+        model_a=model_a,
+        model_b=model_b,
+        metric=metric,
+        a_wins=int(np.sum(a < b)),
+        b_wins=int(np.sum(b < a)),
+        ties=int(np.sum(a == b)),
+    )
+
+
+def _paired_scores(results: FoldScores, model_a: str, model_b: str, metric: str):
+    """Return the two models' score arrays for `metric`, checking they pair up.
+
+    Raises:
+        ValueError: If a model or metric is missing, or the lengths differ.
+    """
+    for name in (model_a, model_b):
+        if name not in results:
+            raise ValueError(f"Model {name!r} not in results: {sorted(results)}")
+        if metric not in results[name]:
+            raise ValueError(f"Metric {metric!r} not recorded for {name!r}.")
+
+    a = np.asarray(results[model_a][metric], dtype=float)
+    b = np.asarray(results[model_b][metric], dtype=float)
+    if len(a) != len(b):
+        raise ValueError(
+            f"Paired count mismatch: {model_a} has {len(a)}, {model_b} has {len(b)}"
+        )
+    return a, b
+
+
+def compare_models_significance(
+    results: FoldScores,
+    model_a: str,
+    model_b: str,
+    metric: str = "mse",
+    min_pairs: int = MIN_PAIRS_FOR_TEST,
+) -> SignificanceResult:
+    """Paired t-test and Wilcoxon signed-rank on two models' scores.
+
+    The pairing is only meaningful when each observation comes from a *different*
+    evaluation set — cross-validation folds, or one OOD split per pair. Scores
+    that share a test set are not independent observations of a difference, and
+    the caller is responsible for not passing those in.
+
+    Args:
+        results: Paired scores, keyed by model name then metric.
+        model_a, model_b: Model names to compare.
+        metric: Which metric to compare; lower-is-better metrics only.
+        min_pairs: Below this, p-values are withheld and `note` explains why;
+            see MIN_PAIRS_FOR_TEST.
 
     Returns:
-        (t_stat, t_pvalue, wilcoxon_stat, wilcoxon_pvalue).
+        A SignificanceResult. `mean_difference` is always populated; the
+        p-values are NaN when the test could not or should not be run.
+
+    Raises:
+        ValueError: If a model or metric is missing, or the counts differ.
     """
+    a, b = _paired_scores(results, model_a, model_b, metric)
+    mean_difference = float(np.mean(a) - np.mean(b))
 
-    if model_a not in results or model_b not in results:
-        raise ValueError(f"Model names not found in results: {model_a}, {model_b}")
+    def _result(t_stat, t_p, w_stat, w_p, note=None):
+        return SignificanceResult(
+            metric=metric, model_a=model_a, model_b=model_b, n_pairs=len(a),
+            t_stat=float(t_stat), t_pvalue=float(t_p),
+            w_stat=float(w_stat), w_pvalue=float(w_p),
+            mean_difference=mean_difference, note=note,
+        )
 
-    a = np.array(results[model_a][metric], dtype=float)
-    b = np.array(results[model_b][metric], dtype=float)
+    if len(a) < min_pairs:
+        return _result(
+            np.nan, np.nan, np.nan, np.nan,
+            note=(
+                f"only {len(a)} paired observation(s); a signed-rank test needs at "
+                f"least {min_pairs} before any p-value below 0.05 is attainable"
+            ),
+        )
 
-    if len(a) != len(b):
-        raise ValueError(f"Fold count mismatch: {model_a} has {len(a)}, {model_b} has {len(b)}")
-
-    diff = a - b  # positive means A worse than B for MSE/MAE (lower is better)
-
-    # Paired t-test
     t_stat, t_p = stats.ttest_rel(a, b, nan_policy="omit")
 
-    # Wilcoxon signed-rank (requires non-zero diffs)
-    nonzero = diff[diff != 0]
-    if len(nonzero) < 1:
-        w_stat, w_p = np.nan, np.nan
-    else:
-        # Two-sided by default
-        w_stat, w_p = stats.wilcoxon(a, b, zero_method="wilcox")
+    if not np.any(a != b):
+        return _result(t_stat, t_p, np.nan, np.nan, note="all differences are zero")
 
-    print(f"\nSignificance tests (paired) on CV folds — metric={metric}")
-    print(f"  Comparing: {model_a} vs {model_b}")
-    print(f"  Paired t-test:     t={t_stat:.4f}, p={t_p:.6g}")
-    print(f"  Wilcoxon signed-rank: W={w_stat}, p={w_p:.6g}")
-
-    return float(t_stat), float(t_p), float(w_stat), float(w_p)
+    w_stat, w_p = stats.wilcoxon(a, b, zero_method="wilcox")
+    return _result(t_stat, t_p, w_stat, w_p)
