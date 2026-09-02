@@ -8,7 +8,7 @@ build_kfold_splits and build_size_matched_split — so that an OOD score can be
 compared against a baseline produced by the identical evaluation code path.
 """
 
-from typing import Dict, List, Sequence, Tuple, Optional
+from typing import Dict, List, Optional, Sequence
 
 import numpy as np
 import pandas as pd
@@ -17,8 +17,7 @@ from sklearn.model_selection import KFold
 from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import StandardScaler
 
-
-Split = Tuple[str, np.ndarray, np.ndarray]
+from core import Split
 
 
 def _standardized(X: pd.DataFrame) -> np.ndarray:

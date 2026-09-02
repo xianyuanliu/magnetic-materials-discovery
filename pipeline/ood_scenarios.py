@@ -1,18 +1,24 @@
 """Config-driven selection of OOD scenarios and their splits.
 
-Turns a run config into a list of (scenario_name, splits) pairs by picking
-which elements/periods/groups/clusters to hold out and delegating to
+Turns a resolved OODConfig into a list of (scenario_name, splits) pairs by
+picking which elements/periods/groups/clusters to hold out and delegating to
 pipeline/ood_splits.py. Shared by the OOD and UQ pipelines so both evaluate
 exactly the same scenarios.
+
+Hold-out targets are named per family (`elements`, `periods`, `groups`) rather
+than through one shared list: element targets are symbols and period/group
+targets are integers, so a single list could not serve all three — under
+`ood_mode: all` it failed with `invalid literal for int()`. Resolution and the
+error message for the superseded key live in config.load_ood_config.
 """
 
-from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import pandas as pd
 
+from config import OODConfig
+from core import Split
 from pipeline.ood_splits import (
-    Split,
     build_group_splits,
     build_kmeans_cluster_splits,
     build_loeo_splits,
@@ -20,74 +26,6 @@ from pipeline.ood_splits import (
     build_sparsex_splits,
     build_sparsey_splits,
 )
-
-SUPPORTED_MODES = ("element", "period", "group", "cluster", "sparsex", "sparsey", "all")
-
-# Minimum split sizes. A handful of test samples makes R² meaningless and a
-# tiny train set measures nothing but the sample count, so both are filtered
-# out here rather than reported as OOD results.
-DEFAULT_MIN_TEST = 10
-DEFAULT_MIN_TRAIN = 50
-
-
-@dataclass
-class OODConfig:
-    """Resolved OOD settings for one run (see load_ood_config)."""
-
-    target_column: str = "saturation magnetization"
-    formula_column: str = "chemical formula"
-
-    # Which OOD scenarios to run; see SUPPORTED_MODES.
-    ood_mode: str = "all"
-
-    # LOCO settings.
-    ood_k: int = 10
-
-    # Selection and limits. ood_max_splits=None means "every split that passes
-    # the minimum-size filters", which is the intended setting for a full run;
-    # a number caps each scenario and is only useful for smoke tests.
-    ood_seed: int = 0
-    ood_max_splits: Optional[int] = None
-    ood_targets: Optional[Sequence[Any]] = None  # elements OR periods OR groups
-    ood_fractions: Sequence[float] = (0.1, 0.2)
-    sparsex_neighbors: int = 5
-    sparsey_center: str = "median"
-    min_test: int = DEFAULT_MIN_TEST
-    min_train: int = DEFAULT_MIN_TRAIN
-    cv_seeds: Optional[Sequence[int]] = None
-
-    # Strict membership for period/group (see _build_membership_splits).
-    period_strict: bool = False
-    group_strict: bool = False
-
-    # Whether to score a same-size random control alongside each OOD split.
-    size_matched_control: bool = True
-
-    output_dir: str = "./results/ood"
-
-
-def load_ood_config(cfg: dict, default_seed: int) -> OODConfig:
-    """Build an OODConfig from the run config dict, filling in defaults."""
-    max_splits = cfg.get("ood_max_splits")
-    return OODConfig(
-        target_column=str(cfg.get("target_column", "saturation magnetization")),
-        formula_column=str(cfg.get("formula_column", "chemical formula")),
-        ood_mode=str(cfg.get("ood_mode", "all")).lower(),
-        ood_k=int(cfg.get("ood_k", 10)),
-        ood_seed=int(cfg.get("ood_seed", default_seed)),
-        ood_max_splits=None if max_splits is None else int(max_splits),
-        ood_targets=cfg.get("ood_targets"),
-        ood_fractions=tuple(cfg.get("ood_fractions", [0.1, 0.2])),
-        sparsex_neighbors=int(cfg.get("sparsex_neighbors", 5)),
-        sparsey_center=str(cfg.get("sparsey_center", "median")),
-        min_test=int(cfg.get("ood_min_test", DEFAULT_MIN_TEST)),
-        min_train=int(cfg.get("ood_min_train", DEFAULT_MIN_TRAIN)),
-        cv_seeds=cfg.get("cv_seeds"),
-        period_strict=bool(cfg.get("ood_period_strict", False)),
-        group_strict=bool(cfg.get("ood_group_strict", False)),
-        size_matched_control=bool(cfg.get("ood_size_matched_control", True)),
-        output_dir=str(cfg.get("ood_output_dir", "./results/ood")),
-    )
 
 
 def _counts_by_attr(
@@ -133,7 +71,7 @@ def build_scenarios(
     """Build every scenario selected by `ood_cfg.ood_mode`.
 
     Args:
-        ood_cfg: Resolved settings.
+        ood_cfg: Resolved OOD settings; `ood_mode` is validated at parse time.
         X: Feature matrix, used by the geometry-based families (LOCO, SparseX).
         y: Target, used by SparseY.
         elements_per_row: Parsed element symbols per sample.
@@ -143,56 +81,42 @@ def build_scenarios(
     Returns:
         A list of (scenario_name, splits) pairs, skipping scenarios that end up
         with no split passing the minimum-size filters.
-
-    Raises:
-        ValueError: If ood_cfg.ood_mode is not one of SUPPORTED_MODES.
     """
-    mode = ood_cfg.ood_mode
-    if mode not in SUPPORTED_MODES:
-        raise ValueError(
-            f"Invalid ood_mode '{mode}'. Supported values are: {sorted(SUPPORTED_MODES)}"
-        )
-
     sizes = dict(min_train=ood_cfg.min_train, min_test=ood_cfg.min_test)
     max_splits = ood_cfg.ood_max_splits
-    user_targets = ood_cfg.ood_targets
     scenarios: List[Tuple[str, List[Split]]] = []
 
     def selected(name: str) -> bool:
-        return mode in {name, "all"}
+        return ood_cfg.ood_mode in {name, "all"}
+
+    def targets_for(configured, element_to_attr=None) -> List[Any]:
+        """Explicit targets from the config, else the most frequent ones."""
+        if configured is not None:
+            return list(configured)
+        return _ranked_targets(_counts_by_attr(elements_per_row, element_to_attr), max_splits)
 
     if selected("element"):
-        targets = (
-            [str(t) for t in user_targets]
-            if user_targets is not None
-            else _ranked_targets(_counts_by_attr(elements_per_row), max_splits)
-        )
-        scenarios.append(("LOEO", build_loeo_splits(elements_per_row, targets, **sizes)))
+        scenarios.append((
+            "LOEO",
+            build_loeo_splits(elements_per_row, targets_for(ood_cfg.elements), **sizes),
+        ))
 
     if selected("period"):
-        targets = (
-            [int(t) for t in user_targets]
-            if user_targets is not None
-            else _ranked_targets(_counts_by_attr(elements_per_row, element_to_period), max_splits)
-        )
         scenarios.append((
             "LOPO",
             build_period_splits(
-                elements_per_row, element_to_period, targets,
+                elements_per_row, element_to_period,
+                targets_for(ood_cfg.periods, element_to_period),
                 strict=ood_cfg.period_strict, **sizes,
             ),
         ))
 
     if selected("group"):
-        targets = (
-            [int(t) for t in user_targets]
-            if user_targets is not None
-            else _ranked_targets(_counts_by_attr(elements_per_row, element_to_group), max_splits)
-        )
         scenarios.append((
             "LOGO",
             build_group_splits(
-                elements_per_row, element_to_group, targets,
+                elements_per_row, element_to_group,
+                targets_for(ood_cfg.groups, element_to_group),
                 strict=ood_cfg.group_strict, **sizes,
             ),
         ))
@@ -208,7 +132,7 @@ def build_scenarios(
         scenarios.append((
             "SparseX",
             build_sparsex_splits(
-                X, fractions=ood_cfg.ood_fractions,
+                X, fractions=ood_cfg.fractions,
                 n_neighbors=ood_cfg.sparsex_neighbors, **sizes,
             ),
         ))
@@ -217,13 +141,9 @@ def build_scenarios(
         scenarios.append((
             "SparseY",
             build_sparsey_splits(
-                y, fractions=ood_cfg.ood_fractions,
+                y, fractions=ood_cfg.fractions,
                 center=ood_cfg.sparsey_center, **sizes,
             ),
         ))
 
-    return [
-        (name, _capped(splits, max_splits))
-        for name, splits in scenarios
-        if splits
-    ]
+    return [(name, _capped(splits, max_splits)) for name, splits in scenarios if splits]
