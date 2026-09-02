@@ -16,3 +16,21 @@ enable_ablation_study: true
 cv_folds: 5
 cv_shuffle: true
 cv_random_state: 0
+# The nine engineered features, named explicitly. Without this the loader falls
+# back to "every column that is not the target or the formula", which promotes
+# any stray id or metadata column in the CSV into a model input.
+feature_columns:
+  - compoundradix
+  - stoicentw
+  - Zw
+  - periodw
+  - groupw
+  - meltingTw
+  - miedemaH
+  - valencew
+  - electronegw
+
+# Which model the importance and SHAP figures explain, and which models the
+# case studies compare. Both used to be hard-coded.
+interpret_model: rf
+case_study_models: [rf, xgb, ridge]

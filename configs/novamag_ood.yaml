@@ -55,3 +55,21 @@ ood_min_train: 50
 ood_size_matched_control: true
 
 ood_output_dir: ./results/novamag_ood
+
+# The nine engineered features, named explicitly. Without this the loader falls
+# back to "every column that is not the target or the formula", which promotes
+# any stray id or metadata column in the CSV into a model input.
+feature_columns:
+  - compoundradix
+  - stoicentw
+  - Zw
+  - periodw
+  - groupw
+  - meltingTw
+  - miedemaH
+  - valencew
+  - electronegw
+
+# Which two models the paired comparison reports on. Previously hard-coded to
+# Random Forest vs XGBoost inside the evaluation code.
+compare_models: [rf, xgb]

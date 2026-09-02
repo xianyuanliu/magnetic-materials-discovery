@@ -1,0 +1,42 @@
+# Predict saturation magnetization for compositions that were never measured.
+#
+# First run fits `predict_model` on the whole dataset and saves it to
+# `predict_model_path`; later runs load that file and skip training. Set
+# `predict_retrain: true` to refit and overwrite it.
+dataset: Novamag
+evaluation_mode: predict
+dataset_path: data/novamag-magnetism.csv
+
+pt_path: data/Periodic-table/periodic_table.xlsx
+mm_path: data/Miedema-model/Miedema-model-reduced.xlsx
+
+models:
+  - rf
+
+predict_model: rf
+predict_model_path: ./models/novamag_rf.joblib
+predict_retrain: false
+
+# Compositions to score: either a list here, or a CSV via predict_input_path.
+predict_formulas:
+  - Fe3Co
+  - Fe2Ni
+  - FeCoNi
+  - Fe16N2
+  - Nd2Fe14B
+# predict_input_path: data/candidates.csv
+
+predict_output_path: ./results/novamag_predictions.csv
+
+random_state: 0
+
+feature_columns:
+  - compoundradix
+  - stoicentw
+  - Zw
+  - periodw
+  - groupw
+  - meltingTw
+  - miedemaH
+  - valencew
+  - electronegw
