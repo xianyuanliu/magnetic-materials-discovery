@@ -22,8 +22,23 @@ module since it's the only "predict"-stage file and is meant to be reusable on i
 (e.g. `from models import build_rf_model`) without pulling in the training/tuning
 machinery in `pipeline/train.py`.
 
-- `main.py`: thin CLI entry point; parses `--config`, then dispatches to a holdout,
-  cross-validation, or OOD run.
+Dependencies run one way. `core.py` and `config.py` are leaves that import nothing from
+the stage packages; `evaluate/` scores the splits it is handed and never imports
+`pipeline/`; `pipeline/` decides which splits exist and calls into `evaluate/`. Nothing
+under `evaluate/` prints — all console output lives in `reporting.py`, so the scoring
+functions can be called from a notebook or another project without a run's output
+appearing as a side effect.
+
+- `main.py`: thin CLI entry point; parses `--config`, then dispatches to a predict,
+  holdout, cross-validation, OOD, or UQ run.
+- `core.py`: shared vocabulary with no stage dependencies — the `Split` type, the
+  metric list, tuning defaults, and `ModelSpec` (the typed registry entry).
+- `config.py`: the whole run config as frozen dataclasses (`RunConfig`, `OODConfig`,
+  `UQConfig`, `PredictConfig`). Unknown keys are rejected rather than ignored, so a
+  typo in a config file is an error instead of a silently disabled setting.
+- `reporting.py`: every `print_*` and display formatter in the codebase.
+- `persistence.py`: `ModelBundle` — a fitted model plus the feature columns, in
+  training order, that it must be given — with `save_model_bundle` / `load_model_bundle`.
 - `models.py`: bare model builders for all regressors (Ridge, RF, XGBoost, SVR, MLP, ...).
 - `preprocess_data.py`: standalone script that builds `data/novamag-magnetism.csv` and
   `data/mp-magnetism.csv` from the raw source data.
@@ -34,12 +49,13 @@ machinery in `pipeline/train.py`.
   (`alloy_transform.py`), plus the higher-level feature-table builder
   (`build_features.py`).
 - `pipeline/`: combines `models.py`'s builders with hyperparameter search into fittable
-  units (`train.py`, exposes `MODEL_REGISTRY`); the OOD stress-test pipeline
+  units (`train.py`, exposes `MODEL_REGISTRY` as `ModelSpec`s); the property-prediction
+  pipeline (`predict_pipeline.py`); the OOD stress-test pipeline
   (`ood_pipeline.py` orchestration + `ood_scenarios.py` config-to-splits selection +
   `ood_splits.py` split-family builders: LOEO/LOPO/LOGO/LOCO/SparseX/SparseY, plus the
   two in-distribution reference builders); and the uncertainty pipeline (`uq_pipeline.py`
   orchestration + `uq.py` estimators and split-conformal calibration).
-- `evaluate/`: metric primitives (`metrics.py`), K-fold CV / holdout reporting /
+- `evaluate/`: metric primitives (`metrics.py`), K-fold CV scoring and paired
   significance testing (`cross_validation.py`), OOD-specific per-split scoring +
   tables (`ood_evaluation.py`), and calibration metrics (`calibration.py`).
 - `interpret/`: dataset distribution plots (`visualize.py`), permutation importance +
@@ -61,11 +77,39 @@ pip install -U numpy pandas scikit-learn matplotlib seaborn shap xgboost
 ```bash
 python main.py --config configs/novamag.yaml
 ```
-   - `evaluation_mode` in the config selects `holdout`, `cross_validation`, `ood`, or
-     `uq`; `enable_hyperparameter_tuning`, `enable_ablation_study`, and
+   - `evaluation_mode` in the config selects `predict`, `holdout`, `cross_validation`,
+     `ood`, or `uq`; `enable_hyperparameter_tuning`, `enable_ablation_study`, and
      `enable_data_visualization` toggle the optional stages.
 4) Check outputs in the console (metrics), `plots/` (figures prefixed by the dataset
    name), and `results/` (CSV tables from the `ood` and `uq` modes).
+
+## Predicting a Property (`evaluation_mode: predict`)
+The other modes answer "how good is this model"; this one answers "what is the predicted
+property of this material", and is where a fitted model leaves the process.
+
+```bash
+python main.py --config configs/novamag_predict.yaml
+```
+
+The first run fits `predict_model` on the **whole** dataset — the model is going to be
+used rather than scored, so holding data back would only make it worse — and saves it to
+`predict_model_path`. Later runs load that file and skip training; `predict_retrain: true`
+refits and overwrites it. The saved bundle carries the feature columns *in training
+order* alongside the estimator, because a fitted model cannot be applied without them.
+
+Compositions come from `predict_formulas` (a list in the config) or `predict_input_path`
+(a CSV with the formula column), are featurized by the same `add_engineered_features`
+call the training data went through, and are written to `predict_output_path`. A formula
+that cannot be parsed yields NaN features rather than a plausible-looking zero vector, so
+it is reported as skipped instead of silently predicted.
+
+## Naming the Model Inputs
+`feature_columns` in the config lists the model inputs explicitly. Leaving it out falls
+back to "every column that is not the target or the formula", which promotes any stray
+column in the CSV into a model input — a `sample_id` leaks row order into the model, and
+a text column reaches the scaler as a string. The fallback now rejects non-numeric
+columns rather than passing them through, but naming the features is the reliable
+version and is what the shipped configs do.
 
 ## Attributing an OOD Drop
 An OOD score on its own says a model got worse, not why. Holding out Fe on Novamag also
@@ -91,8 +135,26 @@ numeric cap keeps precisely the splits with the largest test sets and the least
 remaining training data — a smoke-test setting, not a smaller experiment.
 `ood_min_test` / `ood_min_train` drop splits too small to score meaningfully.
 
+Hold-out targets are named per family — `ood_elements` (symbols), `ood_periods` and
+`ood_groups` (integers) — because one shared list cannot serve all three.
+
+### Comparing two models
+`compare_models: [rf, xgb]` selects the pair reported in Table 3. The comparison is
+paired **across OOD splits**, one observation per split: each split is a different test
+set and both models saw identical training data on it. It is deliberately not paired
+across the inner folds of a single split, which all score the *same* fixed test set —
+those are repeated measurements of one quantity, not independent observations of a
+difference, and pairing them inflates the apparent evidence. Below
+`MIN_PAIRS_FOR_TEST` (6) paired observations no p-value is reported at all, because a
+two-sided signed-rank test on n pairs cannot go below `2 / 2**n` — with three splits its
+floor is 0.25, which reads as "not significant" when it is really "this test cannot
+answer that".
+
 ## Uncertainty (`evaluation_mode: uq`)
-Fits a Random Forest per split and attaches three intervals: `rf_std` (tree spread read
+Fits the model named by `uq_model` per split. That model must declare
+`provides_ensemble_std` in the registry — the estimators read the spread of an ensemble's
+members, so the pipeline checks the capability rather than assuming a Random Forest.
+Fits it per split and attaches three intervals: `rf_std` (tree spread read
 as a Gaussian sigma), `conformal` (split conformal on absolute residuals, constant
 width), and `conformal_norm` (split conformal on residuals divided by the tree spread,
 so the width adapts). The first is the naive reference — tree disagreement carries no
