@@ -287,10 +287,13 @@ def summarize_model_comparison(
 
     rows = []
     for scenario, group in subset.groupby("scenario", sort=True):
-        # One paired observation per (split_id, seed) that both models scored.
+        # One paired observation per split, averaging over seeds first. Seeds
+        # differ only in the inner KFold and score the *same* test set, so
+        # treating them as separate observations would reintroduce a milder
+        # version of the non-independence this function exists to avoid.
         wide = group.pivot_table(
-            index=["split_id", "seed"], columns="model",
-            values=[f"{m.upper()}_mean" for m in metrics],
+            index="split_id", columns="model",
+            values=[f"{m.upper()}_mean" for m in metrics], aggfunc="mean",
         )
         for metric in metrics:
             column = f"{metric.upper()}_mean"
