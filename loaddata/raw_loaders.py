@@ -38,7 +38,7 @@ def load_mp_raw_data(csv_path):
     print("Converting total magnetization to saturation magnetization...")
     data["total_magnetization_normalized_vol"] = pd.to_numeric(data["total_magnetization_normalized_vol"], errors='coerce')
     mu_B = 9.274e-24  # A·m^2
-    angstrom3_to_m3 = 1e-30 # m^3
+    angstrom3_to_m3 = 1e-30  # m^3
     mu_0 = 4 * np.pi * 1e-7  # T·m/A
     factor = (mu_B / angstrom3_to_m3) * mu_0  # ~= 11.65 T per (μB/Å^3)
     data["saturation magnetization"] = data["total_magnetization_normalized_vol"] * factor

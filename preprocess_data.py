@@ -17,7 +17,7 @@ def main():
     mm_path = "./data/Miedema-model/Miedema-model-reduced.xlsx"
     periodic_table, miedema_weight = load_elemental_data(pt_path, mm_path)
 
-    ### 1. Process Novamag dataset
+    # 1. Process Novamag dataset
     print("Processing Novamag dataset...")
     novamag_dir = "./data/novamag/Novamag_Data_Files/"
     save_novamag_raw_data = True
@@ -33,7 +33,7 @@ def main():
 
     novamag_mag.to_csv("./data/novamag-magnetism.csv", index=True)
 
-    # Process Materials Project dataset
+    # 2. Process Materials Project dataset
     print("\nProcessing Materials Project dataset...")
     mp_csv_path = "./data/materials_project/mp-data.csv"
     mp_raw = load_mp_raw_data(mp_csv_path)
