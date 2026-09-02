@@ -11,25 +11,26 @@ usual test for it — comparing an OOD/ID error ratio against an OOD/ID
 uncertainty ratio — flips sign with the random seed on this data, so this
 pipeline reports coverage and error/sigma against their nominal targets, with a
 spread across seeds, and leaves the reading to the reader.
+
+The model is chosen by capability (`ModelSpec.provides_ensemble_std`) rather
+than by hard-coding a Random Forest; see resolve_uq_model.
 """
 
 from __future__ import annotations
 
 import zlib
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import List, Mapping, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
 
-from evaluate.calibration import (
-    DEFAULT_ALPHA,
-    summarize_across_seeds,
-    summarize_calibration,
-)
+from config import RunConfig
+from core import ModelSpec, Split
+from evaluate.calibration import summarize_across_seeds, summarize_calibration
 from pipeline.ood_pipeline import load_ood_dataset
-from pipeline.ood_scenarios import build_scenarios, load_ood_config
-from pipeline.ood_splits import Split, build_kfold_splits, build_size_matched_split
+from pipeline.ood_scenarios import build_scenarios
+from pipeline.ood_splits import build_kfold_splits, build_size_matched_split
 from pipeline.uq import (
     CONFORMAL,
     CONFORMAL_NORM,
@@ -39,16 +40,12 @@ from pipeline.uq import (
     rf_tree_std,
 )
 from prepdata.alloy_transform import extract_elements_series, load_periodic_table_map
+from reporting import print_uq_report
 
 # Split families, as they appear in the `split_type` column.
 ID_KFOLD = "ID-kfold"
 OOD = "OOD"
 ID_RANDOM = "ID-random"
-
-# Fraction of each training set held back to calibrate the conformal intervals.
-# Split conformal needs residuals the model never saw; the same fraction is
-# withheld for every split so ID and OOD models are fitted on comparable data.
-DEFAULT_CALIBRATION_FRACTION = 0.25
 
 TABLE_FILENAMES = (
     "uq_table1_by_split.csv",
@@ -165,54 +162,70 @@ def _collect_samples(
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
-def _print_report(across_seeds: pd.DataFrame, alpha: float) -> None:
-    """Print the headline calibration comparison without editorialising it."""
-    nominal = 1.0 - alpha
-    print(f"\nCalibration by split type and method (nominal coverage {nominal:.0%}, mean ± std over seeds)")
-    print(across_seeds.to_string(index=False))
-    print(
-        "\nHow to read it: coverage below nominal means the interval is too narrow "
-        "(overconfident); rms_z above 1 means the same for the sigma itself. "
-        "Compare OOD against ID-random, not ID-kfold — only ID-random holds the "
-        "training-set size fixed."
-    )
+def resolve_uq_model(
+    model_registry: Mapping[str, ModelSpec],
+    model_key: str,
+) -> ModelSpec:
+    """Look up the UQ model and check it can actually supply a spread.
+
+    The estimators in pipeline/uq.py read the per-member predictions of an
+    ensemble, so the model has to expose them. That is a capability the registry
+    declares (`ModelSpec.provides_ensemble_std`), rather than something inferred
+    from the key being "rf" — which is how this used to be decided, and which
+    silently ignored the configured model list.
+
+    Raises:
+        ValueError: If the key is unknown, or names a model with no ensemble
+            spread to read.
+    """
+    if model_key not in model_registry:
+        raise ValueError(
+            f"Unknown uq_model {model_key!r}. Available: {sorted(model_registry)}"
+        )
+
+    spec = model_registry[model_key]
+    if not spec.provides_ensemble_std:
+        usable = sorted(k for k, v in model_registry.items() if v.provides_ensemble_std)
+        raise ValueError(
+            f"uq_model {model_key!r} ({spec.name}) exposes no ensemble spread, which the "
+            f"uncertainty estimators need. Models that do: {usable}"
+        )
+    return spec
 
 
 def run_uq_evaluation(
     *,
-    cfg: dict,
-    dataset_path: str,
-    pt_path: str,
-    model_registry: Dict,
-    cv_folds: int,
-    cv_shuffle: bool,
-    cv_random_state: int,
-    model_random_state: int = 0,
+    cfg: RunConfig,
+    model_registry: Mapping[str, ModelSpec],
 ) -> None:
     """Run the UQ pipeline: score ID, OOD and control splits, then save the tables.
 
-    Called from main.py when evaluation_mode == 'uq'. The uncertainty estimators
-    all read a forest's tree spread, so the model is fixed to the registry's
-    Random Forest rather than taken from the config's model list.
+    Called from main.py when evaluation_mode == 'uq'.
+
+    Args:
+        cfg: The resolved run configuration.
+        model_registry: Registry to resolve `uq_model` against.
     """
-    uq_cfg = load_ood_config(cfg, default_seed=int(cv_random_state))
-    alpha = float(cfg.get("uq_alpha", DEFAULT_ALPHA))
-    calibration_fraction = float(cfg.get("uq_calibration_fraction", DEFAULT_CALIBRATION_FRACTION))
-    seeds = [int(s) for s in cfg.get("uq_seeds", uq_cfg.cv_seeds or [uq_cfg.ood_seed])]
+    uq_cfg = cfg.uq
+    ood_cfg = cfg.ood
+    spec = resolve_uq_model(model_registry, uq_cfg.model)
+    alpha = uq_cfg.alpha
+    calibration_fraction = uq_cfg.calibration_fraction
+    seeds = list(uq_cfg.seeds)
 
     X, y, df_full = load_ood_dataset(
-        dataset_path, dataset_path, uq_cfg.target_column, uq_cfg.formula_column,
+        cfg.dataset_path, cfg.dataset_path,
+        cfg.target_column, cfg.formula_column, cfg.feature_columns,
     )
-    element_to_group, element_to_period = load_periodic_table_map(pt_path)
-    elements_per_row = extract_elements_series(df_full, formula_column=uq_cfg.formula_column)
+    element_to_group, element_to_period = load_periodic_table_map(cfg.pt_path)
+    elements_per_row = extract_elements_series(df_full, formula_column=cfg.formula_column)
 
     ood_scenarios = build_scenarios(
-        uq_cfg, X, y, elements_per_row, element_to_group, element_to_period,
+        ood_cfg, X, y, elements_per_row, element_to_group, element_to_period,
     )
-    train_model = model_registry["rf"]["train"]
 
     print(
-        f"\n[INFO] UQ run: {len(ood_scenarios)} OOD scenario(s), "
+        f"\n[INFO] UQ run: {spec.name}, {len(ood_scenarios)} OOD scenario(s), "
         f"{sum(len(s) for _, s in ood_scenarios)} split(s), {len(seeds)} seed(s), "
         f"{calibration_fraction:.0%} of each training set held out for conformal calibration."
     )
@@ -220,23 +233,26 @@ def run_uq_evaluation(
     per_seed_frames = []
     for seed in seeds:
         scenario_splits: List[Tuple[str, str, List[Split]]] = [
-            (ID_KFOLD, ID_KFOLD, build_kfold_splits(len(X), cv_folds, cv_shuffle, seed))
+            (ID_KFOLD, ID_KFOLD, build_kfold_splits(len(X), cfg.cv_folds, cfg.cv_shuffle, seed))
         ]
         for scenario, splits in ood_scenarios:
             scenario_splits.append((OOD, scenario, splits))
-            if uq_cfg.size_matched_control:
-                scenario_splits.append((ID_RANDOM, scenario, _controls_for(splits, len(X), seed, scenario)))
+            if ood_cfg.size_matched_control:
+                scenario_splits.append(
+                    (ID_RANDOM, scenario, _controls_for(splits, len(X), seed, scenario))
+                )
 
         per_seed_frames.append(_collect_samples(
-            X, y, scenario_splits, train_model,
+            X, y, scenario_splits, spec.train,
             seed=seed, calibration_fraction=calibration_fraction,
-            alpha=alpha, model_random_state=model_random_state,
+            alpha=alpha, model_random_state=cfg.model_random_state,
         ))
 
-    samples = pd.concat([f for f in per_seed_frames if not f.empty], ignore_index=True)
-    if samples.empty:
+    frames = [f for f in per_seed_frames if not f.empty]
+    if not frames:
         print("[WARN] No UQ samples produced; nothing to report.")
         return
+    samples = pd.concat(frames, ignore_index=True)
 
     by_split = summarize_calibration(
         samples, ("seed", "split_type", "scenario", "split_id", "method"), alpha,
@@ -244,9 +260,9 @@ def run_uq_evaluation(
     pooled_by_seed = summarize_calibration(samples, ("seed", "split_type", "method"), alpha)
     across_seeds = summarize_across_seeds(pooled_by_seed, ("split_type", "method"))
 
-    _print_report(across_seeds, alpha)
+    print_uq_report(across_seeds, alpha)
 
-    out_dir = Path(cfg.get("uq_output_dir", "./results/uq"))
+    out_dir = Path(uq_cfg.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     for table, filename in zip((by_split, pooled_by_seed, across_seeds), TABLE_FILENAMES):
         table.to_csv(out_dir / filename, index=False)
