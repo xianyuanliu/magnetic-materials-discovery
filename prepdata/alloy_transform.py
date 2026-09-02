@@ -195,13 +195,14 @@ def _weighted_mean(at_fraction: pd.Series, values: pd.Series) -> float:
     return float(np.dot(at_fraction, values.loc[at_fraction.index]))
 
 
-def get_stoich_array(x, pt):
+def get_stoich_array(x, pt, formula_column: str = "chemical formula"):
     """Create stoichiometry array (element counts) from chemical formulas.
 
     Args:
-        x: DataFrame with a "chemical formula" column, or a single formula string.
+        x: DataFrame with a formula column, or a single formula string.
         pt: Periodic table DataFrame (see loaddata.alloy_access.import_periodic_table),
             used for element symbols.
+        formula_column: Name of the formula column when `x` is a DataFrame.
 
     Returns:
         DataFrame of per-compound element amounts (float), columns = element
@@ -211,7 +212,7 @@ def get_stoich_array(x, pt):
         as a plausible-looking 0.0 rather than NaN.
     """
     if isinstance(x, pd.DataFrame):
-        formulas = x["chemical formula"].copy()  # if user passes whole of Novamag
+        formulas = x[formula_column].copy()  # if user passes a whole dataset
         index = x.index
     else:
         formulas = pd.Series(x)  # if user passes a single chemical formula string
@@ -375,10 +376,10 @@ def get_atomic_frac(stoich_array):
     return pd.DataFrame(rows).reindex(columns=stoich_array.columns)
 
 
-def get_compound_radix(X):
+def get_compound_radix(X, formula_column: str = "chemical formula"):
     """Calculate compound radix (number of distinct elements) for each formula."""
     if isinstance(X, pd.DataFrame):
-        formulas = X["chemical formula"].copy()
+        formulas = X[formula_column].copy()
     else:
         formulas = pd.Series(X)
 
