@@ -28,6 +28,9 @@ DEFAULT_TUNE_N_ITER = 20
 METRICS = ("mse", "mae", "mre", "r2")
 METRIC_DECIMALS = {"mse": 4, "mae": 4, "mre": 6, "r2": 4}
 
+# Nominal miscoverage of a reported prediction interval; 0.05 gives the usual 95%.
+DEFAULT_ALPHA = 0.05
+
 
 @dataclass(frozen=True)
 class ModelSpec:

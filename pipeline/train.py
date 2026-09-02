@@ -7,7 +7,10 @@ Training and tuning helpers for all models in models.py:
 
 Combines models.py's bare model builders with hyperparameter search into
 ready-to-fit units (MODEL_REGISTRY), keyed by a single random_state threaded through
-model construction and hyperparameter search from the caller.
+model construction and hyperparameter search from the caller. Each entry is a
+core.ModelSpec, so a model declares what it can do (e.g. whether it exposes an
+ensemble spread the UQ pipeline can read) instead of being recognised by key
+elsewhere in the codebase.
 
 Scale-sensitive models (linear, kernel, neural) are wrapped in a
 StandardScaler pipeline; see _scaled for why the tree ensembles are not.
@@ -15,13 +18,13 @@ Search cost is controlled by the caller via cv_folds and n_iter, because a
 nested search re-runs for every outer fold (see evaluate/cross_validation.py).
 """
 
-import types
 from typing import Dict, List, Optional, Union
 
 from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
+from core import DEFAULT_TUNE_CV_FOLDS, DEFAULT_TUNE_N_ITER, ModelSpec, build_registry
 from models import (
     build_linear_regression_model,
     build_ridge_model,
@@ -36,12 +39,6 @@ from models import (
 # One hyperparameter grid, or the union of several sub-grids that
 # GridSearchCV expresses as a list (see tune_xgb_hyperparams).
 ParamGrid = Union[Dict, List[Dict]]
-
-# Default hyperparameter-search budget. Deliberately smaller than the outer
-# cv_folds: the search is nested inside every outer fold, so its cost is
-# multiplied by (outer folds x seeds x models).
-DEFAULT_TUNE_CV_FOLDS = 3
-DEFAULT_TUNE_N_ITER = 20
 
 # Name of the estimator step inside the StandardScaler pipeline.
 _ESTIMATOR_STEP = "model"
@@ -428,16 +425,20 @@ def train_mlp(X_train, y_train, params: Optional[Dict] = None, random_state: int
     return mlp_model
 
 
-MODEL_REGISTRY = types.MappingProxyType({
-    "linear": {"name": "Linear Regression", "train": train_linear_regression, "tune": None},
+MODEL_REGISTRY = build_registry([
+    ModelSpec("linear", "Linear Regression", train_linear_regression),
 
-    "ridge": {"name": "Ridge", "train": train_ridge, "tune": tune_ridge_hyperparams},
-    "lasso": {"name": "Lasso", "train": train_lasso, "tune": tune_lasso_hyperparams},
-    "elasticnet": {"name": "ElasticNet", "train": train_elasticnet, "tune": tune_elasticnet_hyperparams},
+    ModelSpec("ridge", "Ridge", train_ridge, tune_ridge_hyperparams),
+    ModelSpec("lasso", "Lasso", train_lasso, tune_lasso_hyperparams),
+    ModelSpec("elasticnet", "ElasticNet", train_elasticnet, tune_elasticnet_hyperparams),
 
-    "rf": {"name": "Random Forest", "train": train_rf, "tune": tune_rf_hyperparams},
-    "xgb": {"name": "XGBoost", "train": train_xgb, "tune": tune_xgb_hyperparams},
+    # provides_ensemble_std: RandomForestRegressor exposes `estimators_`, so the
+    # UQ pipeline can read the spread of its trees. XGBoost fits one additive
+    # model, not a bag of interchangeable ones, so its boosters carry no
+    # comparable spread.
+    ModelSpec("rf", "Random Forest", train_rf, tune_rf_hyperparams, provides_ensemble_std=True),
+    ModelSpec("xgb", "XGBoost", train_xgb, tune_xgb_hyperparams),
 
-    "svr": {"name": "SVR", "train": train_svr, "tune": tune_svr_hyperparams},
-    "mlp": {"name": "MLP", "train": train_mlp, "tune": tune_mlp_hyperparams},
-})
+    ModelSpec("svr", "SVR", train_svr, tune_svr_hyperparams),
+    ModelSpec("mlp", "MLP", train_mlp, tune_mlp_hyperparams),
+])
