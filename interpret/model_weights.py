@@ -1,11 +1,21 @@
 """Permutation feature importance and SHAP summary plots for a trained model."""
 
+import os
 from typing import Optional
 
-import matplotlib.pyplot as plt
-import shap
+# Must be set before `import shap` pulls in cv2: cv2 bundles its own Qt
+# platform plugin, which collides with the system one and aborts the process
+# (SIGABRT) as soon as a subprocess is forked for hyperparameter tuning. This
+# process never renders a GUI, so the offscreen platform is always correct.
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from sklearn.inspection import permutation_importance
+import matplotlib  # noqa: E402
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt  # noqa: E402
+import shap  # noqa: E402
+
+from sklearn.inspection import permutation_importance  # noqa: E402
 
 
 def plot_permutation_importance(
