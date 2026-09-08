@@ -77,8 +77,7 @@ def run_cross_validation(cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> N
     )
 
     if cfg.tuning.enabled:
-        # The search is nested inside every outer fold, so its cost multiplies
-        # out fast; surface the budget before spending an hour on it.
+        # Nested search multiplies fast; warn before spending an hour on it.
         tunable = [spec for spec in specs if spec.tune is not None]
         searches = len(cfg.kfold.seeds) * cfg.kfold.folds * len(tunable)
         print(
@@ -141,10 +140,8 @@ def _run_ablation(
 ) -> None:
     """Produce the interpretability figures for one set of fitted models.
 
-    Which model is explained and which are compared in the case studies both
-    come from the config (`interpret_model`, `case_study_models`), so this no
-    longer silently does nothing unless the run happened to include rf, xgb and
-    ridge under exactly those keys.
+    Which model to explain and which to compare come from the config
+    (`interpret_model`, `case_study_models`).
     """
     pt, mm = load_elemental_data(cfg.pt_path, cfg.mm_path)
 
@@ -185,14 +182,8 @@ def _run_ablation(
 def run_holdout(cfg: RunConfig, registry: Mapping[str, ModelSpec], plots_dir: Path) -> None:
     """Repeat a train/validate split once per seed in holdout_seeds; report mean ± std.
 
-    holdout_seeds seeds the train/valid split only, and is deliberately separate
-    from random_state (which seeds model construction and the hyperparameter
-    search). A single split is one draw from a small dataset, so its metrics
-    move by more than the gaps between models; several seeds give a spread to
-    compare against.
-
-    Ablation plots are produced from the first seed's models only, so figure
-    filenames stay stable across runs.
+    holdout_seeds seeds the split only, kept separate from random_state (model
+    construction and tuning). Ablation plots use the first seed's models only.
     """
     specs = resolve_models(registry, cfg.models)
     X, y, feature_columns = load_features_and_target(
