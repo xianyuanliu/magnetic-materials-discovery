@@ -91,7 +91,7 @@ def _fit_and_predict(
     y_pred = model.predict(X.iloc[test_idx])
 
     half_widths = {
-        RF_STD: gaussian_half_width(sigma),
+        RF_STD: gaussian_half_width(sigma, alpha),
         CONFORMAL: ConformalCalibrator.fit(y_cal, pred_cal, alpha).half_width(sigma),
         CONFORMAL_NORM: ConformalCalibrator.fit(y_cal, pred_cal, alpha, sigma_cal).half_width(sigma),
     }

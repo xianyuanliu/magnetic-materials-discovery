@@ -21,12 +21,9 @@ from dataclasses import dataclass
 from typing import Optional
 
 import numpy as np
+from scipy.stats import norm
 
 from core import DEFAULT_ALPHA
-
-# Half-width of a two-sided Gaussian interval at the default alpha, used to read
-# an RF tree-std as if it were a calibrated standard deviation.
-GAUSSIAN_Z = 1.959963984540054
 
 # rf_std is exactly 0 where every tree agrees, and the normalized variant
 # divides by it. Flooring at a small fraction of the calibration set's mean
@@ -136,6 +133,7 @@ class ConformalCalibrator:
         return np.full(sigma.shape, self.quantile, dtype=float)
 
 
-def gaussian_half_width(sigma: np.ndarray, z: float = GAUSSIAN_Z) -> np.ndarray:
-    """Read a sigma estimate as a Gaussian interval half-width."""
+def gaussian_half_width(sigma: np.ndarray, alpha: float = DEFAULT_ALPHA) -> np.ndarray:
+    """Read a sigma estimate as a two-sided Gaussian interval half-width at `alpha`."""
+    z = norm.ppf(1.0 - alpha / 2.0)
     return z * np.asarray(sigma, dtype=float)
