@@ -155,7 +155,16 @@ class TuningConfig:
 
 @dataclass(frozen=True)
 class RunConfig:
-    """One fully resolved run, as parsed from a YAML config file."""
+    """One fully resolved run, as parsed from a YAML config file.
+
+    Attributes:
+        feature_columns: Feature columns to use, named explicitly. Unset falls
+            back to "every column that is not the target or the formula",
+            which promotes any stray id or metadata column into a model input.
+        compare_models: The two models the paired comparison reports on.
+        interpret_model: Which model the importance and SHAP figures explain.
+        case_study_models: Which models the case studies compare.
+    """
 
     dataset: str
     evaluation_mode: str

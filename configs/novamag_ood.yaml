@@ -4,12 +4,9 @@ evaluation_mode: ood
 pt_path: data/Periodic-table/periodic_table.xlsx
 mm_path: data/Miedema-model/Miedema-model-reduced.xlsx
 
-# OOD splits are carved out of the whole pool, so both paths point at one file.
 train_dataset_path: data/novamag-magnetism.csv
 test_dataset_path: data/novamag-magnetism.csv
 
-# Kept identical to configs/mp_ood.yaml — a cross-dataset comparison is only
-# readable if the fold count, seeds and model set match on both sides.
 models:
   - ridge
   - rf
@@ -26,8 +23,6 @@ cv_shuffle: true
 cv_random_state: 0
 cv_seeds: [0, 1]
 
-# Hyperparameter-search budget. In OOD mode the search would re-run per fold
-# per split per seed, so keep it small if enable_hyperparameter_tuning is on.
 tune_cv_folds: 3
 tune_n_iter: 20
 
@@ -43,22 +38,14 @@ ood_fractions: [0.1, 0.2]
 sparsex_neighbors: 5
 sparsey_center: median
 
-# null = run every split that passes the size filters below. A numeric cap is a
-# smoke-test setting only: targets are ordered by frequency, so capping keeps
-# precisely the splits with the largest test set and the least training data.
 ood_max_splits: null
 ood_min_test: 10
 ood_min_train: 50
 
-# Score a same-size random split next to every OOD split, so the reported drop
-# separates the shift from the training data the split throws away.
 ood_size_matched_control: true
 
 ood_output_dir: ./results/novamag_ood
 
-# The nine engineered features, named explicitly. Without this the loader falls
-# back to "every column that is not the target or the formula", which promotes
-# any stray id or metadata column in the CSV into a model input.
 feature_columns:
   - compoundradix
   - stoicentw
@@ -70,6 +57,4 @@ feature_columns:
   - valencew
   - electronegw
 
-# Which two models the paired comparison reports on. Previously hard-coded to
-# Random Forest vs XGBoost inside the evaluation code.
 compare_models: [rf, xgb]

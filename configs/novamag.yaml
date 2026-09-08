@@ -15,13 +15,9 @@ models:
   - mlp
 
 enable_data_visualization: true
-
 enable_ablation_study: true
 
-# evaluation_mode: holdout # or cross_validation or ood
 evaluation_mode: cross_validation
-# train_dataset_path: data/novamag-train.csv
-# test_dataset_path: data/novamag-test.csv
 
 cv_folds: 10
 cv_shuffle: true
@@ -29,22 +25,14 @@ cv_random_state: 0
 cv_seeds: [0, 5, 10, 15, 20]
 enable_hyperparameter_tuning: true
 
-# Holdout mode: repeat the split over these seeds and report mean ± std.
-# Seeds the split only — random_state below seeds the models.
 holdout_seeds: [0, 1, 2, 3, 4]
 holdout_train_size: 0.8
 
-# Hyperparameter-search budget. The search re-runs inside every outer fold, so
-# its cost is (cv_seeds x cv_folds x tunable models x tune_n_iter x
-# tune_cv_folds) model fits — keep these well below cv_folds.
 tune_cv_folds: 3
 tune_n_iter: 20
 
 random_state: 0
 
-# The nine engineered features, named explicitly. Without this the loader falls
-# back to "every column that is not the target or the formula", which promotes
-# any stray id or metadata column in the CSV into a model input.
 feature_columns:
   - compoundradix
   - stoicentw
@@ -56,11 +44,7 @@ feature_columns:
   - valencew
   - electronegw
 
-# Which two models the paired comparison reports on. Previously hard-coded to
-# Random Forest vs XGBoost inside the evaluation code.
 compare_models: [rf, xgb]
 
-# Which model the importance and SHAP figures explain, and which models the
-# case studies compare. Both used to be hard-coded.
 interpret_model: rf
 case_study_models: [rf, xgb, ridge]
