@@ -223,7 +223,7 @@ _TOP_LEVEL_KEYS = frozenset({
 
 _OOD_KEYS = frozenset({
     "ood_mode", "ood_k", "ood_seed", "ood_max_splits",
-    "ood_elements", "ood_periods", "ood_groups", "ood_targets",
+    "ood_elements", "ood_periods", "ood_groups",
     "ood_fractions", "sparsex_neighbors", "sparsey_center",
     "ood_min_test", "ood_min_train", "ood_period_strict", "ood_group_strict",
     "ood_size_matched_control", "ood_output_dir",
@@ -271,16 +271,8 @@ def _check_known_keys(raw: Mapping[str, Any]) -> None:
 def load_ood_config(raw: Mapping[str, Any], default_seed: int) -> OODConfig:
     """Build an OODConfig from the raw mapping, filling in defaults.
 
-    `ood_targets` is the superseded single-list form. One list cannot serve all
-    three membership families — the period and group builders need integers,
-    the element builder needs symbols — so under `ood_mode: all` it used to
-    raise `invalid literal for int()`. It is still accepted for a single-family
-    run, where its meaning is unambiguous, and rejected with an explanation
-    otherwise.
-
     Raises:
-        ValueError: If `ood_mode` is unsupported, or `ood_targets` is used with
-            an `ood_mode` that does not pin down what the targets are.
+        ValueError: If `ood_mode` is unsupported.
     """
     mode = str(raw.get("ood_mode", "all")).lower()
     if mode not in OOD_MODES:
@@ -289,22 +281,6 @@ def load_ood_config(raw: Mapping[str, Any], default_seed: int) -> OODConfig:
     elements = _as_tuple(raw.get("ood_elements"), str)
     periods = _as_tuple(raw.get("ood_periods"), int)
     groups = _as_tuple(raw.get("ood_groups"), int)
-
-    legacy = raw.get("ood_targets")
-    if legacy is not None:
-        per_family = {"element": "ood_elements", "period": "ood_periods", "group": "ood_groups"}
-        if mode not in per_family:
-            raise ValueError(
-                f"'ood_targets' is ambiguous with ood_mode: {mode}. Element targets are "
-                f"symbols and period/group targets are integers, so one list cannot serve "
-                f"all families. Use ood_elements / ood_periods / ood_groups instead."
-            )
-        if mode == "element":
-            elements = elements or _as_tuple(legacy, str)
-        elif mode == "period":
-            periods = periods or _as_tuple(legacy, int)
-        else:
-            groups = groups or _as_tuple(legacy, int)
 
     max_splits = raw.get("ood_max_splits")
     seeds = _as_tuple(raw.get("cv_seeds"), int) or (int(raw.get("ood_seed", default_seed)),)
