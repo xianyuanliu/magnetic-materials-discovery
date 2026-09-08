@@ -1,5 +1,5 @@
 """
-Training and tuning helpers for all models in models.py:
+Training and tuning helpers for all models in pipeline/models.py:
 - Train linear, tree/boosting, kernel, and neural regressors
 - GridSearchCV, exhaustive, for the trimmed grids (Ridge, Lasso, ElasticNet,
   RF, XGBoost, SVR)
@@ -25,7 +25,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from core import DEFAULT_TUNE_CV_FOLDS, DEFAULT_TUNE_N_ITER, ModelSpec, build_registry
-from models import (
+from pipeline.models import (
     build_linear_regression_model,
     build_ridge_model,
     build_lasso_model,
