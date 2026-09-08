@@ -8,7 +8,7 @@ from interpret.visualize import plot_ms_distribution_by_tm, plot_violin_ms_by_tm
 from loaddata.feature_csv_access import load_raw_data
 from pipeline.cross_validation_pipeline import run_cross_validation
 from pipeline.holdout_pipeline import run_holdout
-from pipeline.model_registry import MODEL_REGISTRY
+from pipeline.model import MODEL_REGISTRY
 from pipeline.ood_pipeline import run_ood_evaluation
 from pipeline.predict_pipeline import run_predict
 from pipeline.uq_pipeline import run_uq_evaluation

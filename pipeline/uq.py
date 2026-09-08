@@ -49,7 +49,7 @@ def rf_tree_std(model, X) -> np.ndarray:
 
     Args:
         model: A fitted RandomForestRegressor. Tree ensembles are trained
-            unscaled (see pipeline/model_registry.py:_scaled), so `estimators_` accept
+            unscaled (see pipeline/model.py:_scaled), so `estimators_` accept
             the same X as the forest itself.
         X: Feature matrix to predict.
 

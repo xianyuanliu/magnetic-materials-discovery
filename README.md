@@ -17,8 +17,8 @@ Module directories loosely follow [PyKale](https://github.com/pykale/pykale)'s p
 convention (`loaddata → prepdata → predict → evaluate → interpret`, with `pipeline` for
 domain-specific orchestration), simplified for this repo's scale: no `embed/` stage
 (feature engineering already produces the final feature vector consumed directly by the
-regressors). Everything that builds, tunes, or runs a model — bare model builders
-(`models.py`), the tuned registry (`model_registry.py`), and one orchestration module per
+regressors). Everything that builds, tunes, or runs a model — every model's bare
+constructor, tuner and trainer (`model.py`), and one orchestration module per
 evaluation mode — lives under `pipeline/`, since none of it is meant to be imported
 without the rest.
 
@@ -52,12 +52,12 @@ output appearing as a side effect.
 - `prepdata/`: chemical-formula parsing and element-weighted feature engineering
   (`alloy_transform.py`), plus the higher-level feature-table builder
   (`build_features.py`).
-- `pipeline/`: bare model builders (`models.py`); the tuned registry combining
-  `models.py`'s builders with hyperparameter search into fittable `ModelSpec`s
-  (`model_registry.py`, exposes `MODEL_REGISTRY`); the paired model-comparison helper
-  shared by holdout and cross-validation (`comparison.py`); one orchestration module per
-  evaluation mode — `holdout_pipeline.py`, `cross_validation_pipeline.py`,
-  `predict_pipeline.py`; the OOD stress-test pipeline (`ood_pipeline.py` orchestration +
+- `pipeline/`: every model's bare constructor, tuner and trainer, one block each,
+  combined into fittable `ModelSpec`s (`model.py`, exposes `MODEL_REGISTRY`); the paired
+  model-comparison helper shared by holdout and cross-validation (`comparison.py`); one
+  orchestration module per evaluation mode — `holdout_pipeline.py`,
+  `cross_validation_pipeline.py`, `predict_pipeline.py`; the OOD stress-test pipeline
+  (`ood_pipeline.py` orchestration +
   `ood_scenarios.py` config-to-splits selection + `ood_splits.py` split-family builders:
   LOEO/LOPO/LOGO/LOCO/SparseX/SparseY, plus the two in-distribution reference builders);
   and the uncertainty pipeline (`uq_pipeline.py` orchestration + `uq.py` estimators and

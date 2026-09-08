@@ -32,7 +32,7 @@ def _standardized(X: pd.DataFrame) -> np.ndarray:
     Fitting on all of X is intentional here — these are unsupervised split
     *definitions*, not model inputs, and the LOCO docstring already notes the
     same pragmatic choice for clustering. Model-facing scaling happens inside
-    the training pipeline (see pipeline/model_registry.py:_scaled).
+    the training pipeline (see pipeline/model.py:_scaled).
     """
     return StandardScaler().fit_transform(X.to_numpy())
 
