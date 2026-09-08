@@ -35,8 +35,8 @@ output appearing as a side effect.
   Stays outside every stage package because `evaluate/` needs it too (e.g. `ModelSpec`),
   and must not import `pipeline/` to get it.
   - `core.py`: the `Split` type, the metric list, and the default interval alpha.
-  - `model_spec.py`: `ModelSpec` (the typed registry entry), `build_registry`,
-    `resolve_models`, and the tuning-budget defaults.
+  - `model_spec.py`: `ModelSpec` (the typed registry entry), `resolve_models`,
+    and the tuning-budget defaults.
   - `reporting.py`: every `print_*` and display formatter in the codebase.
   - `persistence.py`: `ModelBundle` — a fitted model plus the feature columns, in
     training order, that it must be given — with `save_model_bundle` / `load_model_bundle`.

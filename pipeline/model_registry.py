@@ -24,7 +24,7 @@ from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-from utils.model_spec import DEFAULT_TUNE_CV_FOLDS, DEFAULT_TUNE_N_ITER, ModelSpec, build_registry
+from utils.model_spec import DEFAULT_TUNE_CV_FOLDS, DEFAULT_TUNE_N_ITER, ModelSpec
 from pipeline.models import (
     build_linear_regression_model,
     build_ridge_model,
@@ -425,7 +425,7 @@ def train_mlp(X_train, y_train, params: Optional[Dict] = None, random_state: int
     return mlp_model
 
 
-MODEL_REGISTRY = build_registry([
+MODEL_REGISTRY = {spec.key: spec for spec in [
     ModelSpec("linear", "Linear Regression", train_linear_regression),
 
     ModelSpec("ridge", "Ridge", train_ridge, tune_ridge_hyperparams),
@@ -441,4 +441,4 @@ MODEL_REGISTRY = build_registry([
 
     ModelSpec("svr", "SVR", train_svr, tune_svr_hyperparams),
     ModelSpec("mlp", "MLP", train_mlp, tune_mlp_hyperparams),
-])
+]}

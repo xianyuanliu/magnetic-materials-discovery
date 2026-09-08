@@ -5,9 +5,8 @@ Deliberately a leaf, for the same reason as utils/core.py: `evaluate/` needs
 `ModelSpec` too, and must not import `pipeline/` to get it.
 """
 
-import types
 from dataclasses import dataclass
-from typing import Callable, Dict, Mapping, Optional, Sequence, Tuple
+from typing import Callable, Mapping, Optional, Sequence, Tuple
 
 # Default hyperparameter-search budget. Deliberately smaller than the outer
 # cv_folds: the search is nested inside every outer fold, so its cost is
@@ -43,26 +42,6 @@ class ModelSpec:
     train: Callable
     tune: Optional[Callable] = None
     provides_ensemble_std: bool = False
-
-
-def build_registry(specs: Sequence[ModelSpec]) -> Mapping[str, ModelSpec]:
-    """Index `specs` by key into a read-only registry.
-
-    Args:
-        specs: Model specifications, with unique keys.
-
-    Returns:
-        A mapping from key to ModelSpec that callers cannot mutate.
-
-    Raises:
-        ValueError: If two specs share a key.
-    """
-    registry: Dict[str, ModelSpec] = {}
-    for spec in specs:
-        if spec.key in registry:
-            raise ValueError(f"Duplicate model key in registry: {spec.key!r}")
-        registry[spec.key] = spec
-    return types.MappingProxyType(registry)
 
 
 def resolve_models(
