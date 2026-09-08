@@ -102,22 +102,22 @@ def _print_frame(title: str, df: pd.DataFrame, note: Optional[str] = None) -> No
 
 
 def print_ood_tables(
-    table1: pd.DataFrame,
-    table2: pd.DataFrame,
-    table3: pd.DataFrame,
-    table4: pd.DataFrame,
-    table5: pd.DataFrame,
+    splits_summary: pd.DataFrame,
+    metrics_by_model: pd.DataFrame,
+    comparison_significance: pd.DataFrame,
+    combined_comparison: pd.DataFrame,
+    generalisation_gap: pd.DataFrame,
 ) -> None:
     """Print the OOD result tables."""
-    _print_frame("Table 1: Scenario summary", table1)
-    _print_frame("Table 2: Metrics by model", format_metric_table(table2))
+    _print_frame("Table 1: Scenario summary", splits_summary)
+    _print_frame("Table 2: Metrics by model", format_metric_table(metrics_by_model))
     _print_frame(
         "Table 3: Model comparison significance",
-        table3,
+        comparison_significance,
         note="paired across OOD splits — one observation per split, not per inner fold",
     )
-    _print_frame("Table 4: Combined comparison", format_metric_table(table4))
-    _print_frame("Table 5: Generalisation gap (MSE), shift vs training-pool", table5)
+    _print_frame("Table 4: Combined comparison", format_metric_table(combined_comparison))
+    _print_frame("Table 5: Generalisation gap (MSE), shift vs training-pool", generalisation_gap)
 
 
 def print_uq_report(across_seeds: pd.DataFrame, alpha: float) -> None:

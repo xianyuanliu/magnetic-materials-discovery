@@ -213,26 +213,32 @@ def run_ood_evaluation(
         for target, frames in zip(collected, scenario_frames):
             target.extend(frames)
 
-    table1, table2 = (
+    splits_summary, metrics_by_model = (
         pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
         for frames in collected
     )
 
-    table3 = pd.DataFrame()
+    comparison_significance = pd.DataFrame()
     if cfg.compare_models is not None:
         name_a, name_b = (
             spec.name for spec in resolve_models(model_registry, cfg.compare_models)
         )
-        table3 = summarize_model_comparison(table2, name_a, name_b, split_type=OOD)
+        comparison_significance = summarize_model_comparison(
+            metrics_by_model, name_a, name_b, split_type=OOD
+        )
 
-    table4 = summarize_runs_across_splits(table2)
-    table5 = summarize_generalisation_gap(table4)
+    combined_comparison = summarize_runs_across_splits(metrics_by_model)
+    generalisation_gap = summarize_generalisation_gap(combined_comparison)
 
-    print_ood_tables(table1, table2, table3, table4, table5)
+    tables = (
+        splits_summary, metrics_by_model, comparison_significance,
+        combined_comparison, generalisation_gap,
+    )
+    print_ood_tables(*tables)
 
     out_dir = Path(ood_cfg.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    for table, filename in zip((table1, table2, table3, table4, table5), TABLE_FILENAMES):
+    for table, filename in zip(tables, TABLE_FILENAMES):
         if not table.empty:
             table.to_csv(out_dir / filename, index=False)
 
