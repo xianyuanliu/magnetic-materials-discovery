@@ -6,8 +6,10 @@ an unrecognised key was ignored entirely — so a typo in `uq_calibration_fracti
 simply disabled it. Parsing happens here instead: unknown keys are rejected,
 types are coerced once, and the rest of the codebase receives frozen dataclasses.
 
-`RunConfig` covers the whole run; `OODConfig`, `UQConfig` and `PredictConfig`
-carry the settings specific to one evaluation mode.
+`RunConfig` covers settings shared across every mode; `KFoldConfig` and
+`TuningConfig` carry settings shared by more than one mode but not all of
+them; `HoldoutConfig`, `OODConfig`, `UQConfig` and `PredictConfig` carry the
+settings specific to one evaluation mode.
 """
 
 from dataclasses import dataclass, field
@@ -118,6 +120,40 @@ class PredictConfig:
 
 
 @dataclass(frozen=True)
+class KFoldConfig:
+    """K-fold splitter settings, shared by cross_validation and by the
+    in-distribution K-fold reference that OOD and UQ score every split against.
+    """
+
+    folds: int = 5
+    shuffle: bool = True
+    random_state: int = 0
+    seeds: Tuple[int, ...] = (0,)
+
+
+@dataclass(frozen=True)
+class HoldoutConfig:
+    """Resolved settings for `evaluation_mode: holdout`."""
+
+    seeds: Tuple[int, ...] = (0,)
+    train_size: float = 0.8
+
+
+@dataclass(frozen=True)
+class TuningConfig:
+    """Hyperparameter-search budget, shared by cross_validation and OOD.
+
+    The search re-runs inside every outer fold, so its cost is
+    (outer folds x seeds x tunable models x n_iter x cv_folds) model fits —
+    keep cv_folds and n_iter well below the outer fold count.
+    """
+
+    enabled: bool = False
+    cv_folds: int = DEFAULT_TUNE_CV_FOLDS
+    n_iter: int = DEFAULT_TUNE_N_ITER
+
+
+@dataclass(frozen=True)
 class RunConfig:
     """One fully resolved run, as parsed from a YAML config file."""
 
@@ -140,23 +176,14 @@ class RunConfig:
     case_study_models: Tuple[str, ...] = ()
 
     enable_data_visualization: bool = False
-    enable_hyperparameter_tuning: bool = False
     enable_ablation_study: bool = False
 
-    cv_folds: int = 5
-    cv_shuffle: bool = True
-    cv_random_state: int = 0
-    cv_seeds: Tuple[int, ...] = (0,)
-
-    holdout_seeds: Tuple[int, ...] = (0,)
-    holdout_train_size: float = 0.8
-
-    tune_cv_folds: int = DEFAULT_TUNE_CV_FOLDS
-    tune_n_iter: int = DEFAULT_TUNE_N_ITER
     model_random_state: int = 0
-
     plots_output_dir: str = "./plots"
 
+    kfold: KFoldConfig = field(default_factory=KFoldConfig)
+    holdout: HoldoutConfig = field(default_factory=HoldoutConfig)
+    tuning: TuningConfig = field(default_factory=TuningConfig)
     ood: OODConfig = field(default_factory=OODConfig)
     uq: UQConfig = field(default_factory=UQConfig)
     predict: PredictConfig = field(default_factory=PredictConfig)
@@ -352,8 +379,8 @@ def _validate(cfg: RunConfig) -> None:
     if cfg.feature_columns is not None and not cfg.feature_columns:
         raise ValueError("feature_columns was given but is empty.")
 
-    if not 0.0 < cfg.holdout_train_size < 1.0:
-        raise ValueError(f"holdout_train_size must be in (0, 1), got {cfg.holdout_train_size}.")
+    if not 0.0 < cfg.holdout.train_size < 1.0:
+        raise ValueError(f"holdout_train_size must be in (0, 1), got {cfg.holdout.train_size}.")
 
 
 def parse_run_config(raw: Mapping[str, Any]) -> RunConfig:
@@ -389,18 +416,24 @@ def parse_run_config(raw: Mapping[str, Any]) -> RunConfig:
         interpret_model=raw.get("interpret_model"),
         case_study_models=_as_tuple(raw.get("case_study_models", []), str) or (),
         enable_data_visualization=bool(raw.get("enable_data_visualization", False)),
-        enable_hyperparameter_tuning=bool(raw.get("enable_hyperparameter_tuning", False)),
         enable_ablation_study=bool(raw.get("enable_ablation_study", False)),
-        cv_folds=int(raw.get("cv_folds", 5)),
-        cv_shuffle=bool(raw.get("cv_shuffle", True)),
-        cv_random_state=cv_random_state,
-        cv_seeds=_as_tuple(raw.get("cv_seeds"), int) or (cv_random_state,),
-        holdout_seeds=_as_tuple(raw.get("holdout_seeds"), int) or (cv_random_state,),
-        holdout_train_size=float(raw.get("holdout_train_size", 0.8)),
-        tune_cv_folds=int(raw.get("tune_cv_folds", DEFAULT_TUNE_CV_FOLDS)),
-        tune_n_iter=int(raw.get("tune_n_iter", DEFAULT_TUNE_N_ITER)),
         model_random_state=int(raw.get("random_state", 0)),
         plots_output_dir=str(raw.get("plots_output_dir", "./plots")),
+        kfold=KFoldConfig(
+            folds=int(raw.get("cv_folds", 5)),
+            shuffle=bool(raw.get("cv_shuffle", True)),
+            random_state=cv_random_state,
+            seeds=_as_tuple(raw.get("cv_seeds"), int) or (cv_random_state,),
+        ),
+        holdout=HoldoutConfig(
+            seeds=_as_tuple(raw.get("holdout_seeds"), int) or (cv_random_state,),
+            train_size=float(raw.get("holdout_train_size", 0.8)),
+        ),
+        tuning=TuningConfig(
+            enabled=bool(raw.get("enable_hyperparameter_tuning", False)),
+            cv_folds=int(raw.get("tune_cv_folds", DEFAULT_TUNE_CV_FOLDS)),
+            n_iter=int(raw.get("tune_n_iter", DEFAULT_TUNE_N_ITER)),
+        ),
         ood=load_ood_config(raw, default_seed=cv_random_state),
         uq=_load_uq_config(raw, default_seed=cv_random_state),
         predict=_load_predict_config(raw, models),

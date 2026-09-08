@@ -233,7 +233,7 @@ def run_uq_evaluation(
     per_seed_frames = []
     for seed in seeds:
         scenario_splits: List[Tuple[str, str, List[Split]]] = [
-            (ID_KFOLD, ID_KFOLD, build_kfold_splits(len(X), cfg.cv_folds, cfg.cv_shuffle, seed))
+            (ID_KFOLD, ID_KFOLD, build_kfold_splits(len(X), cfg.kfold.folds, cfg.kfold.shuffle, seed))
         ]
         for scenario, splits in ood_scenarios:
             scenario_splits.append((OOD, scenario, splits))

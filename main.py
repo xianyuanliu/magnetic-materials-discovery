@@ -76,41 +76,41 @@ def run_cross_validation(cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> N
         formula_column=cfg.formula_column,
     )
 
-    if cfg.enable_hyperparameter_tuning:
+    if cfg.tuning.enabled:
         # The search is nested inside every outer fold, so its cost multiplies
         # out fast; surface the budget before spending an hour on it.
         tunable = [spec for spec in specs if spec.tune is not None]
-        searches = len(cfg.cv_seeds) * cfg.cv_folds * len(tunable)
+        searches = len(cfg.kfold.seeds) * cfg.kfold.folds * len(tunable)
         print(
-            f"\n[INFO] Nested hyperparameter search: {len(cfg.cv_seeds)} seed(s) x "
-            f"{cfg.cv_folds} folds x {len(tunable)} tunable model(s) = {searches} searches, "
-            f"each up to {cfg.tune_n_iter} candidates x {cfg.tune_cv_folds} inner folds "
-            f"(~{searches * cfg.tune_n_iter * cfg.tune_cv_folds} model fits). "
+            f"\n[INFO] Nested hyperparameter search: {len(cfg.kfold.seeds)} seed(s) x "
+            f"{cfg.kfold.folds} folds x {len(tunable)} tunable model(s) = {searches} searches, "
+            f"each up to {cfg.tuning.n_iter} candidates x {cfg.tuning.cv_folds} inner folds "
+            f"(~{searches * cfg.tuning.n_iter * cfg.tuning.cv_folds} model fits). "
             f"Lower tune_n_iter / tune_cv_folds in the config to shrink this."
         )
 
-    for run_i, seed in enumerate(cfg.cv_seeds, start=1):
+    for run_i, seed in enumerate(cfg.kfold.seeds, start=1):
         print(f"\n{'=' * 30}")
-        print(f"=== CV Run {run_i}/{len(cfg.cv_seeds)} (seed={seed}) ===")
+        print(f"=== CV Run {run_i}/{len(cfg.kfold.seeds)} (seed={seed}) ===")
         print(f"{'=' * 30}")
 
         results = cross_validate_models(
             X,
             y,
             specs,
-            hyperparameter_tuning=cfg.enable_hyperparameter_tuning,
+            hyperparameter_tuning=cfg.tuning.enabled,
             best_params=None,
-            cv_folds=cfg.cv_folds,
-            shuffle=cfg.cv_shuffle,
+            cv_folds=cfg.kfold.folds,
+            shuffle=cfg.kfold.shuffle,
             random_state=int(seed),
             model_random_state=cfg.model_random_state,
-            tune_cv_folds=cfg.tune_cv_folds,
-            tune_n_iter=cfg.tune_n_iter,
+            tune_cv_folds=cfg.tuning.cv_folds,
+            tune_n_iter=cfg.tuning.n_iter,
         )
 
         print_cv_results(results)
         if cfg.compare_models is not None:
-            _report_comparison(cfg, registry, results, cfg.cv_folds)
+            _report_comparison(cfg, registry, results, cfg.kfold.folds)
 
 
 def _tune_on_split(specs, X_train, y_train, cfg: RunConfig) -> Dict[str, Dict]:
@@ -120,9 +120,9 @@ def _tune_on_split(specs, X_train, y_train, cfg: RunConfig) -> Dict[str, Dict]:
         spec.key: spec.tune(
             X_train,
             y_train,
-            cv_folds=cfg.tune_cv_folds,
+            cv_folds=cfg.tuning.cv_folds,
             random_state=cfg.model_random_state,
-            n_iter=cfg.tune_n_iter,
+            n_iter=cfg.tuning.n_iter,
         )
         for spec in specs
         if spec.tune is not None
@@ -205,16 +205,16 @@ def run_holdout(cfg: RunConfig, registry: Mapping[str, ModelSpec], plots_dir: Pa
     scores = {spec.name: {"mse": [], "mae": [], "mre": [], "r2": []} for spec in specs}
     first_split_models: Dict[str, object] = {}
 
-    for run_i, seed in enumerate(cfg.holdout_seeds, start=1):
-        print(f"\n=== Holdout Run {run_i}/{len(cfg.holdout_seeds)} (split seed={seed}) ===")
+    for run_i, seed in enumerate(cfg.holdout.seeds, start=1):
+        print(f"\n=== Holdout Run {run_i}/{len(cfg.holdout.seeds)} (split seed={seed}) ===")
 
         X_train, X_valid, y_train, y_valid = split_dataset(
-            X, y, train_size=cfg.holdout_train_size, random_state=int(seed)
+            X, y, train_size=cfg.holdout.train_size, random_state=int(seed)
         )
 
         best_params = (
             _tune_on_split(specs, X_train, y_train, cfg)
-            if cfg.enable_hyperparameter_tuning else {}
+            if cfg.tuning.enabled else {}
         )
 
         trained: Dict[str, object] = {}
@@ -237,17 +237,17 @@ def run_holdout(cfg: RunConfig, registry: Mapping[str, ModelSpec], plots_dir: Pa
         if not first_split_models:
             first_split_models = trained
 
-    if len(cfg.holdout_seeds) > 1:
-        print(f"\n=== Holdout across {len(cfg.holdout_seeds)} splits ===")
+    if len(cfg.holdout.seeds) > 1:
+        print(f"\n=== Holdout across {len(cfg.holdout.seeds)} splits ===")
         print_cv_results(scores, title="Holdout Metrics (mean ± std over split seeds):")
         if cfg.compare_models is not None:
-            _report_comparison(cfg, registry, scores, len(cfg.holdout_seeds))
+            _report_comparison(cfg, registry, scores, len(cfg.holdout.seeds))
 
     if not cfg.enable_ablation_study:
         return
 
     X_train, X_valid, y_train, y_valid = split_dataset(
-        X, y, train_size=cfg.holdout_train_size, random_state=int(cfg.holdout_seeds[0])
+        X, y, train_size=cfg.holdout.train_size, random_state=int(cfg.holdout.seeds[0])
     )
     _run_ablation(
         cfg, registry, first_split_models, feature_columns,

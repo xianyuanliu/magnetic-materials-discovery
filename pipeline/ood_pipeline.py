@@ -201,10 +201,10 @@ def run_ood_evaluation(
         evaluate = partial(
             evaluate_splits_kfold_train_fixed_test,
             X_full, y_full, specs=specs,
-            cv_folds=cfg.cv_folds, shuffle=cfg.cv_shuffle,
-            hyperparameter_tuning=cfg.enable_hyperparameter_tuning, best_params=None,
+            cv_folds=cfg.kfold.folds, shuffle=cfg.kfold.shuffle,
+            hyperparameter_tuning=cfg.tuning.enabled, best_params=None,
             model_random_state=cfg.model_random_state,
-            tune_cv_folds=cfg.tune_cv_folds, tune_n_iter=cfg.tune_n_iter,
+            tune_cv_folds=cfg.tuning.cv_folds, tune_n_iter=cfg.tuning.n_iter,
             on_skip=_report_skip(scenario),
         )
         scenario_frames = _run_scenario(
