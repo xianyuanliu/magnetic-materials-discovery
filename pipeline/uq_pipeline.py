@@ -26,7 +26,8 @@ import numpy as np
 import pandas as pd
 
 from config import RunConfig
-from core import ModelSpec, Split
+from utils.core import Split
+from utils.model_spec import ModelSpec
 from evaluate.calibration import summarize_across_seeds, summarize_calibration
 from pipeline.ood_pipeline import load_ood_dataset
 from pipeline.ood_scenarios import build_scenarios
@@ -40,7 +41,7 @@ from pipeline.uq import (
     rf_tree_std,
 )
 from prepdata.alloy_transform import extract_elements_series, load_periodic_table_map
-from reporting import print_uq_report
+from utils.reporting import print_uq_report
 
 # Split families, as they appear in the `split_type` column.
 ID_KFOLD = "ID-kfold"

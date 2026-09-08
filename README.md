@@ -22,26 +22,28 @@ regressors). Everything that builds, tunes, or runs a model — bare model build
 evaluation mode — lives under `pipeline/`, since none of it is meant to be imported
 without the rest.
 
-Dependencies run one way. `core.py` and `config.py` are leaves that import nothing from
+Dependencies run one way. `utils/` and `config.py` are leaves that import nothing from
 the stage packages; `evaluate/` scores the splits it is handed and never imports
 `pipeline/`; `pipeline/` decides which splits exist and calls into `evaluate/`. Nothing
-under `evaluate/` prints — all console output lives in `reporting.py`, so the scoring
-functions can be called from a notebook or another project without a run's output
-appearing as a side effect.
+under `evaluate/` prints — all console output lives in `utils/reporting.py`, so the
+scoring functions can be called from a notebook or another project without a run's
+output appearing as a side effect.
 
 - `main.py`: thin CLI entry point; parses `--config`, then dispatches to a predict,
   holdout, cross-validation, OOD, or UQ run.
-- `core.py`: shared vocabulary with no stage dependencies — the `Split` type, the
-  metric list, tuning defaults, and `ModelSpec` (the typed registry entry). It stays
-  outside every stage package because `evaluate/` needs `ModelSpec` too, and must not
-  import `pipeline/` to get it.
+- `utils/`: infrastructure shared by more than one stage package, not itself a stage.
+  Stays outside every stage package because `evaluate/` needs it too (e.g. `ModelSpec`),
+  and must not import `pipeline/` to get it.
+  - `core.py`: the `Split` type, the metric list, and the default interval alpha.
+  - `model_spec.py`: `ModelSpec` (the typed registry entry), `build_registry`,
+    `resolve_models`, and the tuning-budget defaults.
+  - `reporting.py`: every `print_*` and display formatter in the codebase.
+  - `persistence.py`: `ModelBundle` — a fitted model plus the feature columns, in
+    training order, that it must be given — with `save_model_bundle` / `load_model_bundle`.
 - `config.py`: the whole run config as frozen dataclasses (`RunConfig`, `KFoldConfig`,
   `HoldoutConfig`, `TuningConfig`, `OODConfig`, `UQConfig`, `PredictConfig`). Unknown
   keys are rejected rather than ignored, so a typo in a config file is an error instead
   of a silently disabled setting.
-- `reporting.py`: every `print_*` and display formatter in the codebase.
-- `persistence.py`: `ModelBundle` — a fitted model plus the feature columns, in
-  training order, that it must be given — with `save_model_bundle` / `load_model_bundle`.
 - `preprocess_data.py`: standalone script that builds `data/novamag-magnetism.csv` and
   `data/mp-magnetism.csv` from the raw source data.
 - `loaddata/`: raw file readers — Novamag JSON, periodic table/Miedema spreadsheets

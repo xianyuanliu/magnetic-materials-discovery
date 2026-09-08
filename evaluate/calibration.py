@@ -14,7 +14,7 @@ from typing import Dict, List, Sequence
 import numpy as np
 import pandas as pd
 
-from core import DEFAULT_ALPHA
+from utils.core import DEFAULT_ALPHA
 
 # Columns a per-sample prediction frame must carry for the summaries below.
 SAMPLE_COLUMNS = ("y_true", "y_pred", "sigma", "half_width")

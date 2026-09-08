@@ -21,7 +21,8 @@ from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 import pandas as pd
 
 from config import RunConfig
-from core import ModelSpec, Split, resolve_models
+from utils.core import Split
+from utils.model_spec import ModelSpec, resolve_models
 from evaluate.ood_evaluation import (
     OOD,
     evaluate_splits_kfold_train_fixed_test,
@@ -33,7 +34,7 @@ from loaddata.feature_csv_access import resolve_feature_columns
 from pipeline.ood_scenarios import build_scenarios
 from pipeline.ood_splits import build_size_matched_split
 from prepdata.alloy_transform import extract_elements_series, load_periodic_table_map
-from reporting import print_ood_tables
+from utils.reporting import print_ood_tables
 
 # Result tables, in the order print_ood_tables takes them, paired with the file
 # each is written to.

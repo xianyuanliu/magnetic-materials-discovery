@@ -11,7 +11,7 @@ from typing import Mapping, Optional, Sequence
 import numpy as np
 import pandas as pd
 
-from core import METRIC_DECIMALS, METRICS
+from utils.core import METRICS, METRIC_DECIMALS
 from evaluate.cross_validation import SignificanceResult
 from evaluate.metrics import compute_metrics
 

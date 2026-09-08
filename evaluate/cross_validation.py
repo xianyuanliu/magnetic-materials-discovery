@@ -14,7 +14,8 @@ from scipy import stats
 
 from sklearn.model_selection import KFold
 
-from core import DEFAULT_TUNE_CV_FOLDS, DEFAULT_TUNE_N_ITER, METRICS, ModelSpec
+from utils.core import METRICS
+from utils.model_spec import DEFAULT_TUNE_CV_FOLDS, DEFAULT_TUNE_N_ITER, ModelSpec
 from evaluate.metrics import compute_metrics
 
 # Below this many paired observations a signed-rank test cannot reach any

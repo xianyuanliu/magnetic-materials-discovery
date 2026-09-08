@@ -3,11 +3,11 @@
 from typing import Mapping
 
 from config import RunConfig
-from core import ModelSpec, resolve_models
+from utils.model_spec import ModelSpec, resolve_models
 from evaluate.cross_validation import cross_validate_models
 from loaddata.feature_csv_access import load_features_and_target
 from pipeline.comparison import report_comparison
-from reporting import print_cv_results
+from utils.reporting import print_cv_results
 
 
 def run_cross_validation(cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:

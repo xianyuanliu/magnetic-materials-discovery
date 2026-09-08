@@ -18,7 +18,8 @@ from typing import Any, Mapping, Optional, Sequence, Tuple
 
 import yaml
 
-from core import DEFAULT_ALPHA, DEFAULT_TUNE_CV_FOLDS, DEFAULT_TUNE_N_ITER
+from utils.core import DEFAULT_ALPHA
+from utils.model_spec import DEFAULT_TUNE_CV_FOLDS, DEFAULT_TUNE_N_ITER
 
 # Evaluation modes main.py can dispatch to.
 EVALUATION_MODES = ("predict", "holdout", "cross_validation", "ood", "uq")

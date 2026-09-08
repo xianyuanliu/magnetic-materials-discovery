@@ -21,12 +21,12 @@ from typing import List, Mapping, Tuple
 import pandas as pd
 
 from config import RunConfig
-from core import ModelSpec, resolve_models
+from utils.model_spec import ModelSpec, resolve_models
 from loaddata.feature_csv_access import load_features_and_target
 from loaddata.raw_loaders import load_elemental_data
-from persistence import ModelBundle, align_features, load_model_bundle, save_model_bundle
+from utils.persistence import ModelBundle, align_features, load_model_bundle, save_model_bundle
 from prepdata.build_features import add_engineered_features
-from reporting import print_predictions
+from utils.reporting import print_predictions
 
 # Column the predicted value is written to.
 PREDICTION_COLUMN = "predicted"

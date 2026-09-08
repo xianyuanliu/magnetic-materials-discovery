@@ -12,7 +12,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from persistence import align_features
+from utils.persistence import align_features
 from prepdata import alloy_transform
 from prepdata.build_features import add_engineered_features
 from interpret.case_study_references import (

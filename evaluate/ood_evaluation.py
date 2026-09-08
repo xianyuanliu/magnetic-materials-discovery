@@ -29,7 +29,8 @@ import pandas as pd
 
 from sklearn.model_selection import KFold
 
-from core import DEFAULT_TUNE_CV_FOLDS, DEFAULT_TUNE_N_ITER, METRICS, ModelSpec, Split
+from utils.core import METRICS, Split
+from utils.model_spec import DEFAULT_TUNE_CV_FOLDS, DEFAULT_TUNE_N_ITER, ModelSpec
 from evaluate.cross_validation import MIN_PAIRS_FOR_TEST, compare_models_significance
 from evaluate.metrics import compute_metrics
 

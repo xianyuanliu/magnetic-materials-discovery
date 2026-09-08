@@ -17,7 +17,7 @@ from sklearn.model_selection import KFold
 from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import StandardScaler
 
-from core import Split
+from utils.core import Split
 
 
 def _standardized(X: pd.DataFrame) -> np.ndarray:

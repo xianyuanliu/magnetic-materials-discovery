@@ -4,14 +4,14 @@ from pathlib import Path
 from typing import Dict, Mapping, Sequence
 
 from config import RunConfig
-from core import ModelSpec, resolve_models
+from utils.model_spec import ModelSpec, resolve_models
 from evaluate.metrics import compute_metrics
 from interpret.case_studies import plot_case_studies
 from interpret.model_weights import plot_permutation_importance, plot_shap_summary
 from loaddata.feature_csv_access import load_features_and_target, split_dataset
 from loaddata.raw_loaders import load_elemental_data
 from pipeline.comparison import report_comparison
-from reporting import print_cv_results, print_holdout_results
+from utils.reporting import print_cv_results, print_holdout_results
 
 
 def _tune_on_split(specs, X_train, y_train, cfg: RunConfig) -> Dict[str, Dict]:

@@ -23,7 +23,7 @@ from typing import Optional
 import numpy as np
 from scipy.stats import norm
 
-from core import DEFAULT_ALPHA
+from utils.core import DEFAULT_ALPHA
 
 # rf_std is exactly 0 where every tree agrees, and the normalized variant
 # divides by it. Flooring at a small fraction of the calibration set's mean

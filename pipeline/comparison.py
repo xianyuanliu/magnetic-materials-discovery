@@ -3,9 +3,9 @@
 from typing import Mapping, Tuple
 
 from config import RunConfig
-from core import ModelSpec, resolve_models
+from utils.model_spec import ModelSpec, resolve_models
 from evaluate.cross_validation import compare_models_significance
-from reporting import print_significance
+from utils.reporting import print_significance
 
 # Metrics the configured model pair is compared on.
 COMPARISON_METRICS = ("mse", "mae")
