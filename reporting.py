@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 
 from core import METRIC_DECIMALS, METRICS
-from evaluate.cross_validation import SignificanceResult, WinCounts
+from evaluate.cross_validation import SignificanceResult
 from evaluate.metrics import compute_metrics
 
 
@@ -67,16 +67,6 @@ def print_significance(result: SignificanceResult) -> None:
         return
     print(f"  paired t-test:        t={result.t_stat:.4f}, p={result.t_pvalue:.6g}")
     print(f"  Wilcoxon signed-rank: W={result.w_stat:.4f}, p={result.w_pvalue:.6g}")
-
-
-def print_win_counts(wins: WinCounts, total: int) -> None:
-    """Print the fold-by-fold win tally between two models."""
-    print(f"\nFold-by-fold win count (metric={wins.metric.upper()}): "
-          f"{wins.model_a} vs {wins.model_b}")
-    width = max(len(wins.model_a), len(wins.model_b), len("Ties")) + 7
-    print(f"{wins.model_a + ' wins:':<{width}}{wins.a_wins}/{total}")
-    print(f"{wins.model_b + ' wins:':<{width}}{wins.b_wins}/{total}")
-    print(f"{'Ties:':<{width}}{wins.ties}/{total}")
 
 
 def format_metric_table(df: pd.DataFrame) -> pd.DataFrame:

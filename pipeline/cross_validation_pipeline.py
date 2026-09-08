@@ -53,4 +53,4 @@ def run_cross_validation(cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> N
 
         print_cv_results(results)
         if cfg.compare_models is not None:
-            report_comparison(cfg, registry, results, cfg.kfold.folds)
+            report_comparison(cfg, registry, results)

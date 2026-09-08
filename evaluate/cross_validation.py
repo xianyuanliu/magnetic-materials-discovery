@@ -56,18 +56,6 @@ class SignificanceResult:
     note: Optional[str] = None
 
 
-@dataclass(frozen=True)
-class WinCounts:
-    """How often one model beat another across paired observations."""
-
-    model_a: str
-    model_b: str
-    metric: str
-    a_wins: int
-    b_wins: int
-    ties: int
-
-
 def cross_validate_models(
     X: pd.DataFrame,
     y: pd.Series,
@@ -144,28 +132,6 @@ def cross_validate_models(
                 results[spec.name][metric].append(metrics[metric])
 
     return results
-
-
-def count_wins(
-    results: FoldScores,
-    model_a: str,
-    model_b: str,
-    metric: str = "mse",
-) -> WinCounts:
-    """Count how often `model_a` beat `model_b` fold by fold (lower is better).
-
-    Raises:
-        ValueError: If either model is absent or the two have unequal counts.
-    """
-    a, b = _paired_scores(results, model_a, model_b, metric)
-    return WinCounts(
-        model_a=model_a,
-        model_b=model_b,
-        metric=metric,
-        a_wins=int(np.sum(a < b)),
-        b_wins=int(np.sum(b < a)),
-        ties=int(np.sum(a == b)),
-    )
 
 
 def _paired_scores(results: FoldScores, model_a: str, model_b: str, metric: str):

@@ -134,7 +134,7 @@ def run_holdout(cfg: RunConfig, registry: Mapping[str, ModelSpec], plots_dir: Pa
         print(f"\n=== Holdout across {len(cfg.holdout.seeds)} splits ===")
         print_cv_results(scores, title="Holdout Metrics (mean ± std over split seeds):")
         if cfg.compare_models is not None:
-            report_comparison(cfg, registry, scores, len(cfg.holdout.seeds))
+            report_comparison(cfg, registry, scores)
 
     if not cfg.enable_ablation_study:
         return
