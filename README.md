@@ -17,10 +17,10 @@ Module directories loosely follow [PyKale](https://github.com/pykale/pykale)'s p
 convention (`loaddata → prepdata → predict → evaluate → interpret`, with `pipeline` for
 domain-specific orchestration), simplified for this repo's scale: no `embed/` stage
 (feature engineering already produces the final feature vector consumed directly by the
-regressors), and no directory for a single file — `models.py` stays a flat top-level
-module since it's the only "predict"-stage file and is meant to be reusable on its own
-(e.g. `from models import build_rf_model`) without pulling in the training/tuning
-machinery in `pipeline/train.py`.
+regressors). Everything that builds, tunes, or runs a model — bare model builders
+(`models.py`), the tuned registry (`model_registry.py`), and one orchestration module per
+evaluation mode — lives under `pipeline/`, since none of it is meant to be imported
+without the rest.
 
 Dependencies run one way. `core.py` and `config.py` are leaves that import nothing from
 the stage packages; `evaluate/` scores the splits it is handed and never imports
@@ -32,14 +32,16 @@ appearing as a side effect.
 - `main.py`: thin CLI entry point; parses `--config`, then dispatches to a predict,
   holdout, cross-validation, OOD, or UQ run.
 - `core.py`: shared vocabulary with no stage dependencies — the `Split` type, the
-  metric list, tuning defaults, and `ModelSpec` (the typed registry entry).
-- `config.py`: the whole run config as frozen dataclasses (`RunConfig`, `OODConfig`,
-  `UQConfig`, `PredictConfig`). Unknown keys are rejected rather than ignored, so a
-  typo in a config file is an error instead of a silently disabled setting.
+  metric list, tuning defaults, and `ModelSpec` (the typed registry entry). It stays
+  outside every stage package because `evaluate/` needs `ModelSpec` too, and must not
+  import `pipeline/` to get it.
+- `config.py`: the whole run config as frozen dataclasses (`RunConfig`, `KFoldConfig`,
+  `HoldoutConfig`, `TuningConfig`, `OODConfig`, `UQConfig`, `PredictConfig`). Unknown
+  keys are rejected rather than ignored, so a typo in a config file is an error instead
+  of a silently disabled setting.
 - `reporting.py`: every `print_*` and display formatter in the codebase.
 - `persistence.py`: `ModelBundle` — a fitted model plus the feature columns, in
   training order, that it must be given — with `save_model_bundle` / `load_model_bundle`.
-- `models.py`: bare model builders for all regressors (Ridge, RF, XGBoost, SVR, MLP, ...).
 - `preprocess_data.py`: standalone script that builds `data/novamag-magnetism.csv` and
   `data/mp-magnetism.csv` from the raw source data.
 - `loaddata/`: raw file readers — Novamag JSON, periodic table/Miedema spreadsheets
@@ -48,13 +50,16 @@ appearing as a side effect.
 - `prepdata/`: chemical-formula parsing and element-weighted feature engineering
   (`alloy_transform.py`), plus the higher-level feature-table builder
   (`build_features.py`).
-- `pipeline/`: combines `models.py`'s builders with hyperparameter search into fittable
-  units (`train.py`, exposes `MODEL_REGISTRY` as `ModelSpec`s); the property-prediction
-  pipeline (`predict_pipeline.py`); the OOD stress-test pipeline
-  (`ood_pipeline.py` orchestration + `ood_scenarios.py` config-to-splits selection +
-  `ood_splits.py` split-family builders: LOEO/LOPO/LOGO/LOCO/SparseX/SparseY, plus the
-  two in-distribution reference builders); and the uncertainty pipeline (`uq_pipeline.py`
-  orchestration + `uq.py` estimators and split-conformal calibration).
+- `pipeline/`: bare model builders (`models.py`); the tuned registry combining
+  `models.py`'s builders with hyperparameter search into fittable `ModelSpec`s
+  (`model_registry.py`, exposes `MODEL_REGISTRY`); the paired model-comparison helper
+  shared by holdout and cross-validation (`comparison.py`); one orchestration module per
+  evaluation mode — `holdout_pipeline.py`, `cross_validation_pipeline.py`,
+  `predict_pipeline.py`; the OOD stress-test pipeline (`ood_pipeline.py` orchestration +
+  `ood_scenarios.py` config-to-splits selection + `ood_splits.py` split-family builders:
+  LOEO/LOPO/LOGO/LOCO/SparseX/SparseY, plus the two in-distribution reference builders);
+  and the uncertainty pipeline (`uq_pipeline.py` orchestration + `uq.py` estimators and
+  split-conformal calibration).
 - `evaluate/`: metric primitives (`metrics.py`), K-fold CV scoring and paired
   significance testing (`cross_validation.py`), OOD-specific per-split scoring +
   tables (`ood_evaluation.py`), and calibration metrics (`calibration.py`).
