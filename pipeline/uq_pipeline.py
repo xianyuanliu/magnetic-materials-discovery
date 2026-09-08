@@ -12,8 +12,8 @@ uncertainty ratio — flips sign with the random seed on this data, so this
 pipeline reports coverage and error/sigma against their nominal targets, with a
 spread across seeds, and leaves the reading to the reader.
 
-The model is chosen by capability (`ModelSpec.provides_ensemble_std`) rather
-than by hard-coding a Random Forest; see resolve_uq_model.
+The model is chosen from ENSEMBLE_STD_MODELS rather than by hard-coding a
+Random Forest; see resolve_uq_model.
 """
 
 from __future__ import annotations
@@ -47,6 +47,12 @@ from utils.reporting import print_uq_report
 ID_KFOLD = "ID-kfold"
 OOD = "OOD"
 ID_RANDOM = "ID-random"
+
+# Model keys whose fitted estimator exposes per-member predictions (sklearn's
+# `estimators_`) that pipeline/uq.py's rf_tree_std can read as a spread.
+# RandomForestRegressor is a bag of interchangeable trees; XGBoost fits one
+# additive model, so its boosters carry no comparable spread.
+ENSEMBLE_STD_MODELS = frozenset({"rf"})
 
 TABLE_FILENAMES = (
     "uq_table1_by_split.csv",
@@ -170,10 +176,9 @@ def resolve_uq_model(
     """Look up the UQ model and check it can actually supply a spread.
 
     The estimators in pipeline/uq.py read the per-member predictions of an
-    ensemble, so the model has to expose them. That is a capability the registry
-    declares (`ModelSpec.provides_ensemble_std`), rather than something inferred
-    from the key being "rf" — which is how this used to be decided, and which
-    silently ignored the configured model list.
+    ensemble, so the model has to be in ENSEMBLE_STD_MODELS, rather than
+    something inferred from the key being "rf" — which is how this used to be
+    decided, and which silently ignored the configured model list.
 
     Raises:
         ValueError: If the key is unknown, or names a model with no ensemble
@@ -185,8 +190,8 @@ def resolve_uq_model(
         )
 
     spec = model_registry[model_key]
-    if not spec.provides_ensemble_std:
-        usable = sorted(k for k, v in model_registry.items() if v.provides_ensemble_std)
+    if model_key not in ENSEMBLE_STD_MODELS:
+        usable = sorted(ENSEMBLE_STD_MODELS & set(model_registry))
         raise ValueError(
             f"uq_model {model_key!r} ({spec.name}) exposes no ensemble spread, which the "
             f"uncertainty estimators need. Models that do: {usable}"

@@ -31,17 +31,12 @@ class ModelSpec:
         train: `(X, y, params=None, random_state=0) -> fitted estimator`.
         tune: `(X, y, cv_folds, random_state, n_iter) -> params dict`, or None
             when the model has nothing to search.
-        provides_ensemble_std: Whether a fitted estimator exposes per-member
-            predictions (sklearn's `estimators_`) that the UQ pipeline can read
-            as a spread. Declared here so pipeline/uq_pipeline.py can select a
-            model by capability instead of hard-coding the key "rf".
     """
 
     key: str
     name: str
     train: Callable
     tune: Optional[Callable] = None
-    provides_ensemble_std: bool = False
 
 
 def resolve_models(

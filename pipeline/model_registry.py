@@ -432,11 +432,7 @@ MODEL_REGISTRY = {spec.key: spec for spec in [
     ModelSpec("lasso", "Lasso", train_lasso, tune_lasso_hyperparams),
     ModelSpec("elasticnet", "ElasticNet", train_elasticnet, tune_elasticnet_hyperparams),
 
-    # provides_ensemble_std: RandomForestRegressor exposes `estimators_`, so the
-    # UQ pipeline can read the spread of its trees. XGBoost fits one additive
-    # model, not a bag of interchangeable ones, so its boosters carry no
-    # comparable spread.
-    ModelSpec("rf", "Random Forest", train_rf, tune_rf_hyperparams, provides_ensemble_std=True),
+    ModelSpec("rf", "Random Forest", train_rf, tune_rf_hyperparams),
     ModelSpec("xgb", "XGBoost", train_xgb, tune_xgb_hyperparams),
 
     ModelSpec("svr", "SVR", train_svr, tune_svr_hyperparams),

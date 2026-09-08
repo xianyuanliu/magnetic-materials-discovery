@@ -158,9 +158,9 @@ floor is 0.25, which reads as "not significant" when it is really "this test can
 answer that".
 
 ## Uncertainty (`evaluation_mode: uq`)
-Fits the model named by `uq_model` per split. That model must declare
-`provides_ensemble_std` in the registry — the estimators read the spread of an ensemble's
-members, so the pipeline checks the capability rather than assuming a Random Forest.
+Fits the model named by `uq_model` per split. That model must be in
+`pipeline.uq_pipeline.ENSEMBLE_STD_MODELS` — the estimators read the spread of an
+ensemble's members, so the pipeline checks this rather than assuming a Random Forest.
 Fits it per split and attaches three intervals: `rf_std` (tree spread read
 as a Gaussian sigma), `conformal` (split conformal on absolute residuals, constant
 width), and `conformal_norm` (split conformal on residuals divided by the tree spread,

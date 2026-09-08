@@ -82,8 +82,8 @@ class UQConfig:
 
     Attributes:
         model: Registry key of the model the intervals are built from. It must
-            declare `provides_ensemble_std`; the pipeline checks the capability
-            rather than assuming a Random Forest.
+            be in pipeline.uq_pipeline.ENSEMBLE_STD_MODELS, checked at run time
+            rather than assumed to be a Random Forest.
         alpha: Nominal miscoverage of the reported intervals.
         calibration_fraction: Fraction of each training set withheld to
             calibrate the conformal intervals.
