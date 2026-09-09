@@ -80,10 +80,8 @@ def build_case_features(
         formula_column: Name to give the formula column.
 
     Returns:
-        (features, stoich_array). `features` carries the formula column plus the
-        engineered features; `stoich_array` is the per-element stoichiometry
-        they were derived from, returned so callers can convert it to atomic
-        fractions without re-parsing the formulas.
+        (features, stoich_array). `features` carries the formula column plus the engineered features; `stoich_array`
+        is the per-element stoichiometry they were derived from.
     """
     frame = pd.DataFrame({formula_column: list(formulas)})
     stoich = alloy_transform.get_stoich_array(frame, periodic_table, formula_column=formula_column)

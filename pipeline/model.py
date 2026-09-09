@@ -122,12 +122,7 @@ def tune_ridge_hyperparams(
     X_train, y_train, cv_folds: int = 3, random_state: int = 0,
     n_iter: int = 20,
 ) -> Dict:
-    """Run GridSearchCV to search optimized Ridge hyperparameters.
-
-    random_state and n_iter are accepted (but unused) so every MODEL_REGISTRY["tune"] callable shares the same call
-    signature; Ridge/GridSearchCV has no stochastic element to seed and enumerates its whole grid rather than sampling
-    from it.
-    """
+    """Run GridSearchCV to search optimized Ridge hyperparameters."""
     param_grid = {
         "alpha": [0.001, 0.01, 0.1, 1.0, 10.0, 100.0, 1000.0],
     }
@@ -156,10 +151,7 @@ def tune_lasso_hyperparams(
     X_train, y_train, cv_folds: int = 3, random_state: int = 0,
     n_iter: int = 20,
 ) -> Dict:
-    """Run GridSearchCV to search optimized Lasso hyperparameters.
-
-    random_state and n_iter are accepted (but unused) for call-signature uniformity; see tune_ridge_hyperparams.
-    """
+    """Run GridSearchCV to search optimized Lasso hyperparameters."""
     param_grid = {
         "alpha": [0.0001, 0.001, 0.01, 0.1, 1.0, 10.0],
     }
@@ -188,10 +180,7 @@ def tune_elasticnet_hyperparams(
     X_train, y_train, cv_folds: int = 3, random_state: int = 0,
     n_iter: int = 20,
 ) -> Dict:
-    """Run GridSearchCV to search optimized ElasticNet hyperparameters.
-
-    random_state and n_iter are accepted (but unused) for call-signature uniformity; see tune_ridge_hyperparams.
-    """
+    """Run GridSearchCV to search optimized ElasticNet hyperparameters."""
     param_grid = {
         "alpha": [0.0001, 0.001, 0.01, 0.1, 1.0, 10.0],
         "l1_ratio": [0.1, 0.3, 0.5, 0.7, 0.9],
@@ -240,7 +229,7 @@ def tune_random_forest_hyperparams(
     """Run GridSearchCV to search optimized Random Forest hyperparameters.
 
     max_features is a fraction rather than "sqrt"/"log2": on the 9 engineered features both of those resolve to 3, which
-    leaves 1.0 (consider every feature) unreachable. n_iter is accepted but unused, for call-signature uniformity.
+    leaves 1.0 (consider every feature) unreachable.
     """
     param_grid = {
         "max_depth": [None, 10, 20],
@@ -307,7 +296,7 @@ def tune_xgboost_hyperparams(
     learning_rate is tied to n_estimators rather than crossed with it: each sub-grid holds their product roughly
     constant, so no candidate is simply an undertrained version of another. colsample_bytree is left out — with 9
     features there is little to subsample — while subsample stays, since subsampling rows is a real regularizer at
-    n=460. n_iter is accepted but unused, for call-signature uniformity.
+    n=460.
     """
     param_grid = [
         {
@@ -366,8 +355,7 @@ def tune_svr_hyperparams(
     """Run GridSearchCV to search optimized Support Vector Regressor hyperparameters.
 
     Restricted to the rbf kernel: scaled (see _scaled), rbf beats linear clearly, and gamma is meaningless for a linear
-    kernel anyway. random_state and n_iter are accepted but unused — SVR's solver is deterministic and the grid is
-    enumerated, not sampled.
+    kernel anyway.
     """
     param_grid = {
         "C": [1.0, 10.0, 100.0, 1000.0],

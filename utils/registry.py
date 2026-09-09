@@ -16,7 +16,8 @@ class ModelSpec:
         key: Short identifier used in config files, e.g. "rf".
         name: Human-readable name used in result tables, e.g. "Random Forest".
         train: `(X, y, hyperparams=None, random_state=0) -> fitted estimator`.
-        tune: `(X, y, cv_folds, random_state, n_iter) -> hyperparams dict`, or None when there is nothing to search.
+        tune: `(X, y, cv_folds, random_state, n_iter) -> hyperparams dict`, or None when there is nothing to
+            search. The signature is uniform, so a model with nothing to seed or sample ignores those two.
     """
 
     key: str

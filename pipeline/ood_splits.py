@@ -33,11 +33,7 @@ def _finalize_split(
     min_train: int = 1,
     min_test: int = 1,
 ) -> Optional[Split]:
-    """Return (split_id, train_idx, test_idx), or None if below the minimum size.
-
-    train_idx/test_idx always come in as a partition (a boolean mask and its complement, or an argsort split) built by
-    the caller, so they're already guaranteed disjoint and in-bounds — no need to re-check that here.
-    """
+    """Return (split_id, train_idx, test_idx), or None if below the minimum size."""
     train_idx = np.asarray(train_idx, dtype=int)
     test_idx = np.asarray(test_idx, dtype=int)
 
