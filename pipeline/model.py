@@ -20,27 +20,18 @@ from utils.registry import ModelSpec
 
 
 def _scaled(estimator) -> Pipeline:
-    """Wrap `estimator` in a StandardScaler pipeline.
+    """Wrap `estimator` in a StandardScaler pipeline, so the scaler is fitted on training data only.
 
-    The engineered features span three orders of magnitude (meltingTw ~1.7e3 vs electronegw ~1.8), which cripples every
-    distance-, penalty-, or gradient-based model: unscaled, SVR(rbf) and MLP score R^2 ~0.1 on Novamag versus ~0.6-0.7
-    scaled, and an rbf kernel can never win the hyperparameter search.
-
-    Tree ensembles (RF, XGBoost) are deliberately left bare: they are invariant to per-feature monotone rescaling, so
-    scaling buys nothing, and wrapping them in a Pipeline would stop shap.Explainer from dispatching to the fast exact
-    TreeExplainer in interpret/model_weights.py.
-
-    Scaling lives inside the pipeline (not applied to the whole dataset up front) so the mean/std are fitted on training
-    data only and never leak across a train/test boundary.
+    Tree ensembles are left unscaled: rescaling buys them nothing, and wrapping them here would stop shap.Explainer
+    from dispatching to the fast exact TreeExplainer in interpret/model_weights.py.
     """
     return Pipeline([("scaler", StandardScaler()), ("model", estimator)])
 
 
 def _prefix_hyperparams(hyperparams: Union[Dict, List[Dict]]) -> Union[Dict, List[Dict]]:
-    """Rewrite bare param names for a scaled pipeline ("alpha" -> "model__alpha").
+    """Rewrite bare hyperparameter names for a scaled pipeline ("alpha" -> "model__alpha").
 
-    Accepts a list of dicts too, which is how GridSearchCV expresses a union of sub-grids (see tune_xgboost_hyperparams,
-    which ties learning_rate to n_estimators instead of taking their full product).
+    A list of dicts is how GridSearchCV expresses a union of sub-grids, so it is prefixed element-wise.
     """
     if isinstance(hyperparams, list):
         return [_prefix_hyperparams(sub) for sub in hyperparams]
