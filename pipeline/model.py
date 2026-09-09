@@ -1,6 +1,8 @@
-"""Every regression model this project can fit, one block per model: build (bare constructor), tune (hyperparameter
-search), train (fit). MODEL_REGISTRY at the bottom turns them into the ModelSpecs that pipelines resolve config keys
-against.
+"""Regression models
+
+Each model is defined in a separate block covering model construction,
+hyperparameter tuning, and training. ``MODEL_REGISTRY`` at the bottom of
+the module maps each model to the corresponding configuration key.
 """
 
 from typing import Dict, List, Optional, Union

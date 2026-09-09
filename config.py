@@ -117,8 +117,9 @@ class PredictConfig:
 
 @dataclass(frozen=True)
 class KFoldConfig:
-    """K-fold splitter settings, shared by cross_validation and by the
-    in-distribution K-fold reference that OOD and UQ score every split against.
+    """K-fold splitter settings.
+
+    Shared by cross_validation and by the in-distribution K-fold reference that OOD and UQ score every split against.
     """
 
     folds: int = 5
