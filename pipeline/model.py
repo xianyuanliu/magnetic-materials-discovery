@@ -355,7 +355,7 @@ def train_xgboost(X_train, y_train, hyperparams: Optional[Dict] = None, random_s
     return model
 
 
-# --- SVR ---
+# --- Support Vector Regression ---
 
 def build_svr(
     C: float = 10.0,
@@ -401,7 +401,7 @@ def train_svr(X_train, y_train, hyperparams: Optional[Dict] = None, random_state
     return model
 
 
-# --- MLP ---
+# --- Multi-layer Perceptron ---
 
 def build_mlp(
     hidden_layer_sizes: tuple = (128, 64),
@@ -459,6 +459,8 @@ def train_mlp(X_train, y_train, hyperparams: Optional[Dict] = None, random_state
     model.fit(X_train, y_train)
     return model
 
+
+# --- Model Registry ---
 
 MODEL_REGISTRY = {spec.key: spec for spec in [
     ModelSpec("linear", "Linear Regression", train_linear_regression),
