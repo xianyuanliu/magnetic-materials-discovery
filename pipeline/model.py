@@ -24,7 +24,7 @@ import xgboost
 from utils.registry import ModelSpec
 
 # One hyperparameter grid, or the union of several sub-grids that
-# GridSearchCV expresses as a list (see tune_xgb_hyperparams).
+# GridSearchCV expresses as a list (see tune_xgb).
 ParamGrid = Union[Dict, List[Dict]]
 
 # Name of the estimator step inside the StandardScaler pipeline.
@@ -51,7 +51,7 @@ def _scaled(estimator) -> Pipeline:
 def _prefix_params(params: ParamGrid) -> ParamGrid:
     """Rewrite bare param names for a scaled pipeline ("alpha" -> "model__alpha").
 
-    Accepts a list of dicts too, which is how GridSearchCV expresses a union of sub-grids (see tune_xgb_hyperparams,
+    Accepts a list of dicts too, which is how GridSearchCV expresses a union of sub-grids (see tune_xgb,
     which ties learning_rate to n_estimators instead of taking their full product).
     """
     if isinstance(params, list):
@@ -60,7 +60,7 @@ def _prefix_params(params: ParamGrid) -> ParamGrid:
 
 
 def _strip_params(params: Dict) -> Dict:
-    """Inverse of _prefix_params, so tuned params stay usable as build_*_model kwargs."""
+    """Inverse of _prefix_params, so tuned params stay usable as build_* kwargs."""
     return {key.split("__", 1)[-1]: value for key, value in params.items()}
 
 
@@ -76,7 +76,7 @@ def _grid_search_best_params(
     """Run GridSearchCV for a given model instance, print and return the best params.
 
     Returns bare (un-prefixed) parameter names even when `scale` is set, so the
-    result stays a valid kwargs dict for the matching build_*_model function.
+    result stays a valid kwargs dict for the matching build_* function.
     """
     grid_search = GridSearchCV(
         estimator=_scaled(model) if scale else model,
@@ -125,27 +125,27 @@ def _randomized_search_best_params(
 
 # --- Linear Regression ---
 
-def build_linear_regression_model() -> LinearRegression:
+def build_linear() -> LinearRegression:
     """Construct a Linear Regression model."""
     return LinearRegression()
 
 
-def train_linear_regression(X_train, y_train, params: Optional[Dict] = None, random_state: int = 0):
+def train_linear(X_train, y_train, params: Optional[Dict] = None, random_state: int = 0):
     """Train Linear Regression (no hyperparameters, no randomness to seed)."""
     del random_state  # unused; accepted for a uniform MODEL_REGISTRY["train"] signature
-    model = _scaled(build_linear_regression_model())
+    model = _scaled(build_linear())
     model.fit(X_train, y_train)
     return model
 
 
 # --- Ridge ---
 
-def build_ridge_model(alpha: float = 1.0) -> Ridge:
+def build_ridge(alpha: float = 1.0) -> Ridge:
     """Construct a Ridge Regression model."""
     return Ridge(alpha=alpha, max_iter=10000)
 
 
-def tune_ridge_hyperparams(
+def tune_ridge(
     X_train, y_train, cv_folds: int = 3, random_state: int = 0,
     n_iter: int = 20,
 ) -> Dict:
@@ -158,75 +158,75 @@ def tune_ridge_hyperparams(
     param_grid = {
         "alpha": [0.001, 0.01, 0.1, 1.0, 10.0, 100.0, 1000.0],
     }
-    return _grid_search_best_params(build_ridge_model(), param_grid, X_train, y_train, cv_folds, "Ridge", scale=True)
+    return _grid_search_best_params(build_ridge(), param_grid, X_train, y_train, cv_folds, "Ridge", scale=True)
 
 
 def train_ridge(X_train, y_train, params: Optional[Dict] = None, random_state: int = 0):
     """Train Ridge regression with searched optimized parameters or manually provided parameters."""
     del random_state  # unused; Ridge's default solver is deterministic
     if params is not None:
-        ridge_model = build_ridge_model(**params)
+        model = build_ridge(**params)
     else:
-        ridge_model = build_ridge_model(alpha=1.0)
-    ridge_model = _scaled(ridge_model)
-    ridge_model.fit(X_train, y_train)
-    return ridge_model
+        model = build_ridge(alpha=1.0)
+    model = _scaled(model)
+    model.fit(X_train, y_train)
+    return model
 
 
 # --- Lasso ---
 
-def build_lasso_model(alpha: float = 0.01) -> Lasso:
+def build_lasso(alpha: float = 0.01) -> Lasso:
     """Construct a Lasso Regression model."""
     return Lasso(alpha=alpha, max_iter=10000)
 
 
-def tune_lasso_hyperparams(
+def tune_lasso(
     X_train, y_train, cv_folds: int = 3, random_state: int = 0,
     n_iter: int = 20,
 ) -> Dict:
     """Run GridSearchCV to search optimized Lasso hyperparameters.
 
-    random_state and n_iter are accepted (but unused) for call-signature uniformity; see tune_ridge_hyperparams.
+    random_state and n_iter are accepted (but unused) for call-signature uniformity; see tune_ridge.
     """
     param_grid = {
         "alpha": [0.0001, 0.001, 0.01, 0.1, 1.0, 10.0],
     }
-    return _grid_search_best_params(build_lasso_model(), param_grid, X_train, y_train, cv_folds, "Lasso", scale=True)
+    return _grid_search_best_params(build_lasso(), param_grid, X_train, y_train, cv_folds, "Lasso", scale=True)
 
 
 def train_lasso(X_train, y_train, params: Optional[Dict] = None, random_state: int = 0):
     """Train Lasso regression with searched optimized parameters or manually provided parameters."""
     del random_state  # unused; default selection="cyclic" is deterministic
     if params is not None:
-        lasso_model = build_lasso_model(**params)
+        model = build_lasso(**params)
     else:
-        lasso_model = build_lasso_model(alpha=0.001)
-    lasso_model = _scaled(lasso_model)
-    lasso_model.fit(X_train, y_train)
-    return lasso_model
+        model = build_lasso(alpha=0.001)
+    model = _scaled(model)
+    model.fit(X_train, y_train)
+    return model
 
 
 # --- ElasticNet ---
 
-def build_elasticnet_model(alpha: float = 0.01, l1_ratio: float = 0.5) -> ElasticNet:
+def build_elasticnet(alpha: float = 0.01, l1_ratio: float = 0.5) -> ElasticNet:
     """Construct an ElasticNet Regression model."""
     return ElasticNet(alpha=alpha, l1_ratio=l1_ratio, max_iter=10000)
 
 
-def tune_elasticnet_hyperparams(
+def tune_elasticnet(
     X_train, y_train, cv_folds: int = 3, random_state: int = 0,
     n_iter: int = 20,
 ) -> Dict:
     """Run GridSearchCV to search optimized ElasticNet hyperparameters.
 
-    random_state and n_iter are accepted (but unused) for call-signature uniformity; see tune_ridge_hyperparams.
+    random_state and n_iter are accepted (but unused) for call-signature uniformity; see tune_ridge.
     """
     param_grid = {
         "alpha": [0.0001, 0.001, 0.01, 0.1, 1.0, 10.0],
         "l1_ratio": [0.1, 0.3, 0.5, 0.7, 0.9],
     }
     return _grid_search_best_params(
-        build_elasticnet_model(), param_grid, X_train, y_train, cv_folds, "ElasticNet", scale=True
+        build_elasticnet(), param_grid, X_train, y_train, cv_folds, "ElasticNet", scale=True
     )
 
 
@@ -234,17 +234,17 @@ def train_elasticnet(X_train, y_train, params: Optional[Dict] = None, random_sta
     """Train ElasticNet regression with searched optimized parameters or manually provided parameters."""
     del random_state  # unused; default selection="cyclic" is deterministic
     if params is not None:
-        enet_model = build_elasticnet_model(**params)
+        model = build_elasticnet(**params)
     else:
-        enet_model = build_elasticnet_model(alpha=0.001, l1_ratio=0.1)
-    enet_model = _scaled(enet_model)
-    enet_model.fit(X_train, y_train)
-    return enet_model
+        model = build_elasticnet(alpha=0.001, l1_ratio=0.1)
+    model = _scaled(model)
+    model.fit(X_train, y_train)
+    return model
 
 
 # --- Random Forest ---
 
-def build_rf_model(
+def build_rf(
     n_estimators: int = 300,
     max_depth: Optional[int] = None,
     min_samples_split: int = 5,
@@ -263,7 +263,7 @@ def build_rf_model(
     )
 
 
-def tune_rf_hyperparams(
+def tune_rf(
     X_train, y_train, cv_folds: int = 3, random_state: int = 0,
     n_iter: int = 20,
 ) -> Dict:
@@ -278,28 +278,28 @@ def tune_rf_hyperparams(
         "max_features": [0.5, 0.75, 1.0],
     }
     return _grid_search_best_params(
-        build_rf_model(random_state=random_state), param_grid, X_train, y_train, cv_folds, "RF"
+        build_rf(random_state=random_state), param_grid, X_train, y_train, cv_folds, "RF"
     )
 
 
 def train_rf(X_train, y_train, params: Optional[Dict] = None, random_state: int = 0):
     """Train a random forest with searched optimized parameters or manually provided parameters."""
     if params is not None:
-        rf_model = build_rf_model(**params, random_state=random_state)
+        model = build_rf(**params, random_state=random_state)
     else:
-        rf_model = build_rf_model(
+        model = build_rf(
             max_depth=15,
             min_samples_leaf=2,
             max_features=1.0,
             random_state=random_state,
         )
-    rf_model.fit(X_train, y_train)
-    return rf_model
+    model.fit(X_train, y_train)
+    return model
 
 
 # --- XGBoost ---
 
-def build_xgb_model(
+def build_xgb(
     n_estimators: int = 300,
     learning_rate: float = 0.05,
     max_depth: int = 5,
@@ -327,7 +327,7 @@ def build_xgb_model(
     )
 
 
-def tune_xgb_hyperparams(
+def tune_xgb(
     X_train, y_train, cv_folds: int = 3, random_state: int = 0,
     n_iter: int = 20,
 ) -> Dict:
@@ -349,7 +349,7 @@ def tune_xgb_hyperparams(
         for learning_rate, n_estimators in [(0.01, 1500), (0.05, 600), (0.1, 300)]
     ]
     return _grid_search_best_params(
-        build_xgb_model(random_state=random_state), param_grid, X_train, y_train, cv_folds, "XGB"
+        build_xgb(random_state=random_state), param_grid, X_train, y_train, cv_folds, "XGB"
     )
 
 
@@ -359,9 +359,9 @@ def train_xgb(X_train, y_train, params: Optional[Dict] = None, random_state: int
     Left unscaled on purpose — see _scaled.
     """
     if params is not None:
-        xgb_model = build_xgb_model(**params, random_state=random_state)
+        model = build_xgb(**params, random_state=random_state)
     else:
-        xgb_model = build_xgb_model(
+        model = build_xgb(
             learning_rate=0.01,
             max_depth=7,
             min_child_weight=7,
@@ -369,13 +369,13 @@ def train_xgb(X_train, y_train, params: Optional[Dict] = None, random_state: int
             colsample_bytree=0.6,
             random_state=random_state,
         )
-    xgb_model.fit(X_train, y_train)
-    return xgb_model
+    model.fit(X_train, y_train)
+    return model
 
 
 # --- SVR ---
 
-def build_svr_model(
+def build_svr(
     C: float = 10.0,
     epsilon: float = 0.1,
     kernel: str = "rbf",
@@ -390,7 +390,7 @@ def build_svr_model(
     return SVR(C=C, epsilon=epsilon, kernel=kernel, gamma=gamma, degree=degree)
 
 
-def tune_svr_hyperparams(
+def tune_svr(
     X_train, y_train, cv_folds: int = 3, random_state: int = 0,
     n_iter: int = 20,
 ) -> Dict:
@@ -405,26 +405,26 @@ def tune_svr_hyperparams(
         "gamma": ["scale", 0.01, 0.1, 1.0],
         "epsilon": [0.01, 0.05, 0.1],
     }
-    return _grid_search_best_params(build_svr_model(), param_grid, X_train, y_train, cv_folds, "SVR", scale=True)
+    return _grid_search_best_params(build_svr(), param_grid, X_train, y_train, cv_folds, "SVR", scale=True)
 
 
 def train_svr(X_train, y_train, params: Optional[Dict] = None, random_state: int = 0):
     """Train Support Vector Regression with searched optimized parameters or manually provided parameters."""
     del random_state  # unused; SVR has no random_state (deterministic solver)
     if params is not None:
-        svr_model = build_svr_model(**params)
+        model = build_svr(**params)
     else:
         # rbf, not the previous linear/C=0.1 default: those were the best an
         # unscaled search could do. Scaled, rbf clearly wins (see _scaled).
-        svr_model = build_svr_model(C=10.0, epsilon=0.1, kernel="rbf", gamma="scale")
-    svr_model = _scaled(svr_model)
-    svr_model.fit(X_train, y_train)
-    return svr_model
+        model = build_svr(C=10.0, epsilon=0.1, kernel="rbf", gamma="scale")
+    model = _scaled(model)
+    model.fit(X_train, y_train)
+    return model
 
 
 # --- MLP ---
 
-def build_mlp_model(
+def build_mlp(
     hidden_layer_sizes: tuple = (128, 64),
     activation: str = "relu",
     alpha: float = 1e-4,
@@ -447,7 +447,7 @@ def build_mlp_model(
     )
 
 
-def tune_mlp_hyperparams(
+def tune_mlp(
     X_train, y_train, cv_folds: int = 3, random_state: int = 0,
     n_iter: int = 20,
 ) -> Dict:
@@ -459,7 +459,7 @@ def tune_mlp_hyperparams(
         "learning_rate_init": [1e-4, 1e-3, 5e-3, 1e-2],
     }
     return _randomized_search_best_params(
-        build_mlp_model(random_state=random_state), param_dist, X_train, y_train, cv_folds,
+        build_mlp(random_state=random_state), param_dist, X_train, y_train, cv_folds,
         random_state, "MLP", n_iter=n_iter, scale=True,
     )
 
@@ -467,30 +467,30 @@ def tune_mlp_hyperparams(
 def train_mlp(X_train, y_train, params: Optional[Dict] = None, random_state: int = 0):
     """Train MLP regression with searched optimized parameters or manually provided parameters."""
     if params is not None:
-        mlp_model = build_mlp_model(**params, random_state=random_state)
+        model = build_mlp(**params, random_state=random_state)
     else:
-        mlp_model = build_mlp_model(
+        model = build_mlp(
             hidden_layer_sizes=(256, 128),
             activation="tanh",
             alpha=1e-5,
             learning_rate_init=1e-3,
             random_state=random_state,
         )
-    mlp_model = _scaled(mlp_model)
-    mlp_model.fit(X_train, y_train)
-    return mlp_model
+    model = _scaled(model)
+    model.fit(X_train, y_train)
+    return model
 
 
 MODEL_REGISTRY = {spec.key: spec for spec in [
-    ModelSpec("linear", "Linear Regression", train_linear_regression),
+    ModelSpec("linear", "Linear Regression", train_linear),
 
-    ModelSpec("ridge", "Ridge", train_ridge, tune_ridge_hyperparams),
-    ModelSpec("lasso", "Lasso", train_lasso, tune_lasso_hyperparams),
-    ModelSpec("elasticnet", "ElasticNet", train_elasticnet, tune_elasticnet_hyperparams),
+    ModelSpec("ridge", "Ridge", train_ridge, tune_ridge),
+    ModelSpec("lasso", "Lasso", train_lasso, tune_lasso),
+    ModelSpec("elasticnet", "ElasticNet", train_elasticnet, tune_elasticnet),
 
-    ModelSpec("rf", "Random Forest", train_rf, tune_rf_hyperparams),
-    ModelSpec("xgb", "XGBoost", train_xgb, tune_xgb_hyperparams),
+    ModelSpec("rf", "Random Forest", train_rf, tune_rf),
+    ModelSpec("xgb", "XGBoost", train_xgb, tune_xgb),
 
-    ModelSpec("svr", "SVR", train_svr, tune_svr_hyperparams),
-    ModelSpec("mlp", "MLP", train_mlp, tune_mlp_hyperparams),
+    ModelSpec("svr", "SVR", train_svr, tune_svr),
+    ModelSpec("mlp", "MLP", train_mlp, tune_mlp),
 ]}
