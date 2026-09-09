@@ -19,7 +19,7 @@ from pymatgen.core.composition import Composition
 def parse_elements_from_formula(formula: str) -> List[str]:
     """Extract unique element symbols from a chemical formula using pymatgen.
 
-    Uses the same parser as get_stoich_array so element identification is consistent across the pipeline.
+    Uses the same parser as get_stoich_array so element identification is consistent across the codebase.
 
     A row whose elements come back empty is invisible to any element/period/ group-based OOD split (it can never be
     selected as train or test for a given target), so a genuine parse failure is surfaced via warnings.warn rather than

@@ -19,12 +19,12 @@ from utils.registry import ModelSpec
 
 
 def _scaled(estimator) -> Pipeline:
-    """Wrap `estimator` in a pipeline with a preceding StandardScaler step."""
+    """Wrap `estimator` in a scikit-learn `Pipeline` with a preceding `StandardScaler` step."""
     return Pipeline([("scaler", StandardScaler()), ("model", estimator)])
 
 
 def _prefix_hyperparams(hyperparams: Union[Dict, List[Dict]]) -> Union[Dict, List[Dict]]:
-    """Rewrite bare hyperparameter names for a scaled pipeline ("alpha" -> "model__alpha").
+    """Rewrite bare hyperparameter names for a scaled `Pipeline` ("alpha" -> "model__alpha").
 
     A list of dicts is how GridSearchCV expresses a union of sub-grids, so it is prefixed element-wise.
     """
