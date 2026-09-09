@@ -1,9 +1,7 @@
 """Typed run configuration, parsed and validated once from a YAML file.
 
-Every stage used to read the raw config dict directly, mixing `cfg["x"]` (KeyError on a missing key) with `cfg.get("x",
-default)` (silent fallback), and an unrecognised key was ignored entirely — so a typo in `uq_calibration_fraction`
-simply disabled it. Parsing happens here instead: unknown keys are rejected, types are coerced once, and the rest of the
-codebase receives frozen dataclasses.
+Unknown keys are rejected rather than ignored, types are coerced once, and the rest of the codebase receives frozen
+dataclasses — so a typo in a config file is an error instead of a silently disabled setting.
 
 `RunConfig` covers settings shared across every mode; `KFoldConfig` and `TuningConfig` carry settings shared by more
 than one mode but not all of them; `HoldoutConfig`, `AblationConfig`, `OODConfig`, `UQConfig` and `PredictConfig` carry
@@ -194,11 +192,7 @@ class RunConfig:
 
     @property
     def prefix(self) -> str:
-        """Filename prefix for this run's figures, derived from the dataset name.
-
-        Previously a hard-coded novamag/mp lookup that raised on anything else,
-        which meant a new dataset could not run at all until main.py was edited.
-        """
+        """Filename prefix for this run's figures, derived from the dataset name."""
         cleaned = "".join(c if c.isalnum() else "_" for c in self.dataset.lower())
         return cleaned.strip("_") or "dataset"
 

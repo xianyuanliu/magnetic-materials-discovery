@@ -160,8 +160,7 @@ def resolve_uq_model(model_registry: Mapping[str, ModelSpec], model_key: str) ->
     """Look up the UQ model and check it can actually supply a spread.
 
     The estimators in pipeline/uq.py read the per-member predictions of an ensemble, so the model has to be in
-    ENSEMBLE_STD_MODELS, rather than something inferred from the key being "rf" — which is how this used to be decided,
-    and which silently ignored the configured model list.
+    ENSEMBLE_STD_MODELS.
 
     Raises:
         ValueError: If the key is unknown, or names a model with no ensemble spread to read.

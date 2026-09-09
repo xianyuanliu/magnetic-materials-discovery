@@ -1,10 +1,9 @@
 """Every regression model this project can fit: construction, tuning, and training.
 
 One block per model — build (bare sklearn/xgboost constructor), tune (GridSearchCV or RandomizedSearchCV), train (fit
-with searched or manually provided parameters) — so adding a model touches one place instead of three. MODEL_REGISTRY at
-the bottom combines them into ready-to-fit units, keyed by a single random_state threaded through model construction and
-hyperparameter search from the caller. Each entry is a utils.model_spec.ModelSpec, so a model declares what it can do
-instead of being recognised by key elsewhere in the codebase.
+with searched or manually provided parameters) — so adding a model touches one place. MODEL_REGISTRY at the bottom
+combines them into ready-to-fit ModelSpecs, keyed by a single random_state threaded through both construction and
+hyperparameter search from the caller.
 
 Scale-sensitive models (linear, kernel, neural) are wrapped in a StandardScaler pipeline; see _scaled for why the tree
 ensembles are not. Search cost is controlled by the caller via cv_folds and n_iter, because a nested search re-runs for
@@ -270,13 +269,8 @@ def tune_rf_hyperparams(
 ) -> Dict:
     """Run GridSearchCV to search optimized Random Forest hyperparameters.
 
-    27 combinations, searched exhaustively — cheaper than sampling 20 points out of the old 45 and no longer luck-
-    dependent. n_iter is accepted (but unused) for call-signature uniformity.
-
-    max_features is a fraction rather than "sqrt"/"log2": on the 9 engineered features both of those resolve to
-    int(sqrt(9)) == int(log2(9)) == 3, so they were the same setting listed twice, and the value that actually wins
-    (1.0, i.e. consider every feature) was absent from the grid entirely. n_estimators stays at the builder's 300 — more
-    trees only ever help a little and cost linearly.
+    max_features is a fraction rather than "sqrt"/"log2": on the 9 engineered features both of those resolve to 3, which
+    leaves 1.0 (consider every feature) unreachable. n_iter is accepted but unused, for call-signature uniformity.
     """
     param_grid = {
         "max_depth": [None, 10, 20],
@@ -339,18 +333,10 @@ def tune_xgb_hyperparams(
 ) -> Dict:
     """Run GridSearchCV to search optimized XGBoost hyperparameters.
 
-    54 combinations (3 sub-grids x 3 x 2 x 3), searched exhaustively. n_iter is accepted (but unused) for call-signature
-    uniformity.
-
-    learning_rate is tied to n_estimators instead of taking their product: the old grid swept learning_rate over
-    0.01-0.3 while pinning n_estimators=300, so its low-rate candidates were simply undertrained models the search would
-    reject, burning budget. Each sub-grid below holds learning_rate * n_estimators roughly constant, which is what lets
-    the search reach the (0.01, 1500) region that wins on this data.
-
-    colsample_bytree is dropped, since with 9 features column subsampling has almost nothing to choose from, and the
-    freed budget goes to reg_lambda. subsample is kept: it subsamples *rows*, so at n=460 it is a real regularizer
-    rather than a feature-count question — dropping it costs about 0.013 R^2 on Novamag. min_child_weight is left out to
-    hold the grid near 50 combinations; adding it back gains roughly 0.003 R^2 for 33% more fits.
+    learning_rate is tied to n_estimators rather than crossed with it: each sub-grid holds their product roughly
+    constant, so no candidate is simply an undertrained version of another. colsample_bytree is left out — with 9
+    features there is little to subsample — while subsample stays, since subsampling rows is a real regularizer at
+    n=460. n_iter is accepted but unused, for call-signature uniformity.
     """
     param_grid = [
         {
@@ -410,12 +396,9 @@ def tune_svr_hyperparams(
 ) -> Dict:
     """Run GridSearchCV to search optimized Support Vector Regressor hyperparameters.
 
-    48 combinations, searched exhaustively. random_state and n_iter are accepted (but unused): SVR has a deterministic
-    solver, and the grid is now enumerated rather than sampled.
-
-    Restricted to the rbf kernel. The old grid crossed kernel with gamma, but gamma is meaningless for a linear kernel,
-    so every linear candidate was duplicated six times and roughly half the sampled points were redundant. Scaled (see
-    _scaled), rbf beats linear clearly, so linear is not worth the budget.
+    Restricted to the rbf kernel: scaled (see _scaled), rbf beats linear clearly, and gamma is meaningless for a linear
+    kernel anyway. random_state and n_iter are accepted but unused — SVR's solver is deterministic and the grid is
+    enumerated, not sampled.
     """
     param_grid = {
         "C": [1.0, 10.0, 100.0, 1000.0],

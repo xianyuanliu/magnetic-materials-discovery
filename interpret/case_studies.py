@@ -1,7 +1,7 @@
 """Binary-alloy case studies: model predictions vs. literature measurements.
 
 The comparison is over whatever models the caller passes in, keyed by name, so adding or dropping a model is a config
-change rather than an edit here — it used to take exactly a random forest, an XGBoost and a ridge, in that order.
+change rather than an edit here.
 """
 
 from typing import Any, Dict, List, Mapping, NamedTuple, Sequence, Tuple

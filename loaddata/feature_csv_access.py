@@ -15,9 +15,8 @@ def resolve_feature_columns(
 ) -> List[str]:
     """Determine and validate which columns are model inputs.
 
-    Naming the features explicitly is strongly preferred. The fallback — "every column that is not the target or the
-    formula" — silently promoted anything else in the file into a model input: a `sample_id` column leaks the row order
-    into the model, and a text column such as `source_doi` reaches the scaler as a string. Both are caught here instead.
+    Naming the features explicitly is strongly preferred: the fallback — "every column that is not the target or the
+    formula" — would otherwise promote a stray id or text column into a model input.
 
     Args:
         data: The loaded table.

@@ -3,9 +3,8 @@
 Reads the dataset CSV, asks pipeline/ood_scenarios.py which splits to build, builds the size-matched in-distribution
 controls, hands all of that to evaluate/ood_evaluation.py for scoring, and writes the result tables.
 
-Deciding *which* splits exist lives here; scoring them lives in `evaluate/`. That is why the controls are built in this
-module and passed down rather than constructed inside the evaluator, which previously made `evaluate` import from
-`pipeline` while `pipeline` imported from `evaluate`.
+Deciding *which* splits exist lives here; scoring them lives in `evaluate/`. That is why the controls are built here and
+passed down rather than constructed inside the evaluator, which would make the two packages import each other.
 """
 
 from __future__ import annotations

@@ -52,9 +52,8 @@ def _empty_scores(specs: Sequence[ModelSpec]) -> Dict[str, Dict[str, List[float]
 def heldout_target(split_id: str) -> str:
     """Extract the held-out target from a split id, or "" when there isn't one.
 
-    Membership splits are named `E=Fe`, `P=4`, `G=8`, `C=3`; the sparsity families are named `SparseX_top10pct` and hold
-    out a *fraction*, not a target. Splitting unconditionally on "=" used to make those rows repeat the whole split id
-    in a column meant for a chemistry label.
+    Membership splits are named `E=Fe`, `P=4`, `G=8`, `C=3`; the sparsity families are named `SparseX_top10pct` and
+    hold out a *fraction*, not a target, so they have no label to extract.
     """
     return split_id.split("=", 1)[1] if "=" in split_id else ""
 
@@ -167,11 +166,8 @@ def evaluate_splits_kfold_train_fixed_test(
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """Score each split's fixed OOD test set plus its in-distribution references.
 
-    model_random_state seeds model construction and hyperparameter search (independent of `seed`, which seeds the inner
-    KFold split on TRAIN).
-
-    tune_cv_folds/tune_n_iter bound the hyperparameter search, which re-runs per fold per split per seed — the most
-    expensive place in the codebase to leave the budget unbounded.
+    The hyperparameter search re-runs per fold per split per seed — the most expensive place in the codebase to leave
+    tune_cv_folds/tune_n_iter unbounded.
 
     Args:
         X: Feature matrix for the whole pool.
@@ -244,13 +240,8 @@ def summarize_model_comparison(
 ) -> pd.DataFrame:
     """Paired comparison of two models, one observation per OOD split.
 
-    This replaces a per-split test over inner folds. Those folds all scored the *same* fixed test set, so their scores
-    were repeated measurements of one quantity rather than independent observations of a difference — pairing them
-    inflated the apparent evidence, and with a handful of folds the reported p-value was pinned near the test's own
-    floor anyway.
-
-    Pairing across splits is the valid version: each split is a different test set, and the two models saw identical
-    training data on it.
+    Pairing must be across splits, not across inner folds: each split is a different test set, whereas folds all score
+    the *same* fixed test set and so are repeated measurements of one quantity, not independent observations.
 
     Args:
         metrics_df: Table 2, concatenated across splits and seeds.
