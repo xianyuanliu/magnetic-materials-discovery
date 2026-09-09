@@ -25,8 +25,7 @@ import pandas as pd
 
 from sklearn.model_selection import KFold
 
-from utils.core import METRICS, Split
-from utils.model_spec import DEFAULT_TUNE_CV_FOLDS, DEFAULT_TUNE_N_ITER, ModelSpec
+from utils.core import METRICS, ModelSpec, Split
 from evaluate.cross_validation import MIN_PAIRS_FOR_TEST, compare_models_significance
 from evaluate.metrics import compute_metrics
 
@@ -159,8 +158,8 @@ def evaluate_splits_kfold_train_fixed_test(
     hyperparameter_tuning: bool,
     best_params: Optional[Mapping[str, Dict]] = None,
     model_random_state: int = 0,
-    tune_cv_folds: int = DEFAULT_TUNE_CV_FOLDS,
-    tune_n_iter: int = DEFAULT_TUNE_N_ITER,
+    tune_cv_folds: int = 3,
+    tune_n_iter: int = 20,
     controls: Optional[Mapping[str, Split]] = None,
     on_skip=None,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:

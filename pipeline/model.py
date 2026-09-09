@@ -21,7 +21,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR
 import xgboost
 
-from utils.model_spec import DEFAULT_TUNE_CV_FOLDS, DEFAULT_TUNE_N_ITER, ModelSpec
+from utils.core import ModelSpec
 
 # One hyperparameter grid, or the union of several sub-grids that
 # GridSearchCV expresses as a list (see tune_xgb_hyperparams).
@@ -100,7 +100,7 @@ def _randomized_search_best_params(
     cv_folds: int,
     random_state: int,
     label: str,
-    n_iter: int = DEFAULT_TUNE_N_ITER,
+    n_iter: int = 20,
     scale: bool = False,
 ) -> Dict:
     """Run RandomizedSearchCV for a given model instance, print and return the best params.
@@ -146,8 +146,8 @@ def build_ridge_model(alpha: float = 1.0) -> Ridge:
 
 
 def tune_ridge_hyperparams(
-    X_train, y_train, cv_folds: int = DEFAULT_TUNE_CV_FOLDS, random_state: int = 0,
-    n_iter: int = DEFAULT_TUNE_N_ITER,
+    X_train, y_train, cv_folds: int = 3, random_state: int = 0,
+    n_iter: int = 20,
 ) -> Dict:
     """Run GridSearchCV to search optimized Ridge hyperparameters.
 
@@ -181,8 +181,8 @@ def build_lasso_model(alpha: float = 0.01) -> Lasso:
 
 
 def tune_lasso_hyperparams(
-    X_train, y_train, cv_folds: int = DEFAULT_TUNE_CV_FOLDS, random_state: int = 0,
-    n_iter: int = DEFAULT_TUNE_N_ITER,
+    X_train, y_train, cv_folds: int = 3, random_state: int = 0,
+    n_iter: int = 20,
 ) -> Dict:
     """Run GridSearchCV to search optimized Lasso hyperparameters.
 
@@ -214,8 +214,8 @@ def build_elasticnet_model(alpha: float = 0.01, l1_ratio: float = 0.5) -> Elasti
 
 
 def tune_elasticnet_hyperparams(
-    X_train, y_train, cv_folds: int = DEFAULT_TUNE_CV_FOLDS, random_state: int = 0,
-    n_iter: int = DEFAULT_TUNE_N_ITER,
+    X_train, y_train, cv_folds: int = 3, random_state: int = 0,
+    n_iter: int = 20,
 ) -> Dict:
     """Run GridSearchCV to search optimized ElasticNet hyperparameters.
 
@@ -264,8 +264,8 @@ def build_rf_model(
 
 
 def tune_rf_hyperparams(
-    X_train, y_train, cv_folds: int = DEFAULT_TUNE_CV_FOLDS, random_state: int = 0,
-    n_iter: int = DEFAULT_TUNE_N_ITER,
+    X_train, y_train, cv_folds: int = 3, random_state: int = 0,
+    n_iter: int = 20,
 ) -> Dict:
     """Run GridSearchCV to search optimized Random Forest hyperparameters.
 
@@ -328,8 +328,8 @@ def build_xgb_model(
 
 
 def tune_xgb_hyperparams(
-    X_train, y_train, cv_folds: int = DEFAULT_TUNE_CV_FOLDS, random_state: int = 0,
-    n_iter: int = DEFAULT_TUNE_N_ITER,
+    X_train, y_train, cv_folds: int = 3, random_state: int = 0,
+    n_iter: int = 20,
 ) -> Dict:
     """Run GridSearchCV to search optimized XGBoost hyperparameters.
 
@@ -391,8 +391,8 @@ def build_svr_model(
 
 
 def tune_svr_hyperparams(
-    X_train, y_train, cv_folds: int = DEFAULT_TUNE_CV_FOLDS, random_state: int = 0,
-    n_iter: int = DEFAULT_TUNE_N_ITER,
+    X_train, y_train, cv_folds: int = 3, random_state: int = 0,
+    n_iter: int = 20,
 ) -> Dict:
     """Run GridSearchCV to search optimized Support Vector Regressor hyperparameters.
 
@@ -448,8 +448,8 @@ def build_mlp_model(
 
 
 def tune_mlp_hyperparams(
-    X_train, y_train, cv_folds: int = DEFAULT_TUNE_CV_FOLDS, random_state: int = 0,
-    n_iter: int = DEFAULT_TUNE_N_ITER,
+    X_train, y_train, cv_folds: int = 3, random_state: int = 0,
+    n_iter: int = 20,
 ) -> Dict:
     """Run RandomizedSearchCV to search optimized Multi-Layer Perceptron hyperparameters."""
     param_dist = {

@@ -22,7 +22,6 @@ from typing import Optional
 import numpy as np
 from scipy.stats import norm
 
-from utils.core import DEFAULT_ALPHA
 
 # rf_std is exactly 0 where every tree agrees, and the normalized variant divides by it. Flooring at a small fraction of
 # the calibration set's mean keeps that score bounded while leaving ordinary sigmas untouched; the absolute fallback
@@ -96,7 +95,7 @@ class ConformalCalibrator:
         cls,
         y_cal: np.ndarray,
         y_pred_cal: np.ndarray,
-        alpha: float = DEFAULT_ALPHA,
+        alpha: float = 0.05,
         sigma_cal: Optional[np.ndarray] = None,
     ) -> "ConformalCalibrator":
         """Calibrate on residuals the model never trained on.
@@ -126,7 +125,7 @@ class ConformalCalibrator:
         return np.full(sigma.shape, self.quantile, dtype=float)
 
 
-def gaussian_half_width(sigma: np.ndarray, alpha: float = DEFAULT_ALPHA) -> np.ndarray:
+def gaussian_half_width(sigma: np.ndarray, alpha: float = 0.05) -> np.ndarray:
     """Read a sigma estimate as a two-sided Gaussian interval half-width at `alpha`."""
     z = norm.ppf(1.0 - alpha / 2.0)
     return z * np.asarray(sigma, dtype=float)

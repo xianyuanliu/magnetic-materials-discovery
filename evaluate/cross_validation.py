@@ -13,8 +13,7 @@ from scipy import stats
 
 from sklearn.model_selection import KFold
 
-from utils.core import METRICS
-from utils.model_spec import DEFAULT_TUNE_CV_FOLDS, DEFAULT_TUNE_N_ITER, ModelSpec
+from utils.core import METRICS, ModelSpec
 from evaluate.metrics import compute_metrics
 
 # Below this many paired observations a signed-rank test cannot reach any conventional significance level at all: with n
@@ -63,8 +62,8 @@ def cross_validate_models(
     shuffle: bool = True,
     random_state: int = 0,
     model_random_state: int = 0,
-    tune_cv_folds: int = DEFAULT_TUNE_CV_FOLDS,
-    tune_n_iter: int = DEFAULT_TUNE_N_ITER,
+    tune_cv_folds: int = 3,
+    tune_n_iter: int = 20,
 ) -> FoldScores:
     """Run K-fold cross-validation for the given models.
 

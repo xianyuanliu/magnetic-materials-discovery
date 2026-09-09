@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Dict, Mapping, Sequence
 
 from config import RunConfig
-from utils.model_spec import ModelSpec, resolve_models
+from utils.core import ModelSpec, resolve_models
 from evaluate.metrics import compute_metrics
 from interpret.case_studies import plot_case_studies
 from interpret.model_weights import plot_permutation_importance, plot_shap_summary

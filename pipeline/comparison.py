@@ -3,7 +3,7 @@
 from typing import Mapping, Tuple
 
 from config import RunConfig
-from utils.model_spec import ModelSpec, resolve_models
+from utils.core import ModelSpec, resolve_models
 from evaluate.cross_validation import compare_models_significance
 from utils.reporting import print_significance
 

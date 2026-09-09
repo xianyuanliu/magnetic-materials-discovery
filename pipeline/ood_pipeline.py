@@ -18,8 +18,7 @@ from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 import pandas as pd
 
 from config import RunConfig
-from utils.core import Split
-from utils.model_spec import ModelSpec, resolve_models
+from utils.core import ModelSpec, Split, resolve_models
 from evaluate.ood_evaluation import (
     OOD,
     evaluate_splits_kfold_train_fixed_test,

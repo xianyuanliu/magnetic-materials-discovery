@@ -23,8 +23,7 @@ import numpy as np
 import pandas as pd
 
 from config import RunConfig
-from utils.core import Split
-from utils.model_spec import ModelSpec
+from utils.core import ModelSpec, Split
 from evaluate.calibration import summarize_across_seeds, summarize_calibration
 from pipeline.ood_pipeline import load_ood_dataset
 from pipeline.ood_scenarios import build_scenarios

@@ -13,7 +13,6 @@ from typing import Dict, List, Sequence
 import numpy as np
 import pandas as pd
 
-from utils.core import DEFAULT_ALPHA
 
 # Columns a per-sample prediction frame must carry for the summaries below.
 SAMPLE_COLUMNS = ("y_true", "y_pred", "sigma", "half_width")
@@ -24,7 +23,7 @@ def compute_calibration_metrics(
     y_pred: Sequence[float],
     half_width: Sequence[float],
     sigma: Sequence[float],
-    alpha: float = DEFAULT_ALPHA,
+    alpha: float = 0.05,
 ) -> Dict[str, float]:
     """Score one pooled set of predictions against its uncertainty estimate.
 
@@ -76,7 +75,7 @@ def compute_calibration_metrics(
     }
 
 
-def summarize_calibration(samples: pd.DataFrame, by: Sequence[str], alpha: float = DEFAULT_ALPHA) -> pd.DataFrame:
+def summarize_calibration(samples: pd.DataFrame, by: Sequence[str], alpha: float = 0.05) -> pd.DataFrame:
     """Pool a per-sample prediction frame into one calibration row per group.
 
     Args:

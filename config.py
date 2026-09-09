@@ -14,14 +14,20 @@ from typing import Any, Mapping, Optional, Sequence, Tuple
 
 import yaml
 
-from utils.core import DEFAULT_ALPHA
-from utils.model_spec import DEFAULT_TUNE_CV_FOLDS, DEFAULT_TUNE_N_ITER
 
 # Evaluation modes main.py can dispatch to.
 EVALUATION_MODES = ("predict", "holdout", "cross_validation", "ood", "uq")
 
 # OOD scenario families; "all" selects every one of them.
 OOD_MODES = ("element", "period", "group", "cluster", "sparsex", "sparsey", "all")
+
+# Nominal miscoverage of a reported prediction interval; 0.05 gives the usual 95%.
+DEFAULT_ALPHA = 0.05
+
+# Hyperparameter-search budget. Deliberately smaller than the outer cv_folds: the search is nested inside every
+# outer fold, so its cost is multiplied by (outer folds x seeds x models).
+DEFAULT_TUNE_CV_FOLDS = 3
+DEFAULT_TUNE_N_ITER = 20
 
 # Minimum split sizes. A handful of test samples makes R^2 meaningless and a tiny train set measures nothing but the
 # sample count, so both are filtered out rather than reported as OOD results.
