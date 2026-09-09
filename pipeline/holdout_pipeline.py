@@ -50,27 +50,20 @@ def _run_ablation(
     if cfg.ablation.interpret_model:
         (spec,) = resolve_models(registry, [cfg.ablation.interpret_model])
         if spec.key not in trained:
-            raise ValueError(
-                f"interpret_model {spec.key!r} is not in this run's models: {list(trained)}"
-            )
+            raise ValueError(f"interpret_model {spec.key!r} is not in this run's models: {list(trained)}")
         model = trained[spec.key]
         plot_permutation_importance(
             model, X_valid, y_valid,
             title=f"{spec.name} Permutation Importance ({cfg.prefix})",
             save_path=plots_dir / f"{cfg.prefix}_perm_importance_{spec.key}.png",
         )
-        plot_shap_summary(
-            model, X_train, X_valid,
-            save_path=plots_dir / f"{cfg.prefix}_shap_summary_{spec.key}.png",
-        )
+        plot_shap_summary(model, X_train, X_valid, save_path=plots_dir / f"{cfg.prefix}_shap_summary_{spec.key}.png")
 
     if cfg.ablation.case_study_models:
         specs = resolve_models(registry, cfg.ablation.case_study_models)
         missing = [spec.key for spec in specs if spec.key not in trained]
         if missing:
-            raise ValueError(
-                f"case_study_models names {missing}, which this run did not train: {list(trained)}"
-            )
+            raise ValueError(f"case_study_models names {missing}, which this run did not train: {list(trained)}")
         plot_case_studies(
             feature_columns,
             {spec.name: trained[spec.key] for spec in specs},
@@ -113,11 +106,7 @@ def run_holdout(cfg: RunConfig, registry: Mapping[str, ModelSpec], plots_dir: Pa
         trained: Dict[str, object] = {}
         predictions = {}
         for spec in specs:
-            model = spec.train(
-                X_train, y_train,
-                params=best_params.get(spec.key),
-                random_state=cfg.model_random_state,
-            )
+            model = spec.train(X_train, y_train, params=best_params.get(spec.key), random_state=cfg.model_random_state)
             trained[spec.key] = model
             predictions[spec.name] = model.predict(X_valid)
 
@@ -142,7 +131,4 @@ def run_holdout(cfg: RunConfig, registry: Mapping[str, ModelSpec], plots_dir: Pa
     X_train, X_valid, y_train, y_valid = split_dataset(
         X, y, train_size=cfg.holdout.train_size, random_state=int(cfg.holdout.seeds[0])
     )
-    _run_ablation(
-        cfg, registry, first_split_models, feature_columns,
-        X_train, X_valid, y_valid, plots_dir,
-    )
+    _run_ablation(cfg, registry, first_split_models, feature_columns, X_train, X_valid, y_valid, plots_dir)

@@ -105,10 +105,7 @@ def _resolve_bundle(cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> ModelB
     if path:
         print(f"Saved model to {save_model_bundle(path, bundle)}")
     else:
-        print(
-            "[INFO] No 'predict_model_path' set, so this model is not saved and "
-            "the next run will refit it."
-        )
+        print("[INFO] No 'predict_model_path' set, so this model is not saved and " "the next run will refit it.")
     return bundle
 
 
@@ -148,11 +145,7 @@ def predict_formulas(
     return predictions, skipped
 
 
-def run_predict(
-    *,
-    cfg: RunConfig,
-    model_registry: Mapping[str, ModelSpec],
-) -> pd.DataFrame:
+def run_predict(*, cfg: RunConfig, model_registry: Mapping[str, ModelSpec]) -> pd.DataFrame:
     """Run the predict pipeline: resolve a model, score compositions, save output.
 
     Called from main.py when evaluation_mode == 'predict'.
@@ -169,9 +162,7 @@ def run_predict(
 
     formulas = _read_formulas(cfg)
     pt, mm = load_elemental_data(cfg.pt_path, cfg.mm_path)
-    predictions, skipped = predict_formulas(
-        bundle, formulas, pt, mm, formula_column=cfg.formula_column
-    )
+    predictions, skipped = predict_formulas(bundle, formulas, pt, mm, formula_column=cfg.formula_column)
 
     if skipped:
         print(f"\n[WARN] Could not featurize {len(skipped)} formula(s): {skipped}")

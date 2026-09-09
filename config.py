@@ -27,9 +27,8 @@ EVALUATION_MODES = ("predict", "holdout", "cross_validation", "ood", "uq")
 # OOD scenario families; "all" selects every one of them.
 OOD_MODES = ("element", "period", "group", "cluster", "sparsex", "sparsey", "all")
 
-# Minimum split sizes. A handful of test samples makes R^2 meaningless and a
-# tiny train set measures nothing but the sample count, so both are filtered
-# out rather than reported as OOD results.
+# Minimum split sizes. A handful of test samples makes R^2 meaningless and a tiny train set measures nothing but the
+# sample count, so both are filtered out rather than reported as OOD results.
 DEFAULT_MIN_TEST = 10
 DEFAULT_MIN_TRAIN = 50
 
@@ -214,8 +213,7 @@ class RunConfig:
         return cleaned.strip("_") or "dataset"
 
 
-# Every key a config file may contain. Anything else is a typo, and is reported
-# as one rather than silently ignored.
+# Every key a config file may contain. Anything else is a typo, and is reported as one rather than silently ignored.
 _TOP_LEVEL_KEYS = frozenset({
     "dataset", "evaluation_mode", "pt_path", "mm_path",
     "target_column", "formula_column", "feature_columns",
@@ -235,9 +233,7 @@ _OOD_KEYS = frozenset({
     "ood_size_matched_control", "ood_output_dir",
 })
 
-_UQ_KEYS = frozenset({
-    "uq_model", "uq_alpha", "uq_calibration_fraction", "uq_seeds", "uq_output_dir",
-})
+_UQ_KEYS = frozenset({"uq_model", "uq_alpha", "uq_calibration_fraction", "uq_seeds", "uq_output_dir"})
 
 _PREDICT_KEYS = frozenset({
     "predict_model", "predict_model_path", "predict_retrain",
@@ -358,14 +354,10 @@ def _validate(cfg: RunConfig) -> None:
         if not cfg.train_dataset_path:
             raise ValueError("OOD mode requires train_dataset_path in the config.")
     elif not cfg.dataset_path:
-        raise ValueError(
-            f"dataset_path is required for evaluation_mode: {cfg.evaluation_mode}."
-        )
+        raise ValueError(f"dataset_path is required for evaluation_mode: {cfg.evaluation_mode}.")
 
     if cfg.compare_models is not None and len(cfg.compare_models) != 2:
-        raise ValueError(
-            f"compare_models must name exactly two models, got {list(cfg.compare_models)}."
-        )
+        raise ValueError(f"compare_models must name exactly two models, got {list(cfg.compare_models)}.")
 
     if cfg.feature_columns is not None and not cfg.feature_columns:
         raise ValueError("feature_columns was given but is empty.")

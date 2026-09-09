@@ -61,9 +61,8 @@ def compute_calibration_metrics(
     error = np.abs(y_pred - y_true)
     coverage = float(np.mean(error <= half_width))
 
-    # A sample where every tree agrees has sigma = 0 and no finite z. Those are
-    # dropped from the z columns only — one of them would otherwise send the
-    # whole group's rms_z to infinity — and counted so the omission is visible.
+    # A sample where every tree agrees has sigma = 0 and no finite z. Those are dropped from the z columns only — one of
+    # them would otherwise send the whole group's rms_z to infinity — and counted so the omission is visible.
     scored = sigma > 0
     z = error[scored] / sigma[scored]
 
@@ -81,11 +80,7 @@ def compute_calibration_metrics(
     }
 
 
-def summarize_calibration(
-    samples: pd.DataFrame,
-    by: Sequence[str],
-    alpha: float = DEFAULT_ALPHA,
-) -> pd.DataFrame:
+def summarize_calibration(samples: pd.DataFrame, by: Sequence[str], alpha: float = DEFAULT_ALPHA) -> pd.DataFrame:
     """Pool a per-sample prediction frame into one calibration row per group.
 
     Args:

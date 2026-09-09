@@ -48,9 +48,7 @@ def resolve_feature_columns(
         excluded = {target_column, formula_column}
         resolved = [c for c in data.columns if c not in excluded]
         if not resolved:
-            raise ValueError(
-                f"No feature columns left after excluding {sorted(excluded)}."
-            )
+            raise ValueError(f"No feature columns left after excluding {sorted(excluded)}.")
 
     non_numeric = [c for c in resolved if not pdtypes.is_numeric_dtype(data[c])]
     if non_numeric:
@@ -87,10 +85,7 @@ def load_features_and_target(
     data = pd.read_csv(path).reset_index(drop=True)
 
     if target_column not in data.columns:
-        raise ValueError(
-            f"Missing target column {target_column!r} in {path}. "
-            f"Available: {sorted(data.columns)}"
-        )
+        raise ValueError(f"Missing target column {target_column!r} in {path}. Available: {sorted(data.columns)}")
 
     resolved = resolve_feature_columns(data, target_column, formula_column, feature_columns)
     return data[resolved].copy(), data[target_column], resolved
@@ -101,21 +96,10 @@ def load_raw_data(path: str) -> pd.DataFrame:
     return pd.read_csv(path).reset_index(drop=True)
 
 
-def split_dataset(
-    X: pd.DataFrame,
-    y: pd.Series,
-    train_size: float = 0.8,
-    random_state: int = 0,
-):
+def split_dataset(X: pd.DataFrame, y: pd.Series, train_size: float = 0.8, random_state: int = 0):
     """Split into train and validation sets.
 
     Returns:
         (X_train, X_valid, y_train, y_valid).
     """
-    return train_test_split(
-        X,
-        y,
-        train_size=train_size,
-        test_size=1 - train_size,
-        random_state=random_state,
-    )
+    return train_test_split(X, y, train_size=train_size, test_size=1 - train_size, random_state=random_state)

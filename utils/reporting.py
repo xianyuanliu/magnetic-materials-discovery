@@ -51,9 +51,7 @@ def print_cv_results(
         for metric in METRICS:
             values = list(scores[metric])
             label = "R2" if metric == "r2" else metric.upper()
-            summary = format_mean_std(
-                float(np.mean(values)), _std(values), METRIC_DECIMALS[metric]
-            )
+            summary = format_mean_std(float(np.mean(values)), _std(values), METRIC_DECIMALS[metric])
             print(f"{label + ':':<5}{summary}")
 
 
@@ -123,10 +121,7 @@ def print_ood_tables(
 def print_uq_report(across_seeds: pd.DataFrame, alpha: float) -> None:
     """Print the headline calibration comparison without editorialising it."""
     nominal = 1.0 - alpha
-    print(
-        f"\nCalibration by split type and method "
-        f"(nominal coverage {nominal:.0%}, mean ± std over seeds)"
-    )
+    print(f"\nCalibration by split type and method (nominal coverage {nominal:.0%}, mean ± std over seeds)")
     print(across_seeds.to_string(index=False))
     print(
         "\nHow to read it: coverage below nominal means the interval is too narrow "

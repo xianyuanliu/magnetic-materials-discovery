@@ -10,9 +10,8 @@ from typing import Tuple
 
 import numpy as np
 
-# A train/test split: an identifier plus the row positions on each side.
-# Split builders live in pipeline/ood_splits.py; the evaluators only consume
-# splits, so they annotate against this alias rather than importing that module.
+# A train/test split: an identifier plus the row positions on each side. Split builders live in pipeline/ood_splits.py;
+# the evaluators only consume splits, so they annotate against this alias rather than importing that module.
 Split = Tuple[str, np.ndarray, np.ndarray]
 
 # Regression metrics carried through every result table, and the decimals each

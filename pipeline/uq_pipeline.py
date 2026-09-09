@@ -48,10 +48,9 @@ ID_KFOLD = "ID-kfold"
 OOD = "OOD"
 ID_RANDOM = "ID-random"
 
-# Model keys whose fitted estimator exposes per-member predictions (sklearn's
-# `estimators_`) that pipeline/uq.py's rf_tree_std can read as a spread.
-# RandomForestRegressor is a bag of interchangeable trees; XGBoost fits one
-# additive model, so its boosters carry no comparable spread.
+# Model keys whose fitted estimator exposes per-member predictions (sklearn's `estimators_`) that pipeline/uq.py's
+# rf_tree_std can read as a spread. RandomForestRegressor is a bag of interchangeable trees; XGBoost fits one additive
+# model, so its boosters carry no comparable spread.
 ENSEMBLE_STD_MODELS = frozenset({"rf"})
 
 TABLE_FILENAMES = (
@@ -104,20 +103,12 @@ def _fit_and_predict(
     }
 
     return pd.concat([
-        pd.DataFrame({
-            "method": method,
-            "y_true": y_true,
-            "y_pred": y_pred,
-            "sigma": sigma,
-            "half_width": half_width,
-        })
+        pd.DataFrame({"method": method, "y_true": y_true, "y_pred": y_pred, "sigma": sigma, "half_width": half_width})
         for method, half_width in half_widths.items()
     ], ignore_index=True)
 
 
-def _controls_for(
-    splits: Sequence[Split], n_samples: int, seed: int, scenario: str,
-) -> List[Split]:
+def _controls_for(splits: Sequence[Split], n_samples: int, seed: int, scenario: str) -> List[Split]:
     """One same-size random split per OOD split, to separate shift from data loss.
 
     Each control keeps its parent's split_id so the two stay paired in the
@@ -169,10 +160,7 @@ def _collect_samples(
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
-def resolve_uq_model(
-    model_registry: Mapping[str, ModelSpec],
-    model_key: str,
-) -> ModelSpec:
+def resolve_uq_model(model_registry: Mapping[str, ModelSpec], model_key: str) -> ModelSpec:
     """Look up the UQ model and check it can actually supply a spread.
 
     The estimators in pipeline/uq.py read the per-member predictions of an
@@ -185,9 +173,7 @@ def resolve_uq_model(
             spread to read.
     """
     if model_key not in model_registry:
-        raise ValueError(
-            f"Unknown uq_model {model_key!r}. Available: {sorted(model_registry)}"
-        )
+        raise ValueError(f"Unknown uq_model {model_key!r}. Available: {sorted(model_registry)}")
 
     spec = model_registry[model_key]
     if model_key not in ENSEMBLE_STD_MODELS:
@@ -199,11 +185,7 @@ def resolve_uq_model(
     return spec
 
 
-def run_uq_evaluation(
-    *,
-    cfg: RunConfig,
-    model_registry: Mapping[str, ModelSpec],
-) -> None:
+def run_uq_evaluation(*, cfg: RunConfig, model_registry: Mapping[str, ModelSpec]) -> None:
     """Run the UQ pipeline: score ID, OOD and control splits, then save the tables.
 
     Called from main.py when evaluation_mode == 'uq'.
@@ -226,9 +208,7 @@ def run_uq_evaluation(
     element_to_group, element_to_period = load_periodic_table_map(cfg.pt_path)
     elements_per_row = extract_elements_series(df_full, formula_column=cfg.formula_column)
 
-    ood_scenarios = build_scenarios(
-        ood_cfg, X, y, elements_per_row, element_to_group, element_to_period,
-    )
+    ood_scenarios = build_scenarios(ood_cfg, X, y, elements_per_row, element_to_group, element_to_period)
 
     print(
         f"\n[INFO] UQ run: {spec.name}, {len(ood_scenarios)} OOD scenario(s), "
@@ -244,9 +224,7 @@ def run_uq_evaluation(
         for scenario, splits in ood_scenarios:
             scenario_splits.append((OOD, scenario, splits))
             if ood_cfg.size_matched_control:
-                scenario_splits.append(
-                    (ID_RANDOM, scenario, _controls_for(splits, len(X), seed, scenario))
-                )
+                scenario_splits.append((ID_RANDOM, scenario, _controls_for(splits, len(X), seed, scenario)))
 
         per_seed_frames.append(_collect_samples(
             X, y, scenario_splits, spec.train,
@@ -260,9 +238,7 @@ def run_uq_evaluation(
         return
     samples = pd.concat(frames, ignore_index=True)
 
-    by_split = summarize_calibration(
-        samples, ("seed", "split_type", "scenario", "split_id", "method"), alpha,
-    )
+    by_split = summarize_calibration(samples, ("seed", "split_type", "scenario", "split_id", "method"), alpha)
     pooled_by_seed = summarize_calibration(samples, ("seed", "split_type", "method"), alpha)
     across_seeds = summarize_across_seeds(pooled_by_seed, ("split_type", "method"))
 

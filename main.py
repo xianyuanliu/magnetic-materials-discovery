@@ -16,24 +16,15 @@ from pipeline.uq_pipeline import run_uq_evaluation
 
 def parse_args() -> argparse.Namespace:
     """Parse the --config CLI flag."""
-    parser = argparse.ArgumentParser(
-        description="Train and evaluate ML models for material property prediction"
-    )
-    parser.add_argument(
-        "--config",
-        type=str,
-        default="./configs/novamag.yaml",
-        help="Path to YAML configuration file",
-    )
+    parser = argparse.ArgumentParser(description="Train and evaluate ML models for material property prediction")
+    parser.add_argument("--config", type=str, default="./configs/novamag.yaml", help="Path to YAML configuration file")
     return parser.parse_args()
 
 
 def run_data_visualization(cfg: RunConfig, plots_dir: Path) -> None:
     """Plot the target's distribution across the transition-metal subsets."""
     raw = load_raw_data(cfg.dataset_path)
-    plot_ms_distribution_by_tm(
-        raw, save_path=plots_dir / f"{cfg.prefix}_ms_distribution_by_tm.png"
-    )
+    plot_ms_distribution_by_tm(raw, save_path=plots_dir / f"{cfg.prefix}_ms_distribution_by_tm.png")
     plot_violin_ms_by_tm(
         raw,
         title=f"{cfg.prefix.upper()} Violin Plot",

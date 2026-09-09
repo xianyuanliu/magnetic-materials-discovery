@@ -18,11 +18,10 @@ from utils.core import METRICS
 from utils.model_spec import DEFAULT_TUNE_CV_FOLDS, DEFAULT_TUNE_N_ITER, ModelSpec
 from evaluate.metrics import compute_metrics
 
-# Below this many paired observations a signed-rank test cannot reach any
-# conventional significance level at all: with n pairs the smallest attainable
-# two-sided Wilcoxon p is 2 / 2**n, so n = 3 bottoms out at 0.25 and n = 5 at
-# 0.0625. Reporting "p = 0.25, not significant" from three pairs reads as
-# evidence of no difference when it is really the floor of the test.
+# Below this many paired observations a signed-rank test cannot reach any conventional significance level at all: with n
+# pairs the smallest attainable two-sided Wilcoxon p is 2 / 2**n, so n = 3 bottoms out at 0.25 and n = 5 at 0.0625.
+# Reporting "p = 0.25, not significant" from three pairs reads as evidence of no difference when it is really the floor
+# of the test.
 MIN_PAIRS_FOR_TEST = 6
 
 # Per-model, per-metric fold scores: {model name: {metric: [score per fold]}}.
@@ -103,11 +102,7 @@ def cross_validate_models(
         spec.name: {metric: [] for metric in METRICS} for spec in specs
     }
 
-    kf = KFold(
-        n_splits=cv_folds,
-        shuffle=shuffle,
-        random_state=random_state if shuffle else None,
-    )
+    kf = KFold(n_splits=cv_folds, shuffle=shuffle, random_state=random_state if shuffle else None)
 
     for train_idx, valid_idx in kf.split(X):
         X_train, X_valid = X.iloc[train_idx], X.iloc[valid_idx]
@@ -150,9 +145,7 @@ def _paired_scores(results: FoldScores, model_a: str, model_b: str, metric: str)
     a = np.asarray(results[model_a][metric], dtype=float)
     b = np.asarray(results[model_b][metric], dtype=float)
     if len(a) != len(b):
-        raise ValueError(
-            f"Paired count mismatch: {model_a} has {len(a)}, {model_b} has {len(b)}"
-        )
+        raise ValueError(f"Paired count mismatch: {model_a} has {len(a)}, {model_b} has {len(b)}")
     return a, b
 
 

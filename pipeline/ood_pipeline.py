@@ -36,8 +36,7 @@ from pipeline.ood_splits import build_size_matched_split
 from prepdata.alloy_transform import extract_elements_series, load_periodic_table_map
 from utils.reporting import print_ood_tables
 
-# Result tables, in the order print_ood_tables takes them, paired with the file
-# each is written to.
+# Result tables, in the order print_ood_tables takes them, paired with the file each is written to.
 TABLE_FILENAMES = (
     "table1_splits_summary.csv",
     "table2_metrics_by_model.csv",
@@ -84,10 +83,7 @@ def load_ood_dataset(
     if same_file:
         df_full = pd.read_csv(train_dataset_path).reset_index(drop=True)
     else:
-        df_full = pd.concat(
-            [pd.read_csv(train_dataset_path), pd.read_csv(test_dataset_path)],
-            ignore_index=True,
-        )
+        df_full = pd.concat([pd.read_csv(train_dataset_path), pd.read_csv(test_dataset_path)], ignore_index=True)
 
     for column in (target_column, formula_column):
         if column not in df_full.columns:
@@ -97,12 +93,7 @@ def load_ood_dataset(
     return df_full[resolved].copy(), df_full[target_column].copy(), df_full
 
 
-def build_controls(
-    splits: Sequence[Split],
-    n_samples: int,
-    seed: int,
-    scenario: str,
-) -> Dict[str, Split]:
+def build_controls(splits: Sequence[Split], n_samples: int, seed: int, scenario: str) -> Dict[str, Split]:
     """One same-size random split per OOD split, keyed by the parent's split_id.
 
     crc32, not hash(): str hashing is salted per process, and these seeds have
@@ -158,11 +149,7 @@ def _report_skip(scenario: str):
     return _on_skip
 
 
-def run_ood_evaluation(
-    *,
-    cfg: RunConfig,
-    model_registry: Mapping[str, ModelSpec],
-) -> None:
+def run_ood_evaluation(*, cfg: RunConfig, model_registry: Mapping[str, ModelSpec]) -> None:
     """Run the OOD pipeline: build split families, score each, print and save tables.
 
     Called from main.py when evaluation_mode == 'ood'. Every OOD split is scored
@@ -184,9 +171,7 @@ def run_ood_evaluation(
     element_to_group, element_to_period = load_periodic_table_map(cfg.pt_path)
     elements_per_row = extract_elements_series(df_full, formula_column=cfg.formula_column)
 
-    scenarios = build_scenarios(
-        ood_cfg, X_full, y_full, elements_per_row, element_to_group, element_to_period,
-    )
+    scenarios = build_scenarios(ood_cfg, X_full, y_full, elements_per_row, element_to_group, element_to_period)
     seeds = list(ood_cfg.seeds)
 
     print(
@@ -208,9 +193,7 @@ def run_ood_evaluation(
             tune_cv_folds=cfg.tuning.cv_folds, tune_n_iter=cfg.tuning.n_iter,
             on_skip=_report_skip(scenario),
         )
-        scenario_frames = _run_scenario(
-            scenario, splits, seeds, len(X_full), ood_cfg.size_matched_control, evaluate,
-        )
+        scenario_frames = _run_scenario(scenario, splits, seeds, len(X_full), ood_cfg.size_matched_control, evaluate)
         for target, frames in zip(collected, scenario_frames):
             target.extend(frames)
 
@@ -224,9 +207,7 @@ def run_ood_evaluation(
         name_a, name_b = (
             spec.name for spec in resolve_models(model_registry, cfg.compare_models)
         )
-        comparison_significance = summarize_model_comparison(
-            metrics_by_model, name_a, name_b, split_type=OOD
-        )
+        comparison_significance = summarize_model_comparison(metrics_by_model, name_a, name_b, split_type=OOD)
 
     combined_comparison = summarize_runs_across_splits(metrics_by_model)
     generalisation_gap = summarize_generalisation_gap(combined_comparison)

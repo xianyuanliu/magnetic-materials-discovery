@@ -72,10 +72,7 @@ def _resolve_params(
     if best_params is not None and spec.key in best_params:
         return best_params[spec.key]
     if hyperparameter_tuning and spec.tune is not None:
-        return spec.tune(
-            X_fit, y_fit, cv_folds=tune_cv_folds,
-            random_state=model_random_state, n_iter=tune_n_iter,
-        )
+        return spec.tune(X_fit, y_fit, cv_folds=tune_cv_folds, random_state=model_random_state, n_iter=tune_n_iter)
     return None
 
 
@@ -147,10 +144,7 @@ def _metric_rows(scenario, split_id, seed, split_type, scores: _FoldScores) -> L
     """
     rows = []
     for model_name, per_metric in scores.per_model.items():
-        row = dict(
-            scenario=scenario, split_id=split_id, seed=seed,
-            split_type=split_type, model=model_name,
-        )
+        row = dict(scenario=scenario, split_id=split_id, seed=seed, split_type=split_type, model=model_name)
         for metric in METRICS:
             values = per_metric[metric]
             row[f"{metric.upper()}_mean"] = float(np.mean(values))
@@ -288,10 +282,9 @@ def summarize_model_comparison(
 
     rows = []
     for scenario, group in subset.groupby("scenario", sort=True):
-        # One paired observation per split, averaging over seeds first. Seeds
-        # differ only in the inner KFold and score the *same* test set, so
-        # treating them as separate observations would reintroduce a milder
-        # version of the non-independence this function exists to avoid.
+        # One paired observation per split, averaging over seeds first. Seeds differ only in the inner KFold and score
+        # the *same* test set, so treating them as separate observations would reintroduce a milder version of the non-
+        # independence this function exists to avoid.
         wide = group.pivot_table(
             index="split_id", columns="model",
             values=[f"{m.upper()}_mean" for m in metrics], aggfunc="mean",
@@ -308,9 +301,7 @@ def summarize_model_comparison(
                 model_a: {metric: pair[(column, model_a)].tolist()},
                 model_b: {metric: pair[(column, model_b)].tolist()},
             }
-            result = compare_models_significance(
-                paired, model_a, model_b, metric=metric, min_pairs=min_pairs
-            )
+            result = compare_models_significance(paired, model_a, model_b, metric=metric, min_pairs=min_pairs)
             rows.append(dict(
                 scenario=scenario, metric=metric.upper(),
                 model_a=model_a, model_b=model_b,
@@ -318,10 +309,7 @@ def summarize_model_comparison(
                 mean_difference=result.mean_difference,
                 t_pvalue=result.t_pvalue,
                 wilcoxon_pvalue=result.w_pvalue,
-                significant=bool(
-                    result.note is None
-                    and ((result.t_pvalue < 0.05) or (result.w_pvalue < 0.05))
-                ),
+                significant=bool(result.note is None and ((result.t_pvalue < 0.05) or (result.w_pvalue < 0.05))),
                 note=result.note or "",
             ))
 
@@ -385,9 +373,7 @@ def summarize_generalisation_gap(summary_df: pd.DataFrame, metric: str = "mse") 
     if summary_df.empty or "split_type" not in summary_df.columns:
         return pd.DataFrame()
 
-    wide = summary_df.pivot_table(
-        index=["scenario", "model"], columns="split_type", values=column,
-    ).reset_index()
+    wide = summary_df.pivot_table(index=["scenario", "model"], columns="split_type", values=column).reset_index()
 
     for split_type in (OOD, ID_PAIRED, ID_RANDOM):
         if split_type not in wide.columns:

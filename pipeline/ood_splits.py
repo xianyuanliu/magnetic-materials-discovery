@@ -59,8 +59,7 @@ def _finalize_split(
     return split_id, train_idx, test_idx
 
 
-# ============================================================
-# In-distribution references
+# ============================================================ In-distribution references
 # ============================================================
 
 
@@ -109,8 +108,7 @@ def build_size_matched_split(
     return _finalize_split(split_id, order[:n_train], order[n_train:n_train + n_test])
 
 
-# ============================================================
-# Leave-One-Element-Out (LOEO)
+# ============================================================ Leave-One-Element-Out (LOEO)
 # ============================================================
 
 
@@ -125,10 +123,7 @@ def build_loeo_splits(
 
     for element in element_list:
 
-        test_mask = np.array(
-            [element in set(els) for els in elements_per_sample],
-            dtype=bool,
-        )
+        test_mask = np.array([element in set(els) for els in elements_per_sample], dtype=bool)
 
         split = _finalize_split(
             f"E={element}",
@@ -144,8 +139,7 @@ def build_loeo_splits(
     return splits
 
 
-# ============================================================
-# Leave-One-Period-Out (LOPO) / Leave-One-Group-Out (LOGO)
+# ============================================================ Leave-One-Period-Out (LOPO) / Leave-One-Group-Out (LOGO)
 # ============================================================
 
 
@@ -205,9 +199,7 @@ def build_period_splits(
     min_test: int = 1,
 ) -> List[Split]:
     """Leave-One-Period-Out (see _build_membership_splits for strict/default semantics)."""
-    return _build_membership_splits(
-        elements_per_sample, element_to_period, periods, "P", strict, min_train, min_test
-    )
+    return _build_membership_splits(elements_per_sample, element_to_period, periods, "P", strict, min_train, min_test)
 
 
 def build_group_splits(
@@ -219,13 +211,10 @@ def build_group_splits(
     min_test: int = 1,
 ) -> List[Split]:
     """Leave-One-Group-Out (see _build_membership_splits for strict/default semantics)."""
-    return _build_membership_splits(
-        elements_per_sample, element_to_group, groups, "G", strict, min_train, min_test
-    )
+    return _build_membership_splits(elements_per_sample, element_to_group, groups, "G", strict, min_train, min_test)
 
 
-# ============================================================
-# Representation Space OOD — KMeans (LOCO)
+# ============================================================ Representation Space OOD — KMeans (LOCO)
 # ============================================================
 
 
@@ -248,11 +237,7 @@ def build_kmeans_cluster_splits(
 
     X_mat = _standardized(X)
 
-    km = KMeans(
-        n_clusters=k,
-        random_state=int(seed),
-        n_init=10,
-    )
+    km = KMeans(n_clusters=k, random_state=int(seed), n_init=10)
 
     labels = km.fit_predict(X_mat)
 
@@ -274,8 +259,7 @@ def build_kmeans_cluster_splits(
     return splits
 
 
-# ============================================================
-# SparseX OOD — Feature-space sparsity
+# ============================================================ SparseX OOD — Feature-space sparsity
 # ============================================================
 
 
@@ -334,8 +318,7 @@ def build_sparsex_splits(
     return splits
 
 
-# ============================================================
-# SparseY OOD — Target-space sparsity
+# ============================================================ SparseY OOD — Target-space sparsity
 # ============================================================
 
 

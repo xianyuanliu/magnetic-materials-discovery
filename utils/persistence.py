@@ -119,8 +119,5 @@ def align_features(features, feature_columns: Sequence[str], source: Optional[st
     missing = [c for c in feature_columns if c not in features.columns]
     if missing:
         where = f" in {source}" if source else ""
-        raise ValueError(
-            f"Missing feature column(s){where}: {missing}. "
-            f"The model expects {list(feature_columns)}."
-        )
+        raise ValueError(f"Missing feature column(s){where}: {missing}. The model expects {list(feature_columns)}.")
     return features[list(feature_columns)]

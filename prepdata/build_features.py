@@ -12,9 +12,8 @@ import pandas as pd
 
 from prepdata import alloy_transform
 
-# The engineered feature vector, in a fixed order. Exported so run configs can
-# name the columns explicitly instead of relying on "every column that is not
-# the target or the formula", which silently promoted any stray id or metadata
+# The engineered feature vector, in a fixed order. Exported so run configs can name the columns explicitly instead of
+# relying on "every column that is not the target or the formula", which silently promoted any stray id or metadata
 # column into a model input.
 ENGINEERED_FEATURE_COLUMNS: Tuple[str, ...] = (
     "compoundradix",

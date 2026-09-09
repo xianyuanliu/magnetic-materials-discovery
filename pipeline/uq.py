@@ -25,10 +25,9 @@ from scipy.stats import norm
 
 from utils.core import DEFAULT_ALPHA
 
-# rf_std is exactly 0 where every tree agrees, and the normalized variant
-# divides by it. Flooring at a small fraction of the calibration set's mean
-# keeps that score bounded while leaving ordinary sigmas untouched; the
-# absolute fallback only applies if every calibration sigma is 0.
+# rf_std is exactly 0 where every tree agrees, and the normalized variant divides by it. Flooring at a small fraction of
+# the calibration set's mean keeps that score bounded while leaving ordinary sigmas untouched; the absolute fallback
+# only applies if every calibration sigma is 0.
 _SIGMA_FLOOR_FRACTION = 1e-3
 _MIN_SIGMA = 1e-12
 
@@ -119,11 +118,7 @@ class ConformalCalibrator:
             floor = _sigma_floor(sigma_cal)
             residuals = residuals / np.maximum(sigma_cal, floor)
 
-        return cls(
-            quantile=_conformal_quantile(residuals, alpha),
-            normalized=normalized,
-            sigma_floor=floor,
-        )
+        return cls(quantile=_conformal_quantile(residuals, alpha), normalized=normalized, sigma_floor=floor)
 
     def half_width(self, sigma: np.ndarray) -> np.ndarray:
         """Per-sample interval half-width for the test points behind `sigma`."""

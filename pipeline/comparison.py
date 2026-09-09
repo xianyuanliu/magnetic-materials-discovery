@@ -11,9 +11,7 @@ from utils.reporting import print_significance
 COMPARISON_METRICS = ("mse", "mae")
 
 
-def comparison_names(
-    cfg: RunConfig, registry: Mapping[str, ModelSpec]
-) -> Tuple[str, str]:
+def comparison_names(cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> Tuple[str, str]:
     """Resolve `compare_models` to the two display names used in result tables."""
     specs = resolve_models(registry, cfg.compare_models)
     return specs[0].name, specs[1].name

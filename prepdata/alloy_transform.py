@@ -45,10 +45,7 @@ def parse_elements_from_formula(formula: str) -> List[str]:
         return []
 
 
-def extract_elements_series(
-    df_raw: pd.DataFrame,
-    formula_column: str = "chemical formula",
-) -> List[List[str]]:
+def extract_elements_series(df_raw: pd.DataFrame, formula_column: str = "chemical formula") -> List[List[str]]:
     """Return the parsed element list per row, aligned with `df_raw`'s row order."""
     if formula_column not in df_raw.columns:
         raise ValueError(f"Missing column: {formula_column}")
@@ -71,10 +68,7 @@ def extract_elements_series(
     return elements_per_row
 
 
-def elements_mask(
-    elements_per_row: Sequence[Sequence[str]],
-    elements: Iterable[str],
-) -> np.ndarray:
+def elements_mask(elements_per_row: Sequence[Sequence[str]], elements: Iterable[str]) -> np.ndarray:
     """Boolean mask: True where a row's parsed elements intersect `elements`.
 
     Built on the same pymatgen-based parsing as parse_elements_from_formula,
@@ -82,10 +76,7 @@ def elements_mask(
     splits instead of relying on ad hoc formula substring matching.
     """
     target = set(elements)
-    return np.array(
-        [bool(target.intersection(els)) for els in elements_per_row],
-        dtype=bool,
-    )
+    return np.array([bool(target.intersection(els)) for els in elements_per_row], dtype=bool)
 
 
 def formula_contains_elements(
@@ -115,10 +106,7 @@ def load_periodic_table_map(
 
     for c in [element_col, period_col, group_block_col]:
         if c not in pt.columns:
-            raise ValueError(
-                f"Missing column '{c}' in periodic table file. "
-                f"Found: {list(pt.columns)}"
-            )
+            raise ValueError(f"Missing column '{c}' in periodic table file. Found: {list(pt.columns)}")
 
     pt = pt[[element_col, period_col, group_block_col]].copy()
 
@@ -223,11 +211,7 @@ def get_stoich_array(x, pt, formula_column: str = "chemical formula"):
     symbols = _sorted_elements(pt)
 
     # Will encode chemical formula data in a large array
-    stoich_array = pd.DataFrame(
-        np.zeros([len(formulas), len(symbols)]),
-        index=index,
-        columns=symbols.copy(),
-    )
+    stoich_array = pd.DataFrame(np.zeros([len(formulas), len(symbols)]), index=index, columns=symbols.copy())
 
     for idx, f in formulas.items():
         if pd.isna(f):
@@ -235,9 +219,8 @@ def get_stoich_array(x, pt, formula_column: str = "chemical formula"):
         try:
             el_dict = Composition(str(f)).get_el_amt_dict()
         except Exception as exc:
-            # Same contract as parse_elements_from_formula: warn and leave the
-            # row empty. Its features then come out NaN (see _weighted_mean),
-            # so build_features drops it instead of crashing the whole run.
+            # Same contract as parse_elements_from_formula: warn and leave the row empty. Its features then come out NaN
+            # (see _weighted_mean), so build_features drops it instead of crashing the whole run.
             warnings.warn(f"Could not parse chemical formula {f!r}; dropping the row ({exc}).")
             continue
         unknown = [el for el in el_dict if el not in stoich_array.columns]
@@ -383,9 +366,8 @@ def get_compound_radix(X, formula_column: str = "chemical formula"):
     else:
         formulas = pd.Series(X)
 
-    # compound radix = number of distinct elements in the formula. Routed
-    # through the guarded parser so an unparseable formula yields NaN (and is
-    # dropped by build_features) rather than raising mid-run.
+    # compound radix = number of distinct elements in the formula. Routed through the guarded parser so an unparseable
+    # formula yields NaN (and is dropped by build_features) rather than raising mid-run.
     def _radix(formula):
         n_elements = len(parse_elements_from_formula(formula))
         return n_elements if n_elements else np.nan

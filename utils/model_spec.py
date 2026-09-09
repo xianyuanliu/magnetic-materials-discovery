@@ -8,9 +8,8 @@ Deliberately a leaf, for the same reason as utils/core.py: `evaluate/` needs
 from dataclasses import dataclass
 from typing import Callable, Mapping, Optional, Sequence, Tuple
 
-# Default hyperparameter-search budget. Deliberately smaller than the outer
-# cv_folds: the search is nested inside every outer fold, so its cost is
-# multiplied by (outer folds x seeds x models).
+# Default hyperparameter-search budget. Deliberately smaller than the outer cv_folds: the search is nested inside every
+# outer fold, so its cost is multiplied by (outer folds x seeds x models).
 DEFAULT_TUNE_CV_FOLDS = 3
 DEFAULT_TUNE_N_ITER = 20
 
@@ -39,10 +38,7 @@ class ModelSpec:
     tune: Optional[Callable] = None
 
 
-def resolve_models(
-    registry: Mapping[str, ModelSpec],
-    keys: Sequence[str],
-) -> Tuple[ModelSpec, ...]:
+def resolve_models(registry: Mapping[str, ModelSpec], keys: Sequence[str]) -> Tuple[ModelSpec, ...]:
     """Look up every key in `registry`, failing fast on the first unknown one.
 
     Args:
@@ -57,8 +53,5 @@ def resolve_models(
     """
     unknown = [key for key in keys if key not in registry]
     if unknown:
-        raise ValueError(
-            f"Unknown model key(s): {sorted(unknown)}. "
-            f"Available: {sorted(registry)}"
-        )
+        raise ValueError(f"Unknown model key(s): {sorted(unknown)}. Available: {sorted(registry)}")
     return tuple(registry[key] for key in keys)

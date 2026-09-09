@@ -3,10 +3,9 @@
 import os
 from typing import Optional
 
-# Must be set before `import shap` pulls in cv2: cv2 bundles its own Qt
-# platform plugin, which collides with the system one and aborts the process
-# (SIGABRT) as soon as a subprocess is forked for hyperparameter tuning. This
-# process never renders a GUI, so the offscreen platform is always correct.
+# Must be set before `import shap` pulls in cv2: cv2 bundles its own Qt platform plugin, which collides with the system
+# one and aborts the process (SIGABRT) as soon as a subprocess is forked for hyperparameter tuning. This process never
+# renders a GUI, so the offscreen platform is always correct.
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import matplotlib  # noqa: E402
@@ -27,18 +26,12 @@ def plot_permutation_importance(
     random_state: int = 0,
 ):
     """Plot permutation importance for RFR / XGB / Ridge."""
-    perm_import = permutation_importance(
-        model, X_valid, y_valid, n_repeats=10, random_state=random_state
-    )
+    perm_import = permutation_importance(model, X_valid, y_valid, n_repeats=10, random_state=random_state)
 
     sorted_idx = perm_import.importances_mean.argsort()
 
     plt.figure(figsize=(14, 7))
-    plt.barh(
-        range(len(sorted_idx)),
-        perm_import.importances_mean[sorted_idx],
-        align="center",
-    )
+    plt.barh(range(len(sorted_idx)), perm_import.importances_mean[sorted_idx], align="center")
     plt.yticks(range(len(sorted_idx)), X_valid.columns[sorted_idx], fontsize=16)
     plt.xlabel("Permutation Feature Importance", fontsize=16)
     plt.ylabel("Features", fontsize=16)

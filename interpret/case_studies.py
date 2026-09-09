@@ -91,9 +91,7 @@ def build_case_features(
     """
     frame = pd.DataFrame({formula_column: list(formulas)})
     stoich = alloy_transform.get_stoich_array(frame, periodic_table, formula_column=formula_column)
-    features = add_engineered_features(
-        frame, periodic_table, miedema_weight, formula_column=formula_column
-    )
+    features = add_engineered_features(frame, periodic_table, miedema_weight, formula_column=formula_column)
     return features, stoich
 
 

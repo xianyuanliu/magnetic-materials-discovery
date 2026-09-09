@@ -96,10 +96,7 @@ def build_scenarios(
         return _ranked_targets(_counts_by_attr(elements_per_row, element_to_attr), max_splits)
 
     if selected("element"):
-        scenarios.append((
-            "LOEO",
-            build_loeo_splits(elements_per_row, targets_for(ood_cfg.elements), **sizes),
-        ))
+        scenarios.append(("LOEO", build_loeo_splits(elements_per_row, targets_for(ood_cfg.elements), **sizes)))
 
     if selected("period"):
         scenarios.append((
@@ -123,27 +120,18 @@ def build_scenarios(
 
     if selected("cluster"):
         k = ood_cfg.ood_k
-        scenarios.append((
-            f"LOCO(k={k})",
-            build_kmeans_cluster_splits(X, k=k, seed=ood_cfg.ood_seed, **sizes),
-        ))
+        scenarios.append((f"LOCO(k={k})", build_kmeans_cluster_splits(X, k=k, seed=ood_cfg.ood_seed, **sizes)))
 
     if selected("sparsex"):
         scenarios.append((
             "SparseX",
-            build_sparsex_splits(
-                X, fractions=ood_cfg.fractions,
-                n_neighbors=ood_cfg.sparsex_neighbors, **sizes,
-            ),
+            build_sparsex_splits(X, fractions=ood_cfg.fractions, n_neighbors=ood_cfg.sparsex_neighbors, **sizes),
         ))
 
     if selected("sparsey"):
         scenarios.append((
             "SparseY",
-            build_sparsey_splits(
-                y, fractions=ood_cfg.fractions,
-                center=ood_cfg.sparsey_center, **sizes,
-            ),
+            build_sparsey_splits(y, fractions=ood_cfg.fractions, center=ood_cfg.sparsey_center, **sizes),
         ))
 
     return [(name, _capped(splits, max_splits)) for name, splits in scenarios if splits]

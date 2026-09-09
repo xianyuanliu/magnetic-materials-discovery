@@ -170,9 +170,7 @@ def tune_ridge_hyperparams(
     param_grid = {
         "alpha": [0.001, 0.01, 0.1, 1.0, 10.0, 100.0, 1000.0],
     }
-    return _grid_search_best_params(
-        build_ridge_model(), param_grid, X_train, y_train, cv_folds, "Ridge", scale=True
-    )
+    return _grid_search_best_params(build_ridge_model(), param_grid, X_train, y_train, cv_folds, "Ridge", scale=True)
 
 
 def train_ridge(X_train, y_train, params: Optional[Dict] = None, random_state: int = 0):
@@ -206,9 +204,7 @@ def tune_lasso_hyperparams(
     param_grid = {
         "alpha": [0.0001, 0.001, 0.01, 0.1, 1.0, 10.0],
     }
-    return _grid_search_best_params(
-        build_lasso_model(), param_grid, X_train, y_train, cv_folds, "Lasso", scale=True
-    )
+    return _grid_search_best_params(build_lasso_model(), param_grid, X_train, y_train, cv_folds, "Lasso", scale=True)
 
 
 def train_lasso(X_train, y_train, params: Optional[Dict] = None, random_state: int = 0):
@@ -309,18 +305,13 @@ def tune_rf_hyperparams(
 
 
 def train_rf(X_train, y_train, params: Optional[Dict] = None, random_state: int = 0):
-    """Train a random forest with searched optimized parameters or manually provided parameters.
-
-    Left unscaled on purpose — see _scaled.
-    """
+    """Train a random forest with searched optimized parameters or manually provided parameters."""
     if params is not None:
         rf_model = build_rf_model(**params, random_state=random_state)
     else:
         rf_model = build_rf_model(
             max_depth=15,
             min_samples_leaf=2,
-            # 1.0, not "sqrt": with 9 features "sqrt" builds trees from 3 of
-            # them and measurably underperforms (see tune_rf_hyperparams).
             max_features=1.0,
             random_state=random_state,
         )
@@ -454,9 +445,7 @@ def tune_svr_hyperparams(
         "gamma": ["scale", 0.01, 0.1, 1.0],
         "epsilon": [0.01, 0.05, 0.1],
     }
-    return _grid_search_best_params(
-        build_svr_model(), param_grid, X_train, y_train, cv_folds, "SVR", scale=True
-    )
+    return _grid_search_best_params(build_svr_model(), param_grid, X_train, y_train, cv_folds, "SVR", scale=True)
 
 
 def train_svr(X_train, y_train, params: Optional[Dict] = None, random_state: int = 0):
