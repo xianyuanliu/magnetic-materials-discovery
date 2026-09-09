@@ -18,9 +18,6 @@ import xgboost
 
 from utils.registry import ModelSpec
 
-# The Pipeline step name and the `step__hyperparam` prefix sklearn expects must agree; see _prefix_hyperparams.
-_ESTIMATOR_STEP = "model"
-
 
 def _scaled(estimator) -> Pipeline:
     """Wrap `estimator` in a StandardScaler pipeline.
@@ -36,7 +33,7 @@ def _scaled(estimator) -> Pipeline:
     Scaling lives inside the pipeline (not applied to the whole dataset up front) so the mean/std are fitted on training
     data only and never leak across a train/test boundary.
     """
-    return Pipeline([("scaler", StandardScaler()), (_ESTIMATOR_STEP, estimator)])
+    return Pipeline([("scaler", StandardScaler()), ("model", estimator)])
 
 
 def _prefix_hyperparams(hyperparams: Union[Dict, List[Dict]]) -> Union[Dict, List[Dict]]:
@@ -47,7 +44,7 @@ def _prefix_hyperparams(hyperparams: Union[Dict, List[Dict]]) -> Union[Dict, Lis
     """
     if isinstance(hyperparams, list):
         return [_prefix_hyperparams(sub) for sub in hyperparams]
-    return {f"{_ESTIMATOR_STEP}__{key}": value for key, value in hyperparams.items()}
+    return {f"model__{key}": value for key, value in hyperparams.items()}
 
 
 def _strip_hyperparams(hyperparams: Dict) -> Dict:
