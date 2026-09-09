@@ -1,7 +1,6 @@
 """Raw file readers for Novamag JSON records, the periodic table, and Miedema data.
 
-Adapted from https://github.com/rich970/ML-alloy-design/blob/master/alloys.py
-with modifications.
+Adapted from https://github.com/rich970/ML-alloy-design/blob/master/alloys.py with modifications.
 """
 
 import os

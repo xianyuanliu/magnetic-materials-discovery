@@ -18,18 +18,16 @@ DEFAULT_TUNE_N_ITER = 20
 class ModelSpec:
     """One entry of a model registry.
 
-    Replaces the previous `{"name": ..., "train": ..., "tune": ...}` dict, whose
-    schema was enforced by nothing. A dataclass gives the registry a type, lets
-    a model declare what it can do (rather than being recognised by key
-    elsewhere in the codebase), and gives downstream projects something concrete
-    to construct when they register their own models.
+    Replaces the previous `{"name": ..., "train": ..., "tune": ...}` dict, whose schema was enforced by nothing. A
+    dataclass gives the registry a type, lets a model declare what it can do (rather than being recognised by key
+    elsewhere in the codebase), and gives downstream projects something concrete to construct when they register their
+    own models.
 
     Attributes:
         key: Short identifier used in config files, e.g. "rf".
         name: Human-readable name used in result tables, e.g. "Random Forest".
         train: `(X, y, params=None, random_state=0) -> fitted estimator`.
-        tune: `(X, y, cv_folds, random_state, n_iter) -> params dict`, or None
-            when the model has nothing to search.
+        tune: `(X, y, cv_folds, random_state, n_iter) -> params dict`, or None when the model has nothing to search.
     """
 
     key: str

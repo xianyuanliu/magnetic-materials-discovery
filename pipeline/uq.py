@@ -1,7 +1,6 @@
 """Predictive-uncertainty estimators and split-conformal calibration.
 
-Three ways to attach an interval to a point prediction, in increasing order of
-how much they promise:
+Three ways to attach an interval to a point prediction, in increasing order of how much they promise:
 
   rf_std            Spread of the forest's own trees, read as a Gaussian sigma.
                     Cheap and interpretable, but it only measures disagreement
@@ -47,9 +46,8 @@ def rf_tree_std(model, X) -> np.ndarray:
     """Standard deviation of the per-tree predictions of a fitted forest.
 
     Args:
-        model: A fitted RandomForestRegressor. Tree ensembles are trained
-            unscaled (see pipeline/model.py:_scaled), so `estimators_` accept
-            the same X as the forest itself.
+        model: A fitted RandomForestRegressor. Tree ensembles are trained unscaled (see pipeline/model.py:_scaled), so
+            `estimators_` accept the same X as the forest itself.
         X: Feature matrix to predict.
 
     Raises:

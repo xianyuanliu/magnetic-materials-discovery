@@ -42,8 +42,7 @@ def _run_ablation(
 ) -> None:
     """Produce the interpretability figures for one set of fitted models.
 
-    Which model to explain and which to compare come from the config
-    (`interpret_model`, `case_study_models`).
+    Which model to explain and which to compare come from the config (`interpret_model`, `case_study_models`).
     """
     pt, mm = load_elemental_data(cfg.pt_path, cfg.mm_path)
 

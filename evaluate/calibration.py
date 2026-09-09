@@ -1,12 +1,11 @@
 """Calibration metrics for predictive uncertainty.
 
-Scores a prediction interval against what actually happened: does it cover the
-truth as often as it claims, and how wide does it have to be to manage that.
+Scores a prediction interval against what actually happened: does it cover the truth as often as it claims, and how wide
+does it have to be to manage that.
 
-Everything here aggregates over *samples*, never over splits. Mixing the two —
-averaging per-split errors while pooling per-sample uncertainties — makes the
-two halves of any error-vs-uncertainty comparison incommensurable as soon as
-the splits differ in size, which LOCO clusters always do.
+Everything here aggregates over *samples*, never over splits. Mixing the two — averaging per-split errors while pooling
+per-sample uncertainties — makes the two halves of any error-vs-uncertainty comparison incommensurable as soon as the
+splits differ in size, which LOCO clusters always do.
 """
 
 from typing import Dict, List, Sequence
@@ -32,8 +31,7 @@ def compute_calibration_metrics(
     Args:
         y_true: Observed targets.
         y_pred: Point predictions.
-        half_width: Half-width of each prediction interval, so the interval is
-            y_pred ± half_width.
+        half_width: Half-width of each prediction interval, so the interval is y_pred ± half_width.
         sigma: Per-sample standard-deviation estimate behind the interval.
         alpha: Nominal miscoverage the interval was built for.
 
@@ -41,15 +39,13 @@ def compute_calibration_metrics(
         mae, rmse: Point-prediction accuracy.
         mean_sigma: Average claimed uncertainty.
         coverage: Fraction of samples the interval actually contains.
-        coverage_error: coverage minus its nominal (1 - alpha) target. Negative
-            means the interval is too narrow, i.e. the model is overconfident.
-        mean_width: Average interval width — sharpness. Coverage alone is
-            trivially satisfied by a wide enough interval, so the pair is what
-            carries the information.
-        mean_abs_z, rms_z: |error| / sigma. A calibrated Gaussian sigma gives
-            rms_z = 1; above 1 is overconfident, below 1 conservative. These are
-            the scale-sensitive numbers, so they detect the miscalibration that
-            any max-normalised score would divide away.
+        coverage_error: coverage minus its nominal (1 - alpha) target. Negative means the interval is too narrow, i.e.
+            the model is overconfident.
+        mean_width: Average interval width — sharpness. Coverage alone is trivially satisfied by a wide enough interval,
+            so the pair is what carries the information.
+        mean_abs_z, rms_z: |error| / sigma. A calibrated Gaussian sigma gives rms_z = 1; above 1 is overconfident, below
+            1 conservative. These are the scale-sensitive numbers, so they detect the miscalibration that any max-
+            normalised score would divide away.
         n: Sample count behind the row, so the pooling stays auditable.
         n_zero_sigma: How many of those samples were left out of the z columns.
     """
@@ -84,8 +80,7 @@ def summarize_calibration(samples: pd.DataFrame, by: Sequence[str], alpha: float
     """Pool a per-sample prediction frame into one calibration row per group.
 
     Args:
-        samples: One row per predicted sample, with the SAMPLE_COLUMNS plus
-            whatever grouping columns `by` names.
+        samples: One row per predicted sample, with the SAMPLE_COLUMNS plus whatever grouping columns `by` names.
         by: Grouping columns, e.g. ("split_type", "method").
         alpha: Nominal miscoverage.
 
@@ -117,9 +112,8 @@ def summarize_across_seeds(
 ) -> pd.DataFrame:
     """Collapse per-seed calibration rows into mean ± std across seeds.
 
-    The spread here is the only honest error bar on these numbers: a single seed
-    moves coverage and the error/uncertainty ratio by more than the differences
-    being claimed.
+    The spread here is the only honest error bar on these numbers: a single seed moves coverage and the
+    error/uncertainty ratio by more than the differences being claimed.
 
     Args:
         per_seed: Output of summarize_calibration grouped with `seed` in `by`.

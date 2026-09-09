@@ -1,15 +1,13 @@
 """Config-driven selection of OOD scenarios and their splits.
 
-Turns a resolved OODConfig into a list of (scenario_name, splits) pairs by
-picking which elements/periods/groups/clusters to hold out and delegating to
-pipeline/ood_splits.py. Shared by the OOD and UQ pipelines so both evaluate
-exactly the same scenarios.
+Turns a resolved OODConfig into a list of (scenario_name, splits) pairs by picking which
+elements/periods/groups/clusters to hold out and delegating to pipeline/ood_splits.py. Shared by the OOD and UQ
+pipelines so both evaluate exactly the same scenarios.
 
-Hold-out targets are named per family (`elements`, `periods`, `groups`) rather
-than through one shared list: element targets are symbols and period/group
-targets are integers, so a single list could not serve all three — under
-`ood_mode: all` it failed with `invalid literal for int()`. Resolution and the
-error message for the superseded key live in config.load_ood_config.
+Hold-out targets are named per family (`elements`, `periods`, `groups`) rather than through one shared list: element
+targets are symbols and period/group targets are integers, so a single list could not serve all three — under `ood_mode:
+all` it failed with `invalid literal for int()`. Resolution and the error message for the superseded key live in
+config.load_ood_config.
 """
 
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -47,9 +45,8 @@ def _counts_by_attr(
 def _ranked_targets(counts: Dict[Any, int], max_n: Optional[int]) -> List[Any]:
     """Return targets most-frequent-first, capped at `max_n` when it is set.
 
-    Frequency order matters when a cap is applied: it puts the largest held-out
-    sets first, which are also the splits with the least training data left, so
-    a capped run is not a random sample of the scenario.
+    Frequency order matters when a cap is applied: it puts the largest held-out sets first, which are also the splits
+    with the least training data left, so a capped run is not a random sample of the scenario.
     """
     ordered = sorted(counts.items(), key=lambda kv: kv[1], reverse=True)
     ordered = ordered if max_n is None else ordered[:max_n]

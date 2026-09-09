@@ -15,26 +15,22 @@ def resolve_feature_columns(
 ) -> List[str]:
     """Determine and validate which columns are model inputs.
 
-    Naming the features explicitly is strongly preferred. The fallback — "every
-    column that is not the target or the formula" — silently promoted anything
-    else in the file into a model input: a `sample_id` column leaks the row
-    order into the model, and a text column such as `source_doi` reaches the
-    scaler as a string. Both are caught here instead.
+    Naming the features explicitly is strongly preferred. The fallback — "every column that is not the target or the
+    formula" — silently promoted anything else in the file into a model input: a `sample_id` column leaks the row order
+    into the model, and a text column such as `source_doi` reaches the scaler as a string. Both are caught here instead.
 
     Args:
         data: The loaded table.
         target_column: Name of the column being predicted.
         formula_column: Name of the chemical-formula column, if present.
-        feature_columns: Explicit feature list from the run config, or None to
-            infer them.
+        feature_columns: Explicit feature list from the run config, or None to infer them.
 
     Returns:
         The feature column names, in the order the models will see them.
 
     Raises:
-        ValueError: If a named feature is missing, if nothing is left after
-            excluding the target and formula, or if any feature column is
-            non-numeric.
+        ValueError: If a named feature is missing, if nothing is left after excluding the target and formula, or if any
+            feature column is non-numeric.
     """
     if feature_columns is not None:
         missing = [c for c in feature_columns if c not in data.columns]
@@ -79,8 +75,7 @@ def load_features_and_target(
         (X, y, feature_columns).
 
     Raises:
-        ValueError: If the target column is missing, or feature resolution
-            fails; see resolve_feature_columns.
+        ValueError: If the target column is missing, or feature resolution fails; see resolve_feature_columns.
     """
     data = pd.read_csv(path).reset_index(drop=True)
 

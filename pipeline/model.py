@@ -1,18 +1,14 @@
 """Every regression model this project can fit: construction, tuning, and training.
 
-One block per model — build (bare sklearn/xgboost constructor), tune
-(GridSearchCV or RandomizedSearchCV), train (fit with searched or manually
-provided parameters) — so adding a model touches one place instead of three.
-MODEL_REGISTRY at the bottom combines them into ready-to-fit units, keyed by a
-single random_state threaded through model construction and hyperparameter
-search from the caller. Each entry is a utils.model_spec.ModelSpec, so a model
-declares what it can do instead of being recognised by key elsewhere in the
-codebase.
+One block per model — build (bare sklearn/xgboost constructor), tune (GridSearchCV or RandomizedSearchCV), train (fit
+with searched or manually provided parameters) — so adding a model touches one place instead of three. MODEL_REGISTRY at
+the bottom combines them into ready-to-fit units, keyed by a single random_state threaded through model construction and
+hyperparameter search from the caller. Each entry is a utils.model_spec.ModelSpec, so a model declares what it can do
+instead of being recognised by key elsewhere in the codebase.
 
-Scale-sensitive models (linear, kernel, neural) are wrapped in a
-StandardScaler pipeline; see _scaled for why the tree ensembles are not.
-Search cost is controlled by the caller via cv_folds and n_iter, because a
-nested search re-runs for every outer fold (see evaluate/cross_validation.py).
+Scale-sensitive models (linear, kernel, neural) are wrapped in a StandardScaler pipeline; see _scaled for why the tree
+ensembles are not. Search cost is controlled by the caller via cv_folds and n_iter, because a nested search re-runs for
+every outer fold (see evaluate/cross_validation.py).
 """
 
 from typing import Dict, List, Optional, Union
@@ -39,20 +35,16 @@ _ESTIMATOR_STEP = "model"
 def _scaled(estimator) -> Pipeline:
     """Wrap `estimator` in a StandardScaler pipeline.
 
-    The engineered features span three orders of magnitude (meltingTw ~1.7e3
-    vs electronegw ~1.8), which cripples every distance-, penalty-, or
-    gradient-based model: unscaled, SVR(rbf) and MLP score R^2 ~0.1 on
-    Novamag versus ~0.6-0.7 scaled, and an rbf kernel can never win the
-    hyperparameter search.
+    The engineered features span three orders of magnitude (meltingTw ~1.7e3 vs electronegw ~1.8), which cripples every
+    distance-, penalty-, or gradient-based model: unscaled, SVR(rbf) and MLP score R^2 ~0.1 on Novamag versus ~0.6-0.7
+    scaled, and an rbf kernel can never win the hyperparameter search.
 
-    Tree ensembles (RF, XGBoost) are deliberately left bare: they are
-    invariant to per-feature monotone rescaling, so scaling buys nothing, and
-    wrapping them in a Pipeline would stop shap.Explainer from dispatching to
-    the fast exact TreeExplainer in interpret/model_weights.py.
+    Tree ensembles (RF, XGBoost) are deliberately left bare: they are invariant to per-feature monotone rescaling, so
+    scaling buys nothing, and wrapping them in a Pipeline would stop shap.Explainer from dispatching to the fast exact
+    TreeExplainer in interpret/model_weights.py.
 
-    Scaling lives inside the pipeline (not applied to the whole dataset up
-    front) so the mean/std are fitted on training data only and never leak
-    across a train/test boundary.
+    Scaling lives inside the pipeline (not applied to the whole dataset up front) so the mean/std are fitted on training
+    data only and never leak across a train/test boundary.
     """
     return Pipeline([("scaler", StandardScaler()), (_ESTIMATOR_STEP, estimator)])
 
@@ -60,9 +52,8 @@ def _scaled(estimator) -> Pipeline:
 def _prefix_params(params: ParamGrid) -> ParamGrid:
     """Rewrite bare param names for a scaled pipeline ("alpha" -> "model__alpha").
 
-    Accepts a list of dicts too, which is how GridSearchCV expresses a union of
-    sub-grids (see tune_xgb_hyperparams, which ties learning_rate to
-    n_estimators instead of taking their full product).
+    Accepts a list of dicts too, which is how GridSearchCV expresses a union of sub-grids (see tune_xgb_hyperparams,
+    which ties learning_rate to n_estimators instead of taking their full product).
     """
     if isinstance(params, list):
         return [_prefix_params(sub) for sub in params]
@@ -115,8 +106,7 @@ def _randomized_search_best_params(
 ) -> Dict:
     """Run RandomizedSearchCV for a given model instance, print and return the best params.
 
-    Returns bare (un-prefixed) parameter names even when `scale` is set; see
-    _grid_search_best_params.
+    Returns bare (un-prefixed) parameter names even when `scale` is set; see _grid_search_best_params.
     """
     random_search = RandomizedSearchCV(
         estimator=_scaled(model) if scale else model,
@@ -162,10 +152,9 @@ def tune_ridge_hyperparams(
 ) -> Dict:
     """Run GridSearchCV to search optimized Ridge hyperparameters.
 
-    random_state and n_iter are accepted (but unused) so every
-    MODEL_REGISTRY["tune"] callable shares the same call signature;
-    Ridge/GridSearchCV has no stochastic element to seed and enumerates its
-    whole grid rather than sampling from it.
+    random_state and n_iter are accepted (but unused) so every MODEL_REGISTRY["tune"] callable shares the same call
+    signature; Ridge/GridSearchCV has no stochastic element to seed and enumerates its whole grid rather than sampling
+    from it.
     """
     param_grid = {
         "alpha": [0.001, 0.01, 0.1, 1.0, 10.0, 100.0, 1000.0],
@@ -198,8 +187,7 @@ def tune_lasso_hyperparams(
 ) -> Dict:
     """Run GridSearchCV to search optimized Lasso hyperparameters.
 
-    random_state and n_iter are accepted (but unused) for call-signature
-    uniformity; see tune_ridge_hyperparams.
+    random_state and n_iter are accepted (but unused) for call-signature uniformity; see tune_ridge_hyperparams.
     """
     param_grid = {
         "alpha": [0.0001, 0.001, 0.01, 0.1, 1.0, 10.0],
@@ -232,8 +220,7 @@ def tune_elasticnet_hyperparams(
 ) -> Dict:
     """Run GridSearchCV to search optimized ElasticNet hyperparameters.
 
-    random_state and n_iter are accepted (but unused) for call-signature
-    uniformity; see tune_ridge_hyperparams.
+    random_state and n_iter are accepted (but unused) for call-signature uniformity; see tune_ridge_hyperparams.
     """
     param_grid = {
         "alpha": [0.0001, 0.001, 0.01, 0.1, 1.0, 10.0],
@@ -283,16 +270,13 @@ def tune_rf_hyperparams(
 ) -> Dict:
     """Run GridSearchCV to search optimized Random Forest hyperparameters.
 
-    27 combinations, searched exhaustively — cheaper than sampling 20 points
-    out of the old 45 and no longer luck-dependent. n_iter is accepted (but
-    unused) for call-signature uniformity.
+    27 combinations, searched exhaustively — cheaper than sampling 20 points out of the old 45 and no longer luck-
+    dependent. n_iter is accepted (but unused) for call-signature uniformity.
 
-    max_features is a fraction rather than "sqrt"/"log2": on the 9 engineered
-    features both of those resolve to int(sqrt(9)) == int(log2(9)) == 3, so
-    they were the same setting listed twice, and the value that actually wins
-    (1.0, i.e. consider every feature) was absent from the grid entirely.
-    n_estimators stays at the builder's 300 — more trees only ever help a
-    little and cost linearly.
+    max_features is a fraction rather than "sqrt"/"log2": on the 9 engineered features both of those resolve to
+    int(sqrt(9)) == int(log2(9)) == 3, so they were the same setting listed twice, and the value that actually wins
+    (1.0, i.e. consider every feature) was absent from the grid entirely. n_estimators stays at the builder's 300 — more
+    trees only ever help a little and cost linearly.
     """
     param_grid = {
         "max_depth": [None, 10, 20],
@@ -355,22 +339,18 @@ def tune_xgb_hyperparams(
 ) -> Dict:
     """Run GridSearchCV to search optimized XGBoost hyperparameters.
 
-    54 combinations (3 sub-grids x 3 x 2 x 3), searched exhaustively. n_iter
-    is accepted (but unused) for call-signature uniformity.
+    54 combinations (3 sub-grids x 3 x 2 x 3), searched exhaustively. n_iter is accepted (but unused) for call-signature
+    uniformity.
 
-    learning_rate is tied to n_estimators instead of taking their product: the
-    old grid swept learning_rate over 0.01-0.3 while pinning n_estimators=300,
-    so its low-rate candidates were simply undertrained models the search
-    would reject, burning budget. Each sub-grid below holds
-    learning_rate * n_estimators roughly constant, which is what lets the
-    search reach the (0.01, 1500) region that wins on this data.
+    learning_rate is tied to n_estimators instead of taking their product: the old grid swept learning_rate over
+    0.01-0.3 while pinning n_estimators=300, so its low-rate candidates were simply undertrained models the search would
+    reject, burning budget. Each sub-grid below holds learning_rate * n_estimators roughly constant, which is what lets
+    the search reach the (0.01, 1500) region that wins on this data.
 
-    colsample_bytree is dropped, since with 9 features column subsampling has
-    almost nothing to choose from, and the freed budget goes to reg_lambda.
-    subsample is kept: it subsamples *rows*, so at n=460 it is a real
-    regularizer rather than a feature-count question — dropping it costs about
-    0.013 R^2 on Novamag. min_child_weight is left out to hold the grid near
-    50 combinations; adding it back gains roughly 0.003 R^2 for 33% more fits.
+    colsample_bytree is dropped, since with 9 features column subsampling has almost nothing to choose from, and the
+    freed budget goes to reg_lambda. subsample is kept: it subsamples *rows*, so at n=460 it is a real regularizer
+    rather than a feature-count question — dropping it costs about 0.013 R^2 on Novamag. min_child_weight is left out to
+    hold the grid near 50 combinations; adding it back gains roughly 0.003 R^2 for 33% more fits.
     """
     param_grid = [
         {
@@ -430,15 +410,12 @@ def tune_svr_hyperparams(
 ) -> Dict:
     """Run GridSearchCV to search optimized Support Vector Regressor hyperparameters.
 
-    48 combinations, searched exhaustively. random_state and n_iter are
-    accepted (but unused): SVR has a deterministic solver, and the grid is now
-    enumerated rather than sampled.
+    48 combinations, searched exhaustively. random_state and n_iter are accepted (but unused): SVR has a deterministic
+    solver, and the grid is now enumerated rather than sampled.
 
-    Restricted to the rbf kernel. The old grid crossed kernel with gamma, but
-    gamma is meaningless for a linear kernel, so every linear candidate was
-    duplicated six times and roughly half the sampled points were redundant.
-    Scaled (see _scaled), rbf beats linear clearly, so linear is not worth the
-    budget.
+    Restricted to the rbf kernel. The old grid crossed kernel with gamma, but gamma is meaningless for a linear kernel,
+    so every linear candidate was duplicated six times and roughly half the sampled points were redundant. Scaled (see
+    _scaled), rbf beats linear clearly, so linear is not worth the budget.
     """
     param_grid = {
         "C": [1.0, 10.0, 100.0, 1000.0],

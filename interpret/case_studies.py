@@ -1,8 +1,7 @@
 """Binary-alloy case studies: model predictions vs. literature measurements.
 
-The comparison is over whatever models the caller passes in, keyed by name, so
-adding or dropping a model is a config change rather than an edit here — it used
-to take exactly a random forest, an XGBoost and a ridge, in that order.
+The comparison is over whatever models the caller passes in, keyed by name, so adding or dropping a model is a config
+change rather than an edit here — it used to take exactly a random forest, an XGBoost and a ridge, in that order.
 """
 
 from typing import Any, Dict, List, Mapping, NamedTuple, Sequence, Tuple
@@ -32,8 +31,7 @@ class CaseStudy(NamedTuple):
         title: Display name, e.g. "FeCo".
         element: Alloying element whose atomic fraction is the x axis.
         formulas: Chemical formulas spanning the series.
-        literature_ms: Measured saturation magnetization, keyed by the alloying
-            element's atomic fraction.
+        literature_ms: Measured saturation magnetization, keyed by the alloying element's atomic fraction.
     """
 
     title: str
@@ -55,10 +53,8 @@ class CaseStudyResult(NamedTuple):
 
     Attributes:
         atomic_fraction: Per-element atomic fractions, one row per formula.
-        predictions: Predicted target per model name, in the order the models
-            were passed in.
-        literature: Measured saturation magnetization, indexed by the alloying
-            element's atomic fraction.
+        predictions: Predicted target per model name, in the order the models were passed in.
+        literature: Measured saturation magnetization, indexed by the alloying element's atomic fraction.
     """
 
     atomic_fraction: pd.DataFrame

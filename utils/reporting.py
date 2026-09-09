@@ -1,8 +1,7 @@
 """Console formatting for run results.
 
-All printing lives here. The scoring modules under `evaluate/` return frames and
-dataclasses, so they can be called from a notebook or another project without a
-run's console output appearing as a side effect; this module turns those results
+All printing lives here. The scoring modules under `evaluate/` return frames and dataclasses, so they can be called from
+a notebook or another project without a run's console output appearing as a side effect; this module turns those results
 into the text a CLI run shows.
 """
 
@@ -70,8 +69,7 @@ def print_significance(result: SignificanceResult) -> None:
 def format_metric_table(df: pd.DataFrame) -> pd.DataFrame:
     """Collapse `<METRIC>_mean`/`<METRIC>_std` column pairs into display strings.
 
-    Display only — the underlying frames keep full-precision numbers so the
-    saved CSVs stay usable for arithmetic.
+    Display only — the underlying frames keep full-precision numbers so the saved CSVs stay usable for arithmetic.
     """
     if df.empty:
         return df

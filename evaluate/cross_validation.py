@@ -1,8 +1,7 @@
 """K-fold cross-validation scoring and paired significance testing.
 
-Every function here returns data. Formatting and printing live in reporting.py,
-so these can be called from a notebook or another library without a run's
-console output appearing as a side effect.
+Every function here returns data. Formatting and printing live in reporting.py, so these can be called from a notebook
+or another library without a run's console output appearing as a side effect.
 """
 
 from dataclasses import dataclass
@@ -38,10 +37,8 @@ class SignificanceResult:
         n_pairs: Number of paired observations behind the test.
         t_stat, t_pvalue: Paired t-test on the differences.
         w_stat, w_pvalue: Wilcoxon signed-rank on the same differences.
-        mean_difference: mean(a) - mean(b); negative favours `model_a` for
-            lower-is-better metrics.
-        note: Why the p-values are absent or should not be read, when that
-            applies; None when the test ran normally.
+        mean_difference: mean(a) - mean(b); negative favours `model_a` for lower-is-better metrics.
+        note: Why the p-values are absent or should not be read, when that applies; None when the test ran normally.
     """
 
     metric: str
@@ -71,16 +68,13 @@ def cross_validate_models(
 ) -> FoldScores:
     """Run K-fold cross-validation for the given models.
 
-    random_state seeds the KFold split; model_random_state seeds model
-    construction and hyperparameter search so the two sources of randomness can
-    be controlled independently.
+    random_state seeds the KFold split; model_random_state seeds model construction and hyperparameter search so the two
+    sources of randomness can be controlled independently.
 
-    When hyperparameter_tuning is set, the search re-runs inside every outer
-    fold (proper nested CV — the outer fold's validation data never informs the
-    search). That is why the search budget is a separate, smaller pair of knobs:
-    tune_cv_folds inner folds and tune_n_iter sampled candidates, whose cost is
-    multiplied by cv_folds x len(specs). Pass best_params to skip the search
-    entirely and reuse one fixed set of parameters.
+    When hyperparameter_tuning is set, the search re-runs inside every outer fold (proper nested CV — the outer fold's
+    validation data never informs the search). That is why the search budget is a separate, smaller pair of knobs:
+    tune_cv_folds inner folds and tune_n_iter sampled candidates, whose cost is multiplied by cv_folds x len(specs).
+    Pass best_params to skip the search entirely and reuse one fixed set of parameters.
 
     Args:
         X: Feature matrix.
@@ -158,17 +152,15 @@ def compare_models_significance(
 ) -> SignificanceResult:
     """Paired t-test and Wilcoxon signed-rank on two models' scores.
 
-    The pairing is only meaningful when each observation comes from a *different*
-    evaluation set — cross-validation folds, or one OOD split per pair. Scores
-    that share a test set are not independent observations of a difference, and
+    The pairing is only meaningful when each observation comes from a *different* evaluation set — cross-validation
+    folds, or one OOD split per pair. Scores that share a test set are not independent observations of a difference, and
     the caller is responsible for not passing those in.
 
     Args:
         results: Paired scores, keyed by model name then metric.
         model_a, model_b: Model names to compare.
         metric: Which metric to compare; lower-is-better metrics only.
-        min_pairs: Below this, p-values are withheld and `note` explains why;
-            see MIN_PAIRS_FOR_TEST.
+        min_pairs: Below this, p-values are withheld and `note` explains why; see MIN_PAIRS_FOR_TEST.
 
     Returns:
         A SignificanceResult. `mean_difference` is always populated; the

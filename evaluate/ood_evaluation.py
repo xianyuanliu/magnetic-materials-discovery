@@ -1,23 +1,19 @@
 """Per-split scoring and table-building for OOD stress tests.
 
-Given a set of (split_id, train_idx, test_idx) splits — built by
-pipeline/ood_splits.py and orchestrated by pipeline/ood_pipeline.py — this runs
-KFold on the TRAIN portion of each split and scores against the fixed, held-out
-OOD TEST portion.
+Given a set of (split_id, train_idx, test_idx) splits — built by pipeline/ood_splits.py and orchestrated by
+pipeline/ood_pipeline.py — this runs KFold on the TRAIN portion of each split and scores against the fixed, held-out OOD
+TEST portion.
 
-Every OOD split is scored next to two in-distribution references, so a drop can
-be attributed instead of merely observed:
+Every OOD split is scored next to two in-distribution references, so a drop can be attributed instead of merely
+observed:
 
-  ID-paired   The same fold models, scored on the inner validation fold they
-              already held out. Identical training rows, in-distribution test,
-              so OOD minus ID-paired isolates the *test-side* shift.
-  ID-random   A random train/test split of the same two sizes, supplied by the
-              caller. Holding out Fe costs Novamag more than half its training
-              data, so this is what separates "never saw Fe" from "trained on
-              half as much".
+ID-paired   The same fold models, scored on the inner validation fold they already held out. Identical training rows,
+in-distribution test, so OOD minus ID-paired isolates the *test-side* shift. ID-random   A random train/test split of
+the same two sizes, supplied by the caller. Holding out Fe costs Novamag more than half its training data, so this is
+what separates "never saw Fe" from "trained on half as much".
 
-This module never prints and never imports from `pipeline`; it scores the splits
-it is handed and returns frames. Reporting lives in reporting.py.
+This module never prints and never imports from `pipeline`; it scores the splits it is handed and returns frames.
+Reporting lives in reporting.py.
 """
 
 from dataclasses import dataclass
@@ -56,10 +52,9 @@ def _empty_scores(specs: Sequence[ModelSpec]) -> Dict[str, Dict[str, List[float]
 def heldout_target(split_id: str) -> str:
     """Extract the held-out target from a split id, or "" when there isn't one.
 
-    Membership splits are named `E=Fe`, `P=4`, `G=8`, `C=3`; the sparsity
-    families are named `SparseX_top10pct` and hold out a *fraction*, not a
-    target. Splitting unconditionally on "=" used to make those rows repeat the
-    whole split id in a column meant for a chemistry label.
+    Membership splits are named `E=Fe`, `P=4`, `G=8`, `C=3`; the sparsity families are named `SparseX_top10pct` and hold
+    out a *fraction*, not a target. Splitting unconditionally on "=" used to make those rows repeat the whole split id
+    in a column meant for a chemistry label.
     """
     return split_id.split("=", 1)[1] if "=" in split_id else ""
 
@@ -93,13 +88,12 @@ def _score_fold_models(
 ) -> Tuple[_FoldScores, Optional[_FoldScores]]:
     """Fit one model per inner fold and score it on the split's fixed test set.
 
-    The inner KFold exists to average over training subsamples, not to select
-    anything: no fold's score feeds back into fitting.
+    The inner KFold exists to average over training subsamples, not to select anything: no fold's score feeds back into
+    fitting.
 
     Args:
-        score_inner: Also score every fold model on the inner validation fold it
-            held out. Free — the models are already fitted — and it is the only
-            reference trained on exactly the same rows as the OOD score.
+        score_inner: Also score every fold model on the inner validation fold it held out. Free — the models are already
+            fitted — and it is the only reference trained on exactly the same rows as the OOD score.
 
     Returns:
         (test_scores, inner_scores); inner_scores is None when score_inner is False.
@@ -138,9 +132,8 @@ def _score_fold_models(
 def _metric_rows(scenario, split_id, seed, split_type, scores: _FoldScores) -> List[Dict]:
     """Table 2 rows: numeric mean/std per model, formatted only at print time.
 
-    The std is across inner folds, which all score the *same* fixed test set, so
-    it measures sensitivity to the training subsample — not test-set
-    uncertainty, and not something two models can be significance-tested on.
+    The std is across inner folds, which all score the *same* fixed test set, so it measures sensitivity to the training
+    subsample — not test-set uncertainty, and not something two models can be significance-tested on.
     """
     rows = []
     for model_name, per_metric in scores.per_model.items():
@@ -174,12 +167,11 @@ def evaluate_splits_kfold_train_fixed_test(
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """Score each split's fixed OOD test set plus its in-distribution references.
 
-    model_random_state seeds model construction and hyperparameter search
-    (independent of `seed`, which seeds the inner KFold split on TRAIN).
+    model_random_state seeds model construction and hyperparameter search (independent of `seed`, which seeds the inner
+    KFold split on TRAIN).
 
-    tune_cv_folds/tune_n_iter bound the hyperparameter search, which re-runs per
-    fold per split per seed — the most expensive place in the codebase to leave
-    the budget unbounded.
+    tune_cv_folds/tune_n_iter bound the hyperparameter search, which re-runs per fold per split per seed — the most
+    expensive place in the codebase to leave the budget unbounded.
 
     Args:
         X: Feature matrix for the whole pool.
@@ -195,11 +187,10 @@ def evaluate_splits_kfold_train_fixed_test(
         model_random_state: Seed for model construction and the search.
         tune_cv_folds: Inner folds for the search.
         tune_n_iter: Candidates sampled by a randomized search.
-        controls: Size-matched random split per split_id, or None to skip the
-            ID-random reference. Built by the caller — this module scores the
-            splits it is given rather than deciding which exist.
-        on_skip: Optional `(split_id, reason) -> None` callback for splits that
-            are too small to score, so the caller can report them.
+        controls: Size-matched random split per split_id, or None to skip the ID-random reference. Built by the caller —
+            this module scores the splits it is given rather than deciding which exist.
+        on_skip: Optional `(split_id, reason) -> None` callback for splits that are too small to score, so the caller
+            can report them.
 
     Returns:
         (table1, table2) — split summary, and metrics by model and split_type.
@@ -253,14 +244,13 @@ def summarize_model_comparison(
 ) -> pd.DataFrame:
     """Paired comparison of two models, one observation per OOD split.
 
-    This replaces a per-split test over inner folds. Those folds all scored the
-    *same* fixed test set, so their scores were repeated measurements of one
-    quantity rather than independent observations of a difference — pairing them
-    inflated the apparent evidence, and with a handful of folds the reported
-    p-value was pinned near the test's own floor anyway.
+    This replaces a per-split test over inner folds. Those folds all scored the *same* fixed test set, so their scores
+    were repeated measurements of one quantity rather than independent observations of a difference — pairing them
+    inflated the apparent evidence, and with a handful of folds the reported p-value was pinned near the test's own
+    floor anyway.
 
-    Pairing across splits is the valid version: each split is a different test
-    set, and the two models saw identical training data on it.
+    Pairing across splits is the valid version: each split is a different test set, and the two models saw identical
+    training data on it.
 
     Args:
         metrics_df: Table 2, concatenated across splits and seeds.
@@ -319,11 +309,9 @@ def summarize_model_comparison(
 def summarize_runs_across_splits(metrics_df: pd.DataFrame) -> pd.DataFrame:
     """Average Table 2's per-split means into one row per (scenario, split_type, model).
 
-    The reported spread is the std *of the per-split means*, i.e. how much a
-    model's score moves between OOD splits — not the within-split fold spread,
-    which stays in Table 2. n_splits is how many rows the summary covers; a NaN
-    metric is dropped from that metric's mean only, and stays visible in Table 2
-    rather than propagating into everything.
+    The reported spread is the std *of the per-split means*, i.e. how much a model's score moves between OOD splits —
+    not the within-split fold spread, which stays in Table 2. n_splits is how many rows the summary covers; a NaN metric
+    is dropped from that metric's mean only, and stays visible in Table 2 rather than propagating into everything.
 
     Args:
         metrics_df: Table 2, concatenated across splits and seeds.

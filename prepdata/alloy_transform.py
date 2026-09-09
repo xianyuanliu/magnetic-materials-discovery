@@ -19,14 +19,11 @@ from pymatgen.core.composition import Composition
 def parse_elements_from_formula(formula: str) -> List[str]:
     """Extract unique element symbols from a chemical formula using pymatgen.
 
-    Uses the same parser as get_stoich_array so element identification is
-    consistent across the pipeline.
+    Uses the same parser as get_stoich_array so element identification is consistent across the pipeline.
 
-    A row whose elements come back empty is invisible to any element/period/
-    group-based OOD split (it can never be selected as train or test for a
-    given target), so a genuine parse failure is surfaced via warnings.warn
-    rather than swallowed. A missing formula (None/NaN) is not a failure and
-    stays silent.
+    A row whose elements come back empty is invisible to any element/period/ group-based OOD split (it can never be
+    selected as train or test for a given target), so a genuine parse failure is surfaced via warnings.warn rather than
+    swallowed. A missing formula (None/NaN) is not a failure and stays silent.
 
     Example:
         Nd2Fe14B -> ["Nd", "Fe", "B"]
@@ -71,9 +68,8 @@ def extract_elements_series(df_raw: pd.DataFrame, formula_column: str = "chemica
 def elements_mask(elements_per_row: Sequence[Sequence[str]], elements: Iterable[str]) -> np.ndarray:
     """Boolean mask: True where a row's parsed elements intersect `elements`.
 
-    Built on the same pymatgen-based parsing as parse_elements_from_formula,
-    so element-based filtering/grouping stays consistent with the OOD element
-    splits instead of relying on ad hoc formula substring matching.
+    Built on the same pymatgen-based parsing as parse_elements_from_formula, so element-based filtering/grouping stays
+    consistent with the OOD element splits instead of relying on ad hoc formula substring matching.
     """
     target = set(elements)
     return np.array([bool(target.intersection(els)) for els in elements_per_row], dtype=bool)
@@ -147,11 +143,9 @@ def _sorted_elements(periodic_table):
 def _atomic_fraction(compound: pd.Series):
     """Return atomic fractions and element labels for a stoichiometry row.
 
-    An empty result means the row's formula produced no usable stoichiometry
-    (unparseable, or all its elements are absent from the periodic table
-    file). Callers must map that to NaN rather than 0, so build_features'
-    dropna removes the row instead of training on a fabricated all-zero
-    feature vector — see _weighted_mean.
+    An empty result means the row's formula produced no usable stoichiometry (unparseable, or all its elements are
+    absent from the periodic table file). Callers must map that to NaN rather than 0, so build_features' dropna removes
+    the row instead of training on a fabricated all-zero feature vector — see _weighted_mean.
     """
     # mask of elements that appear in the compound
     mask = compound != 0
@@ -174,9 +168,8 @@ def _atomic_fraction(compound: pd.Series):
 def _weighted_mean(at_fraction: pd.Series, values: pd.Series) -> float:
     """Atomic-fraction-weighted mean of `values`, or NaN for an empty compound.
 
-    Returning NaN (not 0.0) for an empty compound is what makes a row with no
-    usable stoichiometry fail build_features' dropna instead of silently
-    entering the training set as a plausible-looking all-zero sample.
+    Returning NaN (not 0.0) for an empty compound is what makes a row with no usable stoichiometry fail build_features'
+    dropna instead of silently entering the training set as a plausible-looking all-zero sample.
     """
     if at_fraction.empty:
         return np.nan
@@ -188,8 +181,7 @@ def get_stoich_array(x, pt, formula_column: str = "chemical formula"):
 
     Args:
         x: DataFrame with a formula column, or a single formula string.
-        pt: Periodic table DataFrame (see loaddata.alloy_access.import_periodic_table),
-            used for element symbols.
+        pt: Periodic table DataFrame (see loaddata.alloy_access.import_periodic_table), used for element symbols.
         formula_column: Name of the formula column when `x` is a DataFrame.
 
     Returns:

@@ -1,19 +1,16 @@
 """Uncertainty-quantification orchestration: is the model's confidence earned?
 
-For every split — an in-distribution K-fold reference, each OOD scenario from
-pipeline/ood_scenarios.py, and a same-size random control per OOD split — this
-fits one model, attaches three kinds of interval (see pipeline/uq.py), and
-records one row per predicted sample. Calibration is then computed by pooling
-those samples, so error and uncertainty are always aggregated the same way.
+For every split — an in-distribution K-fold reference, each OOD scenario from pipeline/ood_scenarios.py, and a same-size
+random control per OOD split — this fits one model, attaches three kinds of interval (see pipeline/uq.py), and records
+one row per predicted sample. Calibration is then computed by pooling those samples, so error and uncertainty are always
+aggregated the same way.
 
-What it deliberately does not do is score the "confidence-error paradox". The
-usual test for it — comparing an OOD/ID error ratio against an OOD/ID
-uncertainty ratio — flips sign with the random seed on this data, so this
-pipeline reports coverage and error/sigma against their nominal targets, with a
-spread across seeds, and leaves the reading to the reader.
+What it deliberately does not do is score the "confidence-error paradox". The usual test for it — comparing an OOD/ID
+error ratio against an OOD/ID uncertainty ratio — flips sign with the random seed on this data, so this pipeline reports
+coverage and error/sigma against their nominal targets, with a spread across seeds, and leaves the reading to the
+reader.
 
-The model is chosen from ENSEMBLE_STD_MODELS rather than by hard-coding a
-Random Forest; see resolve_uq_model.
+The model is chosen from ENSEMBLE_STD_MODELS rather than by hard-coding a Random Forest; see resolve_uq_model.
 """
 
 from __future__ import annotations
@@ -111,9 +108,8 @@ def _fit_and_predict(
 def _controls_for(splits: Sequence[Split], n_samples: int, seed: int, scenario: str) -> List[Split]:
     """One same-size random split per OOD split, to separate shift from data loss.
 
-    Each control keeps its parent's split_id so the two stay paired in the
-    output tables. crc32, not hash(): str hashing is salted per process, and
-    these seeds have to be reproducible across runs.
+    Each control keeps its parent's split_id so the two stay paired in the output tables. crc32, not hash(): str hashing
+    is salted per process, and these seeds have to be reproducible across runs.
     """
     controls = []
     for split_id, train_idx, test_idx in splits:
@@ -163,14 +159,12 @@ def _collect_samples(
 def resolve_uq_model(model_registry: Mapping[str, ModelSpec], model_key: str) -> ModelSpec:
     """Look up the UQ model and check it can actually supply a spread.
 
-    The estimators in pipeline/uq.py read the per-member predictions of an
-    ensemble, so the model has to be in ENSEMBLE_STD_MODELS, rather than
-    something inferred from the key being "rf" — which is how this used to be
-    decided, and which silently ignored the configured model list.
+    The estimators in pipeline/uq.py read the per-member predictions of an ensemble, so the model has to be in
+    ENSEMBLE_STD_MODELS, rather than something inferred from the key being "rf" — which is how this used to be decided,
+    and which silently ignored the configured model list.
 
     Raises:
-        ValueError: If the key is unknown, or names a model with no ensemble
-            spread to read.
+        ValueError: If the key is unknown, or names a model with no ensemble spread to read.
     """
     if model_key not in model_registry:
         raise ValueError(f"Unknown uq_model {model_key!r}. Available: {sorted(model_registry)}")

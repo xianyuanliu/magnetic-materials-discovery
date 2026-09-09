@@ -1,18 +1,16 @@
 """Property prediction: fit a model, save it, and apply it to new compositions.
 
-The other pipelines answer "how good is this model"; this one answers "what is
-the predicted property of this material". It is also where a fitted model
-leaves the process: without persistence every run retrained from scratch and
-discarded its models, so nothing downstream could use them.
+The other pipelines answer "how good is this model"; this one answers "what is the predicted property of this material".
+It is also where a fitted model leaves the process: without persistence every run retrained from scratch and discarded
+its models, so nothing downstream could use them.
 
 Two ways in:
   - No saved bundle (or `predict_retrain: true`) — fit on the whole dataset and
     save the bundle to `predict_model_path`.
   - A saved bundle — load it and skip training entirely.
 
-Either way the compositions to score come from `predict_input_path` (a CSV) or
-`predict_formulas` (a list in the config), are featurized with exactly the same
-code as the training data, and are written out with their predictions.
+Either way the compositions to score come from `predict_input_path` (a CSV) or `predict_formulas` (a list in the
+config), are featurized with exactly the same code as the training data, and are written out with their predictions.
 """
 
 from pathlib import Path
@@ -67,9 +65,8 @@ def _read_formulas(cfg: RunConfig) -> pd.DataFrame:
 def _train_bundle(cfg: RunConfig, spec: ModelSpec) -> ModelBundle:
     """Fit `spec` on the whole configured dataset and wrap it in a bundle.
 
-    Unlike the evaluation modes, this deliberately trains on every row: the
-    model is going to be used, not scored, so holding data back would only make
-    it worse.
+    Unlike the evaluation modes, this deliberately trains on every row: the model is going to be used, not scored, so
+    holding data back would only make it worse.
     """
     X, y, feature_columns = load_features_and_target(
         cfg.dataset_path,

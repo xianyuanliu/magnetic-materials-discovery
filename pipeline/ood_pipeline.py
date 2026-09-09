@@ -1,12 +1,10 @@
 """OOD evaluation orchestration: data loading, split selection, and reporting.
 
-Reads the dataset CSV, asks pipeline/ood_scenarios.py which splits to build,
-builds the size-matched in-distribution controls, hands all of that to
-evaluate/ood_evaluation.py for scoring, and writes the result tables.
+Reads the dataset CSV, asks pipeline/ood_scenarios.py which splits to build, builds the size-matched in-distribution
+controls, hands all of that to evaluate/ood_evaluation.py for scoring, and writes the result tables.
 
-Deciding *which* splits exist lives here; scoring them lives in `evaluate/`.
-That is why the controls are built in this module and passed down rather than
-constructed inside the evaluator, which previously made `evaluate` import from
+Deciding *which* splits exist lives here; scoring them lives in `evaluate/`. That is why the controls are built in this
+module and passed down rather than constructed inside the evaluator, which previously made `evaluate` import from
 `pipeline` while `pipeline` imported from `evaluate`.
 """
 
@@ -55,24 +53,22 @@ def load_ood_dataset(
 ) -> Tuple[pd.DataFrame, pd.Series, pd.DataFrame]:
     """Load the pool the OOD splits are carved out of.
 
-    Both config paths are read and concatenated, because the OOD splits define
-    their own train/test boundary — the two files are only a way of pointing at
-    the data, not a pre-existing split that is honoured here.
+    Both config paths are read and concatenated, because the OOD splits define their own train/test boundary — the two
+    files are only a way of pointing at the data, not a pre-existing split that is honoured here.
 
     Args:
         train_dataset_path: First (or only) CSV to read.
         test_dataset_path: Second CSV, or the same path, or None.
         target_column: Name of the column being predicted.
         formula_column: Name of the chemical-formula column.
-        feature_columns: Explicit feature list, or None to infer and validate
-            them; see loaddata.feature_csv_access.resolve_feature_columns.
+        feature_columns: Explicit feature list, or None to infer and validate them; see
+            loaddata.feature_csv_access.resolve_feature_columns.
 
     Returns:
         (X, y, df_full), where X holds exactly the resolved feature columns.
 
     Raises:
-        ValueError: If a required column is missing or the features do not
-            resolve to a usable numeric matrix.
+        ValueError: If a required column is missing or the features do not resolve to a usable numeric matrix.
     """
     if not train_dataset_path:
         raise ValueError("OOD mode requires train_dataset_path (can be the full dataset CSV).")
@@ -96,8 +92,7 @@ def load_ood_dataset(
 def build_controls(splits: Sequence[Split], n_samples: int, seed: int, scenario: str) -> Dict[str, Split]:
     """One same-size random split per OOD split, keyed by the parent's split_id.
 
-    crc32, not hash(): str hashing is salted per process, and these seeds have
-    to be reproducible across runs.
+    crc32, not hash(): str hashing is salted per process, and these seeds have to be reproducible across runs.
 
     Returns:
         {split_id: control split}, omitting splits whose sizes do not fit.
@@ -152,9 +147,8 @@ def _report_skip(scenario: str):
 def run_ood_evaluation(*, cfg: RunConfig, model_registry: Mapping[str, ModelSpec]) -> None:
     """Run the OOD pipeline: build split families, score each, print and save tables.
 
-    Called from main.py when evaluation_mode == 'ood'. Every OOD split is scored
-    alongside its in-distribution references (see evaluate/ood_evaluation.py),
-    so the saved tables carry a `split_type` column and Table 5 splits the
+    Called from main.py when evaluation_mode == 'ood'. Every OOD split is scored alongside its in-distribution
+    references (see evaluate/ood_evaluation.py), so the saved tables carry a `split_type` column and Table 5 splits the
     degradation into a shift part and a training-pool part.
 
     Args:

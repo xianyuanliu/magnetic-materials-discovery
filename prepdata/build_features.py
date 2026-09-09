@@ -1,8 +1,7 @@
 """Engineer alloy features shared across Novamag and Materials Project data.
 
-Featurization (`add_engineered_features`) is separated from the target-side
-cleaning (`build_features`) because inference has compositions but no target:
-`pipeline/predict_pipeline.py` and `interpret/case_studies.py` need the same
+Featurization (`add_engineered_features`) is separated from the target-side cleaning (`build_features`) because
+inference has compositions but no target: `pipeline/predict_pipeline.py` and `interpret/case_studies.py` need the same
 nine features for formulas that have never been measured.
 """
 

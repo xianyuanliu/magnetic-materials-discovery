@@ -1,10 +1,9 @@
 """Saving and loading fitted models together with what they need to be used.
 
-A fitted estimator on its own is not enough to make a prediction: the caller
-also has to know which feature columns it was trained on, in which order, and
-what the values mean. Bundling those with the estimator is what lets a model
-outlive the run that produced it, which is the difference between a pipeline
-that reports scores and a library something else can build on.
+A fitted estimator on its own is not enough to make a prediction: the caller also has to know which feature columns it
+was trained on, in which order, and what the values mean. Bundling those with the estimator is what lets a model outlive
+the run that produced it, which is the difference between a pipeline that reports scores and a library something else
+can build on.
 """
 
 from dataclasses import dataclass, field
@@ -25,8 +24,7 @@ class ModelBundle:
         model: The fitted estimator, with a `predict` method.
         model_key: Registry key the model was built from, e.g. "rf".
         model_name: Human-readable model name.
-        feature_columns: Feature names in training order. `predict` must be
-            given these columns, in this order.
+        feature_columns: Feature names in training order. `predict` must be given these columns, in this order.
         target_column: Name of the property the model predicts.
         dataset: Name of the dataset it was trained on.
         n_train: Number of training rows.
@@ -80,8 +78,7 @@ def load_model_bundle(path: str) -> ModelBundle:
 
     Raises:
         FileNotFoundError: If `path` does not exist.
-        ValueError: If the file does not hold a ModelBundle, or holds one
-            written by a newer, incompatible layout.
+        ValueError: If the file does not hold a ModelBundle, or holds one written by a newer, incompatible layout.
     """
     source = Path(path)
     if not source.exists():
@@ -101,9 +98,8 @@ def load_model_bundle(path: str) -> ModelBundle:
 def align_features(features, feature_columns: Sequence[str], source: Optional[str] = None):
     """Select `feature_columns` from `features`, in training order.
 
-    Column *order* matters to a fitted estimator, and a frame built by a
-    different code path is under no obligation to preserve it — so the selection
-    is explicit rather than assumed.
+    Column *order* matters to a fitted estimator, and a frame built by a different code path is under no obligation to
+    preserve it — so the selection is explicit rather than assumed.
 
     Args:
         features: Frame containing at least the named columns.

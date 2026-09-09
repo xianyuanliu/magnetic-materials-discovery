@@ -1,8 +1,7 @@
 """Shared types and defaults with no dependency on any stage package.
 
-This module is deliberately a leaf: it imports nothing from `loaddata`,
-`prepdata`, `pipeline`, `evaluate` or `interpret`. Putting the vocabulary they
-all share here is what lets `evaluate/` score results without importing
+This module is deliberately a leaf: it imports nothing from `loaddata`, `prepdata`, `pipeline`, `evaluate` or
+`interpret`. Putting the vocabulary they all share here is what lets `evaluate/` score results without importing
 `pipeline/`, which previously made the two packages mutually dependent.
 """
 

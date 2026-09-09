@@ -23,16 +23,13 @@ from utils.core import Split
 def _standardized(X: pd.DataFrame) -> np.ndarray:
     """Return X as a z-scored array, for the distance-based split families.
 
-    KMeans and nearest-neighbour distances are Euclidean, so on raw features
-    meltingTw (~1.7e3) and Zw (~70) drown out electronegw (~1.8) and
-    compoundradix (~2.5): "representation-space" clusters and "feature-space
-    sparsity" would both collapse to melting-point outliers. Standardizing
-    first gives every engineered feature equal say in the geometry.
+    KMeans and nearest-neighbour distances are Euclidean, so on raw features meltingTw (~1.7e3) and Zw (~70) drown out
+    electronegw (~1.8) and compoundradix (~2.5): "representation-space" clusters and "feature-space sparsity" would both
+    collapse to melting-point outliers. Standardizing first gives every engineered feature equal say in the geometry.
 
-    Fitting on all of X is intentional here — these are unsupervised split
-    *definitions*, not model inputs, and the LOCO docstring already notes the
-    same pragmatic choice for clustering. Model-facing scaling happens inside
-    the training pipeline (see pipeline/model.py:_scaled).
+    Fitting on all of X is intentional here — these are unsupervised split *definitions*, not model inputs, and the LOCO
+    docstring already notes the same pragmatic choice for clustering. Model-facing scaling happens inside the training
+    pipeline (see pipeline/model.py:_scaled).
     """
     return StandardScaler().fit_transform(X.to_numpy())
 
@@ -46,9 +43,8 @@ def _finalize_split(
 ) -> Optional[Split]:
     """Return (split_id, train_idx, test_idx), or None if below the minimum size.
 
-    train_idx/test_idx always come in as a partition (a boolean mask and its
-    complement, or an argsort split) built by the caller, so they're already
-    guaranteed disjoint and in-bounds — no need to re-check that here.
+    train_idx/test_idx always come in as a partition (a boolean mask and its complement, or an argsort split) built by
+    the caller, so they're already guaranteed disjoint and in-bounds — no need to re-check that here.
     """
     train_idx = np.asarray(train_idx, dtype=int)
     test_idx = np.asarray(test_idx, dtype=int)
@@ -92,11 +88,9 @@ def build_size_matched_split(
 ) -> Optional[Split]:
     """A random disjoint train/test split with prescribed sizes.
 
-    The in-distribution control for one OOD split: same amount of training data
-    and same test-set size, but drawn at random. The OOD-minus-control
-    difference is therefore attributable to the shift, not to the smaller
-    training set an OOD split leaves behind (holding out Fe on Novamag costs
-    more than half the training data).
+    The in-distribution control for one OOD split: same amount of training data and same test-set size, but drawn at
+    random. The OOD-minus-control difference is therefore attributable to the shift, not to the smaller training set an
+    OOD split leaves behind (holding out Fe on Novamag costs more than half the training data).
 
     Returns:
         The split, or None if the requested sizes do not fit in `n_samples`.
@@ -227,9 +221,8 @@ def build_kmeans_cluster_splits(
 ) -> List[Split]:
     """Representation-space OOD (LOCO): KMeans on X, test = one cluster, train = the rest.
 
-    Cluster assignments are computed unsupervised on the full feature matrix
-    before the train/test split, as a pragmatic stress test rather than a
-    strict train-only clustering protocol.
+    Cluster assignments are computed unsupervised on the full feature matrix before the train/test split, as a pragmatic
+    stress test rather than a strict train-only clustering protocol.
     """
 
     if k < 2:
@@ -331,8 +324,7 @@ def build_sparsey_splits(
 ) -> List[Split]:
     """OOD splits based on target-space sparsity: hold out the most extreme y values.
 
-    "Extreme" = farthest from `center` ("median" or "mean"). One split is built
-    per fraction in `fractions`.
+    "Extreme" = farthest from `center` ("median" or "mean"). One split is built per fraction in `fractions`.
     """
     y_arr = np.asarray(y, dtype=float)
     n = y_arr.shape[0]

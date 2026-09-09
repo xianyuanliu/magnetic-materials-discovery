@@ -1,15 +1,13 @@
 """Typed run configuration, parsed and validated once from a YAML file.
 
-Every stage used to read the raw config dict directly, mixing `cfg["x"]`
-(KeyError on a missing key) with `cfg.get("x", default)` (silent fallback), and
-an unrecognised key was ignored entirely — so a typo in `uq_calibration_fraction`
-simply disabled it. Parsing happens here instead: unknown keys are rejected,
-types are coerced once, and the rest of the codebase receives frozen dataclasses.
+Every stage used to read the raw config dict directly, mixing `cfg["x"]` (KeyError on a missing key) with `cfg.get("x",
+default)` (silent fallback), and an unrecognised key was ignored entirely — so a typo in `uq_calibration_fraction`
+simply disabled it. Parsing happens here instead: unknown keys are rejected, types are coerced once, and the rest of the
+codebase receives frozen dataclasses.
 
-`RunConfig` covers settings shared across every mode; `KFoldConfig` and
-`TuningConfig` carry settings shared by more than one mode but not all of
-them; `HoldoutConfig`, `AblationConfig`, `OODConfig`, `UQConfig` and
-`PredictConfig` carry the settings specific to one evaluation mode.
+`RunConfig` covers settings shared across every mode; `KFoldConfig` and `TuningConfig` carry settings shared by more
+than one mode but not all of them; `HoldoutConfig`, `AblationConfig`, `OODConfig`, `UQConfig` and `PredictConfig` carry
+the settings specific to one evaluation mode.
 """
 
 from dataclasses import dataclass, field
@@ -44,16 +42,14 @@ class OODConfig:
         ood_mode: Which scenario families to build; see OOD_MODES.
         ood_k: Number of KMeans clusters for the LOCO family.
         ood_seed: Seed for the clustering and the size-matched controls.
-        ood_max_splits: Cap per scenario, or None to run every split that
-            passes the size filters. Targets are ordered by frequency, so a cap
-            keeps precisely the largest test sets and the smallest training
-            sets — a smoke-test setting, not a smaller experiment.
-        elements/periods/groups: Explicit hold-out targets per family. These are
-            separate keys because one shared list cannot be both element symbols
-            and integer periods; see load_ood_config.
+        ood_max_splits: Cap per scenario, or None to run every split that passes the size filters. Targets are ordered
+            by frequency, so a cap keeps precisely the largest test sets and the smallest training sets — a smoke-test
+            setting, not a smaller experiment.
+        elements/periods/groups: Explicit hold-out targets per family. These are separate keys because one shared list
+            cannot be both element symbols and integer periods; see load_ood_config.
         fractions: Held-out fractions for the SparseX/SparseY families.
-        size_matched_control: Score a same-size random split beside each OOD
-            split, so the reported drop separates shift from lost training data.
+        size_matched_control: Score a same-size random split beside each OOD split, so the reported drop separates shift
+            from lost training data.
     """
 
     ood_mode: str = "all"
@@ -80,14 +76,11 @@ class UQConfig:
     """Resolved uncertainty-quantification settings for one run.
 
     Attributes:
-        model: Registry key of the model the intervals are built from. It must
-            be in pipeline.uq_pipeline.ENSEMBLE_STD_MODELS, checked at run time
-            rather than assumed to be a Random Forest.
+        model: Registry key of the model the intervals are built from. It must be in
+            pipeline.uq_pipeline.ENSEMBLE_STD_MODELS, checked at run time rather than assumed to be a Random Forest.
         alpha: Nominal miscoverage of the reported intervals.
-        calibration_fraction: Fraction of each training set withheld to
-            calibrate the conformal intervals.
-        seeds: Repeats — one seed moves coverage by more than the effects being
-            compared.
+        calibration_fraction: Fraction of each training set withheld to calibrate the conformal intervals.
+        seeds: Repeats — one seed moves coverage by more than the effects being compared.
     """
 
     model: str = "rf"
@@ -106,8 +99,7 @@ class PredictConfig:
         model_path: Where the fitted-model bundle is saved to and loaded from.
         retrain: Refit and overwrite the bundle even if `model_path` exists.
         input_path: CSV of compositions to predict; needs the formula column.
-        formulas: Compositions given inline in the config, used when
-            `input_path` is unset.
+        formulas: Compositions given inline in the config, used when `input_path` is unset.
         output_path: Where the prediction table is written.
     """
 
@@ -143,9 +135,8 @@ class HoldoutConfig:
 class TuningConfig:
     """Hyperparameter-search budget, shared by cross_validation and OOD.
 
-    The search re-runs inside every outer fold, so its cost is
-    (outer folds x seeds x tunable models x n_iter x cv_folds) model fits —
-    keep cv_folds and n_iter well below the outer fold count.
+    The search re-runs inside every outer fold, so its cost is (outer folds x seeds x tunable models x n_iter x
+    cv_folds) model fits — keep cv_folds and n_iter well below the outer fold count.
     """
 
     enabled: bool = False
@@ -167,9 +158,8 @@ class RunConfig:
     """One fully resolved run, as parsed from a YAML config file.
 
     Attributes:
-        feature_columns: Feature columns to use, named explicitly. Unset falls
-            back to "every column that is not the target or the formula",
-            which promotes any stray id or metadata column into a model input.
+        feature_columns: Feature columns to use, named explicitly. Unset falls back to "every column that is not the
+            target or the formula", which promotes any stray id or metadata column into a model input.
         compare_models: The two models the paired comparison reports on.
     """
 
