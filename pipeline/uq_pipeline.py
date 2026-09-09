@@ -108,13 +108,13 @@ def _fit_and_predict(
 def _controls_for(splits: Sequence[Split], n_samples: int, seed: int, scenario: str) -> List[Split]:
     """One same-size random split per OOD split, to separate shift from data loss.
 
-    Each control keeps its parent's split_id so the two stay paired in the output tables. crc32, not hash(): str hashing
-    is salted per process, and these seeds have to be reproducible across runs.
+    Each control keeps its parent's split_id so the two stay paired in the output tables.
     """
     controls = []
     for split_id, train_idx, test_idx in splits:
         control = build_size_matched_split(
             n_samples, len(train_idx), len(test_idx),
+            # crc32, not hash(): str hashing is salted per process, and these seeds must be reproducible across runs.
             seed=zlib.crc32(f"{seed}|{scenario}|{split_id}".encode()),
             split_id=split_id,
         )

@@ -1,8 +1,7 @@
-"""Regression models
+"""Regression models.
 
-Each model is defined in a separate block covering model construction,
-hyperparameter tuning, and training. ``MODEL_REGISTRY`` at the bottom of
-the module maps each model to the corresponding configuration key.
+Each model is defined in a separate block covering model construction, hyperparameter tuning, and training.
+``MODEL_REGISTRY`` at the bottom of the module maps each model to the corresponding configuration key.
 """
 
 from typing import Dict, List, Optional, Union
@@ -20,11 +19,7 @@ from utils.registry import ModelSpec
 
 
 def _scaled(estimator) -> Pipeline:
-    """Wrap `estimator` in a StandardScaler pipeline, so the scaler is fitted on training data only.
-
-    Tree ensembles are left unscaled: rescaling buys them nothing, and wrapping them here would stop shap.Explainer
-    from dispatching to the fast exact TreeExplainer in interpret/model_weights.py.
-    """
+    """Wrap `estimator` in a pipeline with a preceding StandardScaler step."""
     return Pipeline([("scaler", StandardScaler()), ("model", estimator)])
 
 
@@ -258,7 +253,7 @@ def tune_random_forest_hyperparams(
 
 
 def train_random_forest(X_train, y_train, hyperparams: Optional[Dict] = None, random_state: int = 0):
-    """Train a random forest. Left unscaled on purpose — see _scaled."""
+    """Train a random forest."""
     if hyperparams is not None:
         model = build_random_forest(**hyperparams, random_state=random_state)
     else:
@@ -268,6 +263,7 @@ def train_random_forest(X_train, y_train, hyperparams: Optional[Dict] = None, ra
             max_features=1.0,
             random_state=random_state,
         )
+    # Not wrapped in _scaled: scaling buys trees nothing and would cost SHAP its fast TreeExplainer.
     model.fit(X_train, y_train)
     return model
 
@@ -329,7 +325,7 @@ def tune_xgboost_hyperparams(
 
 
 def train_xgboost(X_train, y_train, hyperparams: Optional[Dict] = None, random_state: int = 0):
-    """Train XGBoost. Left unscaled on purpose — see _scaled."""
+    """Train XGBoost."""
     if hyperparams is not None:
         model = build_xgboost(**hyperparams, random_state=random_state)
     else:
@@ -341,6 +337,7 @@ def train_xgboost(X_train, y_train, hyperparams: Optional[Dict] = None, random_s
             colsample_bytree=0.6,
             random_state=random_state,
         )
+    # Not wrapped in _scaled, for the same reason as the random forest.
     model.fit(X_train, y_train)
     return model
 

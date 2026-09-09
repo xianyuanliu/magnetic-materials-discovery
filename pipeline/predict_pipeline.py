@@ -63,17 +63,14 @@ def _read_formulas(cfg: RunConfig) -> pd.DataFrame:
 
 
 def _train_bundle(cfg: RunConfig, spec: ModelSpec) -> ModelBundle:
-    """Fit `spec` on the whole configured dataset and wrap it in a bundle.
-
-    Unlike the evaluation modes, this deliberately trains on every row: the model is going to be used, not scored, so
-    holding data back would only make it worse.
-    """
+    """Fit `spec` on the whole configured dataset and wrap it in a bundle."""
     X, y, feature_columns = load_features_and_target(
         cfg.dataset_path,
         target_column=cfg.target_column,
         feature_columns=cfg.feature_columns,
         formula_column=cfg.formula_column,
     )
+    # Every row on purpose, unlike the evaluation modes: this model is going to be used, not scored.
     print(f"Fitting {spec.name} on all {len(X)} row(s) of {cfg.dataset_path}")
     model = spec.train(X, y, hyperparams=None, random_state=cfg.model_random_state)
 

@@ -166,12 +166,9 @@ def _atomic_fraction(compound: pd.Series):
 
 
 def _weighted_mean(at_fraction: pd.Series, values: pd.Series) -> float:
-    """Atomic-fraction-weighted mean of `values`, or NaN for an empty compound.
-
-    Returning NaN (not 0.0) for an empty compound is what makes a row with no usable stoichiometry fail build_features'
-    dropna instead of silently entering the training set as a plausible-looking all-zero sample.
-    """
+    """Atomic-fraction-weighted mean of `values`, or NaN for an empty compound."""
     if at_fraction.empty:
+        # NaN, not 0.0: build_features' dropna then removes the row instead of training on an all-zero feature vector.
         return np.nan
     return float(np.dot(at_fraction, values.loc[at_fraction.index]))
 

@@ -91,8 +91,6 @@ def load_ood_dataset(
 def build_controls(splits: Sequence[Split], n_samples: int, seed: int, scenario: str) -> Dict[str, Split]:
     """One same-size random split per OOD split, keyed by the parent's split_id.
 
-    crc32, not hash(): str hashing is salted per process, and these seeds have to be reproducible across runs.
-
     Returns:
         {split_id: control split}, omitting splits whose sizes do not fit.
     """
@@ -100,6 +98,7 @@ def build_controls(splits: Sequence[Split], n_samples: int, seed: int, scenario:
     for split_id, train_idx, test_idx in splits:
         control = build_size_matched_split(
             n_samples, len(train_idx), len(test_idx),
+            # crc32, not hash(): str hashing is salted per process, and these seeds must be reproducible across runs.
             seed=zlib.crc32(f"{seed}|{scenario}|{split_id}".encode()),
             split_id=split_id,
         )

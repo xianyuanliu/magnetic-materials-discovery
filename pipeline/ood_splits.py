@@ -21,16 +21,8 @@ from evaluate.ood_evaluation import Split
 
 
 def _standardized(X: pd.DataFrame) -> np.ndarray:
-    """Return X as a z-scored array, for the distance-based split families.
-
-    KMeans and nearest-neighbour distances are Euclidean, so on raw features meltingTw (~1.7e3) and Zw (~70) drown out
-    electronegw (~1.8) and compoundradix (~2.5): "representation-space" clusters and "feature-space sparsity" would both
-    collapse to melting-point outliers. Standardizing first gives every engineered feature equal say in the geometry.
-
-    Fitting on all of X is intentional here — these are unsupervised split *definitions*, not model inputs, and the LOCO
-    docstring already notes the same pragmatic choice for clustering. Model-facing scaling happens inside the training
-    pipeline (see pipeline/model.py:_scaled).
-    """
+    """Return X as a z-scored array, so Euclidean distances weigh every feature equally."""
+    # Fitted on all of X on purpose: these are unsupervised split definitions, not model inputs, so nothing leaks.
     return StandardScaler().fit_transform(X.to_numpy())
 
 
