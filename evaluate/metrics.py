@@ -13,6 +13,11 @@ from sklearn.metrics import (
     r2_score,
 )
 
+# Regression metrics carried through every result table, and the decimals each is printed with. MRE is a small
+# fraction, so it needs more places.
+METRICS = ("mse", "mae", "mre", "r2")
+METRIC_DECIMALS = {"mse": 4, "mae": 4, "mre": 6, "r2": 4}
+
 
 def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
     """Compute MSE/MAE/MRE/R² using sklearn's metric implementations.

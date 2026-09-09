@@ -21,7 +21,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR
 import xgboost
 
-from utils.core import ModelSpec
+from utils.registry import ModelSpec
 
 # One hyperparameter grid, or the union of several sub-grids that
 # GridSearchCV expresses as a list (see tune_xgb_hyperparams).

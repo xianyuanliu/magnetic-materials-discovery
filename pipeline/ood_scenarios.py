@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 import pandas as pd
 
 from config import OODConfig
-from utils.core import Split
+from evaluate.ood_evaluation import Split
 from pipeline.ood_splits import (
     build_group_splits,
     build_kmeans_cluster_splits,

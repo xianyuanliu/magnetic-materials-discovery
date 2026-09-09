@@ -13,8 +13,8 @@ from scipy import stats
 
 from sklearn.model_selection import KFold
 
-from utils.core import METRICS, ModelSpec
-from evaluate.metrics import compute_metrics
+from utils.registry import ModelSpec
+from evaluate.metrics import METRICS, compute_metrics
 
 # Below this many paired observations a signed-rank test cannot reach any conventional significance level at all: with n
 # pairs the smallest attainable two-sided Wilcoxon p is 2 / 2**n, so n = 3 bottoms out at 0.25 and n = 5 at 0.0625.

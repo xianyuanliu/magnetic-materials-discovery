@@ -22,20 +22,19 @@ constructor, tuner and trainer (`model.py`), and one orchestration module per
 evaluation mode — lives under `pipeline/`, since none of it is meant to be imported
 without the rest.
 
-Dependencies run one way. `utils/` and `config.py` are leaves that import nothing from
-the stage packages; `evaluate/` scores the splits it is handed and never imports
-`pipeline/`; `pipeline/` decides which splits exist and calls into `evaluate/`. Nothing
-under `evaluate/` prints — all console output lives in `utils/reporting.py`, so the
-scoring functions can be called from a notebook or another project without a run's
-output appearing as a side effect.
+Dependencies run one way. `config.py` and `utils/registry.py` are leaves that import
+nothing from the stage packages; `evaluate/` scores the splits it is handed and never
+imports `pipeline/`; `pipeline/` decides which splits exist and calls into `evaluate/`.
+Nothing under `evaluate/` prints — all console output lives in `utils/reporting.py`,
+which formats what `evaluate/` returns, so the scoring functions can be called from a
+notebook or another project without a run's output appearing as a side effect.
 
 - `main.py`: thin CLI entry point; parses `--config`, then dispatches to a predict,
   holdout, cross-validation, OOD, or UQ run.
 - `utils/`: infrastructure shared by more than one stage package, not itself a stage.
-  Stays outside every stage package because `evaluate/` needs it too (e.g. `ModelSpec`),
-  and must not import `pipeline/` to get it.
-  - `core.py`: the vocabulary every stage speaks — the `Split` type, the metric
-    list, `ModelSpec` (the typed registry entry) and `resolve_models`.
+  - `registry.py`: `ModelSpec` (what a model declares about itself) and `resolve_models`
+    (config keys to specs). A leaf, because `evaluate/` needs `ModelSpec` too and must
+    not import `pipeline/` to get it.
   - `reporting.py`: every `print_*` and display formatter in the codebase.
   - `persistence.py`: `ModelBundle` — a fitted model plus the feature columns, in
     training order, that it must be given — with `save_model_bundle` / `load_model_bundle`.

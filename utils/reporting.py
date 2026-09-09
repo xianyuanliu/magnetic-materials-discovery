@@ -10,9 +10,8 @@ from typing import Mapping, Optional, Sequence
 import numpy as np
 import pandas as pd
 
-from utils.core import METRICS, METRIC_DECIMALS
 from evaluate.cross_validation import SignificanceResult
-from evaluate.metrics import compute_metrics
+from evaluate.metrics import METRICS, METRIC_DECIMALS, compute_metrics
 
 
 def format_mean_std(mean: float, std: float, decimals: int = 4) -> str:

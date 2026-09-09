@@ -25,9 +25,13 @@ import pandas as pd
 
 from sklearn.model_selection import KFold
 
-from utils.core import METRICS, ModelSpec, Split
 from evaluate.cross_validation import MIN_PAIRS_FOR_TEST, compare_models_significance
-from evaluate.metrics import compute_metrics
+from evaluate.metrics import METRICS, compute_metrics
+from utils.registry import ModelSpec
+
+# A train/test split: an identifier plus the row positions on each side. Split builders live in pipeline/ood_splits.py;
+# the type is declared here, with the evaluators that consume it, so `evaluate/` never has to import `pipeline/`.
+Split = Tuple[str, np.ndarray, np.ndarray]
 
 # Values of the `split_type` column that distinguishes a shifted test set from
 # its two in-distribution references (see the module docstring).
