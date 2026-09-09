@@ -181,7 +181,7 @@ def run_ood_evaluation(*, cfg: RunConfig, model_registry: Mapping[str, ModelSpec
             evaluate_splits_kfold_train_fixed_test,
             X_full, y_full, specs=specs,
             cv_folds=cfg.kfold.folds, shuffle=cfg.kfold.shuffle,
-            hyperparameter_tuning=cfg.tuning.enabled, best_params=None,
+            hyperparameter_tuning=cfg.tuning.enabled, best_hyperparams=None,
             model_random_state=cfg.model_random_state,
             tune_cv_folds=cfg.tuning.cv_folds, tune_n_iter=cfg.tuning.n_iter,
             on_skip=_report_skip(scenario),

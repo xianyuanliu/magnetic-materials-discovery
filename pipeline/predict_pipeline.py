@@ -75,7 +75,7 @@ def _train_bundle(cfg: RunConfig, spec: ModelSpec) -> ModelBundle:
         formula_column=cfg.formula_column,
     )
     print(f"Fitting {spec.name} on all {len(X)} row(s) of {cfg.dataset_path}")
-    model = spec.train(X, y, params=None, random_state=cfg.model_random_state)
+    model = spec.train(X, y, hyperparams=None, random_state=cfg.model_random_state)
 
     return ModelBundle(
         model=model,

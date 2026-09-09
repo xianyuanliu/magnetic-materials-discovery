@@ -42,7 +42,7 @@ def run_cross_validation(cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> N
             y,
             specs,
             hyperparameter_tuning=cfg.tuning.enabled,
-            best_params=None,
+            best_hyperparams=None,
             cv_folds=cfg.kfold.folds,
             shuffle=cfg.kfold.shuffle,
             random_state=int(seed),

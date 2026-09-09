@@ -97,7 +97,7 @@ def run_holdout(cfg: RunConfig, registry: Mapping[str, ModelSpec], plots_dir: Pa
             X, y, train_size=cfg.holdout.train_size, random_state=int(seed)
         )
 
-        best_params = (
+        best_hyperparams = (
             _tune_on_split(specs, X_train, y_train, cfg)
             if cfg.tuning.enabled else {}
         )
@@ -105,7 +105,8 @@ def run_holdout(cfg: RunConfig, registry: Mapping[str, ModelSpec], plots_dir: Pa
         trained: Dict[str, object] = {}
         predictions = {}
         for spec in specs:
-            model = spec.train(X_train, y_train, params=best_params.get(spec.key), random_state=cfg.model_random_state)
+            model = spec.train(X_train, y_train, hyperparams=best_hyperparams.get(spec.key),
+                               random_state=cfg.model_random_state)
             trained[spec.key] = model
             predictions[spec.name] = model.predict(X_valid)
 

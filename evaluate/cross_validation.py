@@ -57,7 +57,7 @@ def cross_validate_models(
     y: pd.Series,
     specs: Sequence[ModelSpec],
     hyperparameter_tuning: bool = False,
-    best_params: Optional[Mapping[str, Dict]] = None,
+    best_hyperparams: Optional[Mapping[str, Dict]] = None,
     cv_folds: int = 5,
     shuffle: bool = True,
     random_state: int = 0,
@@ -73,14 +73,14 @@ def cross_validate_models(
     When hyperparameter_tuning is set, the search re-runs inside every outer fold (proper nested CV — the outer fold's
     validation data never informs the search). That is why the search budget is a separate, smaller pair of knobs:
     tune_cv_folds inner folds and tune_n_iter sampled candidates, whose cost is multiplied by cv_folds x len(specs).
-    Pass best_params to skip the search entirely and reuse one fixed set of parameters.
+    Pass best_hyperparams to skip the search entirely and reuse one fixed set of parameters.
 
     Args:
         X: Feature matrix.
         y: Target.
         specs: Resolved model specifications to score.
         hyperparameter_tuning: Search inside every outer fold.
-        best_params: Fixed parameters per model key, bypassing the search.
+        best_hyperparams: Fixed parameters per model key, bypassing the search.
         cv_folds: Number of outer folds.
         shuffle: Shuffle before splitting.
         random_state: Seed for the outer KFold split.
@@ -102,11 +102,11 @@ def cross_validate_models(
         y_train, y_valid = y.iloc[train_idx], y.iloc[valid_idx]
 
         for spec in specs:
-            params = None
-            if best_params is not None and spec.key in best_params:
-                params = best_params[spec.key]
+            hyperparams = None
+            if best_hyperparams is not None and spec.key in best_hyperparams:
+                hyperparams = best_hyperparams[spec.key]
             elif hyperparameter_tuning and spec.tune is not None:
-                params = spec.tune(
+                hyperparams = spec.tune(
                     X_train,
                     y_train,
                     cv_folds=tune_cv_folds,
@@ -114,7 +114,7 @@ def cross_validate_models(
                     n_iter=tune_n_iter,
                 )
 
-            model = spec.train(X_train, y_train, params=params, random_state=model_random_state)
+            model = spec.train(X_train, y_train, hyperparams=hyperparams, random_state=model_random_state)
             metrics = compute_metrics(y_valid, model.predict(X_valid))
 
             for metric in METRICS:

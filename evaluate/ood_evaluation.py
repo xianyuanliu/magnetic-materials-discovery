@@ -61,13 +61,13 @@ def heldout_target(split_id: str) -> str:
     return split_id.split("=", 1)[1] if "=" in split_id else ""
 
 
-def _resolve_params(
-    spec: ModelSpec, X_fit, y_fit, best_params, hyperparameter_tuning,
+def _resolve_hyperparams(
+    spec: ModelSpec, X_fit, y_fit, best_hyperparams, hyperparameter_tuning,
     model_random_state, tune_cv_folds, tune_n_iter,
 ) -> Optional[Dict]:
     """Pick fixed parameters, or search for them inside this fold."""
-    if best_params is not None and spec.key in best_params:
-        return best_params[spec.key]
+    if best_hyperparams is not None and spec.key in best_hyperparams:
+        return best_hyperparams[spec.key]
     if hyperparameter_tuning and spec.tune is not None:
         return spec.tune(X_fit, y_fit, cv_folds=tune_cv_folds, random_state=model_random_state, n_iter=tune_n_iter)
     return None
@@ -83,7 +83,7 @@ def _score_fold_models(
     kf: KFold,
     score_inner: bool,
     hyperparameter_tuning: bool,
-    best_params: Optional[Mapping[str, Dict]],
+    best_hyperparams: Optional[Mapping[str, Dict]],
     model_random_state: int,
     tune_cv_folds: int,
     tune_n_iter: int,
@@ -113,11 +113,11 @@ def _score_fold_models(
         inner_sizes.append(len(inner_idx))
 
         for spec in specs:
-            params = _resolve_params(
-                spec, X_fit, y_fit, best_params, hyperparameter_tuning,
+            hyperparams = _resolve_hyperparams(
+                spec, X_fit, y_fit, best_hyperparams, hyperparameter_tuning,
                 model_random_state, tune_cv_folds, tune_n_iter,
             )
-            model = spec.train(X_fit, y_fit, params=params, random_state=model_random_state)
+            model = spec.train(X_fit, y_fit, hyperparams=hyperparams, random_state=model_random_state)
 
             for metric, value in compute_metrics(y_test, model.predict(X_test)).items():
                 test_scores[spec.name][metric].append(value)
@@ -160,7 +160,7 @@ def evaluate_splits_kfold_train_fixed_test(
     cv_folds: int,
     shuffle: bool,
     hyperparameter_tuning: bool,
-    best_params: Optional[Mapping[str, Dict]] = None,
+    best_hyperparams: Optional[Mapping[str, Dict]] = None,
     model_random_state: int = 0,
     tune_cv_folds: int = 3,
     tune_n_iter: int = 20,
@@ -182,7 +182,7 @@ def evaluate_splits_kfold_train_fixed_test(
         cv_folds: Inner folds per split.
         shuffle: Shuffle before the inner split.
         hyperparameter_tuning: Search inside every inner fold.
-        best_params: Fixed parameters per model key, bypassing the search.
+        best_hyperparams: Fixed parameters per model key, bypassing the search.
         model_random_state: Seed for model construction and the search.
         tune_cv_folds: Inner folds for the search.
         tune_n_iter: Candidates sampled by a randomized search.
@@ -208,7 +208,7 @@ def evaluate_splits_kfold_train_fixed_test(
         score = partial(
             _score_fold_models,
             X, y, specs=specs, kf=kf,
-            hyperparameter_tuning=hyperparameter_tuning, best_params=best_params,
+            hyperparameter_tuning=hyperparameter_tuning, best_hyperparams=best_hyperparams,
             model_random_state=model_random_state,
             tune_cv_folds=tune_cv_folds, tune_n_iter=tune_n_iter,
         )

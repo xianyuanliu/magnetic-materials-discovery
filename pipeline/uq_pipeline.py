@@ -83,7 +83,7 @@ def _fit_and_predict(
 
     cal_idx, fit_idx = shuffled[:n_calibration], shuffled[n_calibration:]
 
-    model = train_model(X.iloc[fit_idx], y.iloc[fit_idx], params=None, random_state=model_random_state)
+    model = train_model(X.iloc[fit_idx], y.iloc[fit_idx], hyperparams=None, random_state=model_random_state)
 
     sigma_cal = rf_tree_std(model, X.iloc[cal_idx])
     y_cal = y.iloc[cal_idx].to_numpy(dtype=float)
