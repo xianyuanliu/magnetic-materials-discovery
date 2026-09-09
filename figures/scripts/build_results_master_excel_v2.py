@@ -253,7 +253,8 @@ readme = pd.DataFrame(
         ],
         "Description": [
             "Single master workbook containing all numerical results used in the paper.",
-            "One clear, filterable, coloured source file for cross-validation, OOD results, figure source data, and paper-ready tables.",
+            "One clear, filterable, coloured source file for cross-validation, OOD results, "
+            "figure source data, and paper-ready tables.",
             "In-distribution 10-fold cross-validation baseline. These results are not OOD.",
             "Structured held-out OOD splits: LOEO, LOPO, LOGO, and LOCO(k=10).",
             "Sheet 11 contains the exact MSE source data used for the two-panel OOD figure.",
