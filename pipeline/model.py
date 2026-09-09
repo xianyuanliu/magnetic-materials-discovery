@@ -1,13 +1,6 @@
-"""Every regression model this project can fit: construction, tuning, and training.
-
-One block per model — build (bare sklearn/xgboost constructor), tune (GridSearchCV or RandomizedSearchCV), train (fit
-with searched or manually provided parameters) — so adding a model touches one place. MODEL_REGISTRY at the bottom
-combines them into ready-to-fit ModelSpecs, keyed by a single random_state threaded through both construction and
-hyperparameter search from the caller.
-
-Scale-sensitive models (linear, kernel, neural) are wrapped in a StandardScaler pipeline; see _scaled for why the tree
-ensembles are not. Search cost is controlled by the caller via cv_folds and n_iter, because a nested search re-runs for
-every outer fold (see evaluate/cross_validation.py).
+"""Every regression model this project can fit, one block per model: build (bare constructor), tune (hyperparameter
+search), train (fit). MODEL_REGISTRY at the bottom turns them into the ModelSpecs that pipelines resolve config keys
+against.
 """
 
 from typing import Dict, List, Optional, Union
@@ -23,11 +16,7 @@ import xgboost
 
 from utils.registry import ModelSpec
 
-# One hyperparameter grid, or the union of several sub-grids that
-# GridSearchCV expresses as a list (see tune_xgboost_hyperparams).
-HyperparamGrid = Union[Dict, List[Dict]]
-
-# Name of the estimator step inside the StandardScaler pipeline.
+# The Pipeline step name and the `step__hyperparam` prefix sklearn expects must agree; see _prefix_hyperparams.
 _ESTIMATOR_STEP = "model"
 
 
@@ -48,7 +37,7 @@ def _scaled(estimator) -> Pipeline:
     return Pipeline([("scaler", StandardScaler()), (_ESTIMATOR_STEP, estimator)])
 
 
-def _prefix_hyperparams(hyperparams: HyperparamGrid) -> HyperparamGrid:
+def _prefix_hyperparams(hyperparams: Union[Dict, List[Dict]]) -> Union[Dict, List[Dict]]:
     """Rewrite bare param names for a scaled pipeline ("alpha" -> "model__alpha").
 
     Accepts a list of dicts too, which is how GridSearchCV expresses a union of sub-grids (see tune_xgboost_hyperparams,
@@ -66,7 +55,7 @@ def _strip_hyperparams(hyperparams: Dict) -> Dict:
 
 def _grid_search_best_hyperparams(
     model,
-    param_grid: HyperparamGrid,
+    param_grid: Union[Dict, List[Dict]],
     X_train,
     y_train,
     cv_folds: int,
@@ -131,8 +120,7 @@ def build_linear_regression() -> LinearRegression:
 
 
 def train_linear_regression(X_train, y_train, hyperparams: Optional[Dict] = None, random_state: int = 0):
-    """Train Linear Regression (no hyperparameters, no randomness to seed)."""
-    del random_state  # unused; accepted for a uniform MODEL_REGISTRY["train"] signature
+    """Train Linear Regression."""
     model = _scaled(build_linear_regression())
     model.fit(X_train, y_train)
     return model
@@ -162,8 +150,7 @@ def tune_ridge_hyperparams(
 
 
 def train_ridge(X_train, y_train, hyperparams: Optional[Dict] = None, random_state: int = 0):
-    """Train Ridge regression with searched optimized parameters or manually provided parameters."""
-    del random_state  # unused; Ridge's default solver is deterministic
+    """Train Ridge."""
     if hyperparams is not None:
         model = build_ridge(**hyperparams)
     else:
@@ -195,8 +182,7 @@ def tune_lasso_hyperparams(
 
 
 def train_lasso(X_train, y_train, hyperparams: Optional[Dict] = None, random_state: int = 0):
-    """Train Lasso regression with searched optimized parameters or manually provided parameters."""
-    del random_state  # unused; default selection="cyclic" is deterministic
+    """Train Lasso."""
     if hyperparams is not None:
         model = build_lasso(**hyperparams)
     else:
@@ -231,8 +217,7 @@ def tune_elasticnet_hyperparams(
 
 
 def train_elasticnet(X_train, y_train, hyperparams: Optional[Dict] = None, random_state: int = 0):
-    """Train ElasticNet regression with searched optimized parameters or manually provided parameters."""
-    del random_state  # unused; default selection="cyclic" is deterministic
+    """Train ElasticNet."""
     if hyperparams is not None:
         model = build_elasticnet(**hyperparams)
     else:
@@ -283,7 +268,7 @@ def tune_random_forest_hyperparams(
 
 
 def train_random_forest(X_train, y_train, hyperparams: Optional[Dict] = None, random_state: int = 0):
-    """Train a random forest with searched optimized parameters or manually provided parameters."""
+    """Train a random forest. Left unscaled on purpose — see _scaled."""
     if hyperparams is not None:
         model = build_random_forest(**hyperparams, random_state=random_state)
     else:
@@ -354,10 +339,7 @@ def tune_xgboost_hyperparams(
 
 
 def train_xgboost(X_train, y_train, hyperparams: Optional[Dict] = None, random_state: int = 0):
-    """Train XGBoost with searched optimized parameters or manually provided parameters.
-
-    Left unscaled on purpose — see _scaled.
-    """
+    """Train XGBoost. Left unscaled on purpose — see _scaled."""
     if hyperparams is not None:
         model = build_xgboost(**hyperparams, random_state=random_state)
     else:
@@ -409,13 +391,10 @@ def tune_svr_hyperparams(
 
 
 def train_svr(X_train, y_train, hyperparams: Optional[Dict] = None, random_state: int = 0):
-    """Train Support Vector Regression with searched optimized parameters or manually provided parameters."""
-    del random_state  # unused; SVR has no random_state (deterministic solver)
+    """Train Support Vector Regression."""
     if hyperparams is not None:
         model = build_svr(**hyperparams)
     else:
-        # rbf, not the previous linear/C=0.1 default: those were the best an
-        # unscaled search could do. Scaled, rbf clearly wins (see _scaled).
         model = build_svr(C=10.0, epsilon=0.1, kernel="rbf", gamma="scale")
     model = _scaled(model)
     model.fit(X_train, y_train)
@@ -465,7 +444,7 @@ def tune_mlp_hyperparams(
 
 
 def train_mlp(X_train, y_train, hyperparams: Optional[Dict] = None, random_state: int = 0):
-    """Train MLP regression with searched optimized parameters or manually provided parameters."""
+    """Train an MLP."""
     if hyperparams is not None:
         model = build_mlp(**hyperparams, random_state=random_state)
     else:
