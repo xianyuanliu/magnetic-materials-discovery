@@ -8,8 +8,8 @@ types are coerced once, and the rest of the codebase receives frozen dataclasses
 
 `RunConfig` covers settings shared across every mode; `KFoldConfig` and
 `TuningConfig` carry settings shared by more than one mode but not all of
-them; `HoldoutConfig`, `OODConfig`, `UQConfig` and `PredictConfig` carry the
-settings specific to one evaluation mode.
+them; `HoldoutConfig`, `AblationConfig`, `OODConfig`, `UQConfig` and
+`PredictConfig` carry the settings specific to one evaluation mode.
 """
 
 from dataclasses import dataclass, field
@@ -155,6 +155,15 @@ class TuningConfig:
 
 
 @dataclass(frozen=True)
+class AblationConfig:
+    """Interpretability-figure settings, read only by the holdout pipeline."""
+
+    enabled: bool = False
+    interpret_model: Optional[str] = None
+    case_study_models: Tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class RunConfig:
     """One fully resolved run, as parsed from a YAML config file.
 
@@ -163,8 +172,6 @@ class RunConfig:
             back to "every column that is not the target or the formula",
             which promotes any stray id or metadata column into a model input.
         compare_models: The two models the paired comparison reports on.
-        interpret_model: Which model the importance and SHAP figures explain.
-        case_study_models: Which models the case studies compare.
     """
 
     dataset: str
@@ -182,11 +189,8 @@ class RunConfig:
 
     models: Tuple[str, ...] = ()
     compare_models: Optional[Tuple[str, str]] = None
-    interpret_model: Optional[str] = None
-    case_study_models: Tuple[str, ...] = ()
 
     enable_data_visualization: bool = False
-    enable_ablation_study: bool = False
 
     model_random_state: int = 0
     plots_output_dir: str = "./plots"
@@ -194,6 +198,7 @@ class RunConfig:
     kfold: KFoldConfig = field(default_factory=KFoldConfig)
     holdout: HoldoutConfig = field(default_factory=HoldoutConfig)
     tuning: TuningConfig = field(default_factory=TuningConfig)
+    ablation: AblationConfig = field(default_factory=AblationConfig)
     ood: OODConfig = field(default_factory=OODConfig)
     uq: UQConfig = field(default_factory=UQConfig)
     predict: PredictConfig = field(default_factory=PredictConfig)
@@ -399,12 +404,14 @@ def parse_run_config(raw: Mapping[str, Any]) -> RunConfig:
         test_dataset_path=raw.get("test_dataset_path"),
         models=models,
         compare_models=_as_tuple(raw.get("compare_models"), str),
-        interpret_model=raw.get("interpret_model"),
-        case_study_models=_as_tuple(raw.get("case_study_models", []), str) or (),
         enable_data_visualization=bool(raw.get("enable_data_visualization", False)),
-        enable_ablation_study=bool(raw.get("enable_ablation_study", False)),
         model_random_state=int(raw.get("random_state", 0)),
         plots_output_dir=str(raw.get("plots_output_dir", "./plots")),
+        ablation=AblationConfig(
+            enabled=bool(raw.get("enable_ablation_study", False)),
+            interpret_model=raw.get("interpret_model"),
+            case_study_models=_as_tuple(raw.get("case_study_models", []), str) or (),
+        ),
         kfold=KFoldConfig(
             folds=int(raw.get("cv_folds", 5)),
             shuffle=bool(raw.get("cv_shuffle", True)),

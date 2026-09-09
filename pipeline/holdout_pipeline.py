@@ -47,8 +47,8 @@ def _run_ablation(
     """
     pt, mm = load_elemental_data(cfg.pt_path, cfg.mm_path)
 
-    if cfg.interpret_model:
-        (spec,) = resolve_models(registry, [cfg.interpret_model])
+    if cfg.ablation.interpret_model:
+        (spec,) = resolve_models(registry, [cfg.ablation.interpret_model])
         if spec.key not in trained:
             raise ValueError(
                 f"interpret_model {spec.key!r} is not in this run's models: {list(trained)}"
@@ -64,8 +64,8 @@ def _run_ablation(
             save_path=plots_dir / f"{cfg.prefix}_shap_summary_{spec.key}.png",
         )
 
-    if cfg.case_study_models:
-        specs = resolve_models(registry, cfg.case_study_models)
+    if cfg.ablation.case_study_models:
+        specs = resolve_models(registry, cfg.ablation.case_study_models)
         missing = [spec.key for spec in specs if spec.key not in trained]
         if missing:
             raise ValueError(
@@ -136,7 +136,7 @@ def run_holdout(cfg: RunConfig, registry: Mapping[str, ModelSpec], plots_dir: Pa
         if cfg.compare_models is not None:
             report_comparison(cfg, registry, scores)
 
-    if not cfg.enable_ablation_study:
+    if not cfg.ablation.enabled:
         return
 
     X_train, X_valid, y_train, y_valid = split_dataset(
