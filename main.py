@@ -10,7 +10,7 @@ from pipeline.cross_validation_pipeline import run_cross_validation
 from pipeline.holdout_pipeline import run_holdout
 from predict.sklearn_models import MODEL_REGISTRY
 from pipeline.ood_pipeline import run_ood_evaluation
-from pipeline.predict_pipeline import run_predict
+from pipeline.inference_pipeline import run_predict
 from pipeline.uq_pipeline import run_uq_evaluation
 
 

@@ -52,7 +52,7 @@ notebook or another project without a run's output appearing as a side effect.
   into fittable `ModelSpec`s (`sklearn_models.py`, exposes `MODEL_REGISTRY`); and the predictive-
   uncertainty estimators with split-conformal calibration (`uncertainty.py`).
 - `pipeline/`: one orchestration module per evaluation mode — `holdout_pipeline.py`,
-  `cross_validation_pipeline.py`, `predict_pipeline.py`, `uq_pipeline.py`, and the OOD
+  `cross_validation_pipeline.py`, `inference_pipeline.py`, `uq_pipeline.py`, and the OOD
   stress test (`ood_pipeline.py` orchestration + `ood_scenarios.py` config-to-splits
   selection + `ood_splits.py` split-family builders: LOEO/LOPO/LOGO/LOCO/SparseX/SparseY,
   plus the two in-distribution reference builders); and the paired model-comparison helper
