@@ -42,7 +42,7 @@ def add_engineered_features(
     Args:
         raw_data: Frame carrying `formula_column`; other columns are preserved.
         pt: Periodic table data, indexed by element symbol.
-        mm: Symmetrised Miedema mixing-enthalpy matrix.
+        mm: Symmetrized Miedema mixing-enthalpy matrix.
         formula_column: Name of the chemical-formula column.
 
     Returns:
@@ -80,12 +80,12 @@ def build_features(
     target_column: str = "saturation magnetization",
     formula_column: str = "chemical formula",
 ) -> Tuple[pd.DataFrame, List[str]]:
-    """Build the modelling table: engineered features plus target-side cleaning.
+    """Build the modeling table: engineered features plus target-side cleaning.
 
     Args:
         raw_data: Frame carrying `formula_column` and `target_column`.
         pt: Periodic table data, indexed by element symbol.
-        mm: Symmetrised Miedema mixing-enthalpy matrix.
+        mm: Symmetrized Miedema mixing-enthalpy matrix.
         min_target: Rows below this target value are dropped as non-magnetic.
         target_column: Name of the measured property being modelled.
         formula_column: Name of the chemical-formula column.

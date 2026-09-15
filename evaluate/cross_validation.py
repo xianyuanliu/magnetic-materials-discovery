@@ -36,7 +36,7 @@ class SignificanceResult:
         n_pairs: Number of paired observations behind the test.
         t_stat, t_pvalue: Paired t-test on the differences.
         w_stat, w_pvalue: Wilcoxon signed-rank on the same differences.
-        mean_difference: mean(a) - mean(b); negative favours `model_a` for lower-is-better metrics.
+        mean_difference: mean(a) - mean(b); negative favors `model_a` for lower-is-better metrics.
         note: Why the p-values are absent or should not be read, when that applies; None when the test ran normally.
     """
 

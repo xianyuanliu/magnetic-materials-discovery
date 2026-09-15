@@ -76,7 +76,7 @@ def build_case_features(
     Args:
         formulas: Chemical formulas to featurize.
         periodic_table: Periodic table data, indexed by element symbol.
-        miedema_weight: Symmetrised Miedema mixing-enthalpy matrix.
+        miedema_weight: Symmetrized Miedema mixing-enthalpy matrix.
         formula_column: Name to give the formula column.
 
     Returns:
@@ -103,7 +103,7 @@ def run_case(
         feature_columns: Feature columns the models were trained on, in order.
         models: Fitted models keyed by display name.
         periodic_table: Periodic table data, indexed by element symbol.
-        miedema_weight: Symmetrised Miedema mixing-enthalpy matrix.
+        miedema_weight: Symmetrized Miedema mixing-enthalpy matrix.
 
     Returns:
         A CaseStudyResult holding the atomic fractions, one prediction array per
@@ -142,7 +142,7 @@ def plot_case_studies(
     periodic_table: pd.DataFrame,
     miedema_weight: pd.DataFrame,
     cases: Sequence[CaseStudy] = CASE_STUDIES,
-    target_label: str = "Saturation Magnetisation [T]",
+    target_label: str = "Saturation Magnetization [T]",
     save_path=None,
 ) -> None:
     """Plot every case study side by side, one panel each.
@@ -151,7 +151,7 @@ def plot_case_studies(
         feature_columns: Feature columns the models were trained on, in order.
         models: Fitted models keyed by display name; every one is plotted.
         periodic_table: Periodic table data, indexed by element symbol.
-        miedema_weight: Symmetrised Miedema mixing-enthalpy matrix.
+        miedema_weight: Symmetrized Miedema mixing-enthalpy matrix.
         cases: Which alloy series to plot.
         target_label: Y-axis label for the predicted property.
         save_path: If set, save the figure here instead of showing it.

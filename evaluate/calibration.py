@@ -44,7 +44,7 @@ def compute_calibration_metrics(
             so the pair is what carries the information.
         mean_abs_z, rms_z: |error| / sigma. A calibrated Gaussian sigma gives rms_z = 1; above 1 is overconfident, below
             1 conservative. These are the scale-sensitive numbers, so they detect the miscalibration that any max-
-            normalised score would divide away.
+            normalized score would divide away.
         n: Sample count behind the row, so the pooling stays auditable.
         n_zero_sigma: How many of those samples were left out of the z columns.
     """

@@ -46,7 +46,7 @@ def import_periodic_table(root_dir):
 
 
 def import_miedema_weight(root_dir):
-    """Import Miedema model enthalpies spreadsheet and symmetrise it."""
+    """Import Miedema model enthalpies spreadsheet and symmetrize it."""
     mm = pd.read_excel(root_dir, header=1, index_col=73, usecols=range(0, 74), nrows=73).fillna(0)
     mm_T = mm.transpose().fillna(0)
     mm = mm + mm_T

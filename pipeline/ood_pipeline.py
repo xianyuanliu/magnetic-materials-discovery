@@ -23,7 +23,7 @@ from utils.registry import ModelSpec, resolve_models
 from evaluate.ood_evaluation import (
     OOD,
     evaluate_splits_kfold_train_fixed_test,
-    summarize_generalisation_gap,
+    summarize_generalization_gap,
     summarize_model_comparison,
     summarize_runs_across_splits,
 )
@@ -39,7 +39,7 @@ TABLE_FILENAMES = (
     "table2_metrics_by_model.csv",
     "table3_model_comparison_significance.csv",
     "table4_combined_comparison.csv",
-    "table5_generalisation_gap.csv",
+    "table5_generalization_gap.csv",
 )
 
 
@@ -53,7 +53,7 @@ def load_ood_dataset(
     """Load the pool the OOD splits are carved out of.
 
     Both config paths are read and concatenated, because the OOD splits define their own train/test boundary — the two
-    files are only a way of pointing at the data, not a pre-existing split that is honoured here.
+    files are only a way of pointing at the data, not a pre-existing split that is honored here.
 
     Args:
         train_dataset_path: First (or only) CSV to read.
@@ -202,11 +202,11 @@ def run_ood_evaluation(*, cfg: RunConfig, model_registry: Mapping[str, ModelSpec
         comparison_significance = summarize_model_comparison(metrics_by_model, name_a, name_b, split_type=OOD)
 
     combined_comparison = summarize_runs_across_splits(metrics_by_model)
-    generalisation_gap = summarize_generalisation_gap(combined_comparison)
+    generalization_gap = summarize_generalization_gap(combined_comparison)
 
     tables = (
         splits_summary, metrics_by_model, comparison_significance,
-        combined_comparison, generalisation_gap,
+        combined_comparison, generalization_gap,
     )
     print_ood_tables(*tables)
 

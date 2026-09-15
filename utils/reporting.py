@@ -101,7 +101,7 @@ def print_ood_tables(
     metrics_by_model: pd.DataFrame,
     comparison_significance: pd.DataFrame,
     combined_comparison: pd.DataFrame,
-    generalisation_gap: pd.DataFrame,
+    generalization_gap: pd.DataFrame,
 ) -> None:
     """Print the OOD result tables."""
     _print_frame("Table 1: Scenario summary", splits_summary)
@@ -112,11 +112,11 @@ def print_ood_tables(
         note="paired across OOD splits — one observation per split, not per inner fold",
     )
     _print_frame("Table 4: Combined comparison", format_metric_table(combined_comparison))
-    _print_frame("Table 5: Generalisation gap (MSE), shift vs training-pool", generalisation_gap)
+    _print_frame("Table 5: Generalization gap (MSE), shift vs training-pool", generalization_gap)
 
 
 def print_uq_report(across_seeds: pd.DataFrame, alpha: float) -> None:
-    """Print the headline calibration comparison without editorialising it."""
+    """Print the headline calibration comparison without editorializing it."""
     nominal = 1.0 - alpha
     print(f"\nCalibration by split type and method (nominal coverage {nominal:.0%}, mean ± std over seeds)")
     print(across_seeds.to_string(index=False))

@@ -333,7 +333,7 @@ def summarize_runs_across_splits(metrics_df: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def summarize_generalisation_gap(summary_df: pd.DataFrame, metric: str = "mse") -> pd.DataFrame:
+def summarize_generalization_gap(summary_df: pd.DataFrame, metric: str = "mse") -> pd.DataFrame:
     """Decompose each scenario's degradation into a shift part and a training-pool part.
 
     shift_gap        OOD - ID-paired. Same models and training rows, so this is

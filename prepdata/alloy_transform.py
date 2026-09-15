@@ -266,7 +266,7 @@ def get_groupw(pt, stoich_array):
             groupw.loc[i] = np.nan
             continue
 
-        # Re-normalise atomic fractions to only valid elements
+        # Re-normalize atomic fractions to only valid elements
         af_sub = at_fraction.loc[valid_labels]
         af_sub = af_sub / af_sub.sum()
 

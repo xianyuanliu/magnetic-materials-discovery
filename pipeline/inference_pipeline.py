@@ -116,7 +116,7 @@ def predict_formulas(
         bundle: A fitted model with its feature contract.
         formulas: Frame with a formula column.
         pt: Periodic table data, indexed by element symbol.
-        mm: Symmetrised Miedema mixing-enthalpy matrix.
+        mm: Symmetrized Miedema mixing-enthalpy matrix.
         formula_column: Name of the formula column.
 
     Returns:
