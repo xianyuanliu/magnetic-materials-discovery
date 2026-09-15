@@ -45,8 +45,8 @@ def rf_tree_std(model, X) -> np.ndarray:
     """Standard deviation of the per-tree predictions of a fitted forest.
 
     Args:
-        model: A fitted RandomForestRegressor. Tree ensembles are trained unscaled (see pipeline/model.py:_scaled), so
-            `estimators_` accept the same X as the forest itself.
+        model: A fitted RandomForestRegressor. Tree ensembles are trained unscaled (see
+            predict/sklearn_models.py:_scaled), so `estimators_` accept the same X as the forest itself.
         X: Feature matrix to predict.
 
     Raises:

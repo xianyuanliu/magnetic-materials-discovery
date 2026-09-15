@@ -13,14 +13,11 @@ End-to-end pipeline for predicting saturation magnetization of alloys using engi
 - Visualization helpers for magnetization histograms, violin plots, and compound radix summaries.
 
 ## Project Layout
-Module directories loosely follow [PyKale](https://github.com/pykale/pykale)'s pipeline
-convention (`loaddata → prepdata → predict → evaluate → interpret`, with `pipeline` for
-domain-specific orchestration), simplified for this repo's scale: no `embed/` stage
-(feature engineering already produces the final feature vector consumed directly by the
-regressors). Everything that builds, tunes, or runs a model — every model's bare
-constructor, tuner and trainer (`model.py`), and one orchestration module per
-evaluation mode — lives under `pipeline/`, since none of it is meant to be imported
-without the rest.
+Module directories follow [PyKale](https://github.com/pykale/pykale)'s stage convention
+(`loaddata → prepdata → embed → predict → evaluate → interpret`, with `pipeline` for the
+workflows that string them together and `utils` for what more than one stage shares).
+`embed/` is empty for now: the nine features are engineered by hand in `prepdata/`, so
+there is no learned representation yet; it is where deep-learning encoders will go.
 
 Dependencies run one way. `config.py` and `utils/registry.py` are leaves that import
 nothing from the stage packages; `evaluate/` scores the splits it is handed and never
@@ -50,16 +47,16 @@ notebook or another project without a run's output appearing as a side effect.
 - `prepdata/`: chemical-formula parsing and element-weighted feature engineering
   (`alloy_transform.py`), plus the higher-level feature-table builder
   (`build_features.py`).
-- `pipeline/`: every model's bare constructor, tuner and trainer, one block each,
-  combined into fittable `ModelSpec`s (`model.py`, exposes `MODEL_REGISTRY`); the paired
-  model-comparison helper shared by holdout and cross-validation (`comparison.py`); one
-  orchestration module per evaluation mode — `holdout_pipeline.py`,
-  `cross_validation_pipeline.py`, `predict_pipeline.py`; the OOD stress-test pipeline
-  (`ood_pipeline.py` orchestration +
-  `ood_scenarios.py` config-to-splits selection + `ood_splits.py` split-family builders:
-  LOEO/LOPO/LOGO/LOCO/SparseX/SparseY, plus the two in-distribution reference builders);
-  and the uncertainty pipeline (`uq_pipeline.py` orchestration + `uq.py` estimators and
-  split-conformal calibration).
+- `embed/`: learned representations. Empty until deep-learning encoders are added.
+- `predict/`: every model's bare constructor, tuner and trainer, one block each, combined
+  into fittable `ModelSpec`s (`sklearn_models.py`, exposes `MODEL_REGISTRY`); and the predictive-
+  uncertainty estimators with split-conformal calibration (`uncertainty.py`).
+- `pipeline/`: one orchestration module per evaluation mode — `holdout_pipeline.py`,
+  `cross_validation_pipeline.py`, `predict_pipeline.py`, `uq_pipeline.py`, and the OOD
+  stress test (`ood_pipeline.py` orchestration + `ood_scenarios.py` config-to-splits
+  selection + `ood_splits.py` split-family builders: LOEO/LOPO/LOGO/LOCO/SparseX/SparseY,
+  plus the two in-distribution reference builders); and the paired model-comparison helper
+  shared by holdout and cross-validation (`comparison.py`).
 - `evaluate/`: metric primitives (`metrics.py`), K-fold CV scoring and paired
   significance testing (`cross_validation.py`), OOD-specific per-split scoring +
   tables (`ood_evaluation.py`), and calibration metrics (`calibration.py`).

@@ -1,9 +1,9 @@
 """Uncertainty-quantification orchestration: is the model's confidence earned?
 
 For every split — an in-distribution K-fold reference, each OOD scenario from pipeline/ood_scenarios.py, and a same-size
-random control per OOD split — this fits one model, attaches three kinds of interval (see pipeline/uq.py), and records
-one row per predicted sample. Calibration is then computed by pooling those samples, so error and uncertainty are always
-aggregated the same way.
+random control per OOD split — this fits one model, attaches three kinds of interval (see predict/uncertainty.py), and
+records one row per predicted sample. Calibration is then computed by pooling those samples, so error and uncertainty
+are always aggregated the same way.
 
 What it deliberately does not do is score the "confidence-error paradox". The usual test for it — comparing an OOD/ID
 error ratio against an OOD/ID uncertainty ratio — flips sign with the random seed on this data, so this pipeline reports
@@ -29,7 +29,7 @@ from evaluate.calibration import summarize_across_seeds, summarize_calibration
 from pipeline.ood_pipeline import load_ood_dataset
 from pipeline.ood_scenarios import build_scenarios
 from pipeline.ood_splits import build_kfold_splits, build_size_matched_split
-from pipeline.uq import (
+from predict.uncertainty import (
     CONFORMAL,
     CONFORMAL_NORM,
     RF_STD,
@@ -45,9 +45,9 @@ ID_KFOLD = "ID-kfold"
 OOD = "OOD"
 ID_RANDOM = "ID-random"
 
-# Model keys whose fitted estimator exposes per-member predictions (sklearn's `estimators_`) that pipeline/uq.py's
-# rf_tree_std can read as a spread. RandomForestRegressor is a bag of interchangeable trees; XGBoost fits one additive
-# model, so its boosters carry no comparable spread.
+# Model keys whose fitted estimator exposes per-member predictions (sklearn's `estimators_`) that
+# predict/uncertainty.py's rf_tree_std can read as a spread. RandomForestRegressor is a bag of interchangeable trees;
+# XGBoost fits one additive model, so its boosters carry no comparable spread.
 ENSEMBLE_STD_MODELS = frozenset({"rf"})
 
 TABLE_FILENAMES = (
@@ -159,7 +159,7 @@ def _collect_samples(
 def resolve_uq_model(model_registry: Mapping[str, ModelSpec], model_key: str) -> ModelSpec:
     """Look up the UQ model and check it can actually supply a spread.
 
-    The estimators in pipeline/uq.py read the per-member predictions of an ensemble, so the model has to be in
+    The estimators in predict/uncertainty.py read the per-member predictions of an ensemble, so the model has to be in
     ENSEMBLE_STD_MODELS.
 
     Raises:
