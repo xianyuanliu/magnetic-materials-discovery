@@ -44,7 +44,7 @@ notebook or another project without a run's output appearing as a side effect.
 - `loaddata/`: three modules, plus the package's `__init__.py`.
   - `novamag.py`: reads local JSON records, flattens nested fields and standardizes names and types.
   - `materials_project.py`: reads a local MP CSV export and converts magnetization to tesla.
-  - `data_access.py`: shared record standardization, periodic-table/Miedema spreadsheet readers,
+  - `tabular_access.py`: shared record standardization, periodic-table/Miedema spreadsheet readers,
     and prepared-CSV loading with explicit model-feature selection.
   Both dataset readers return formula and numeric target columns plus source IDs and metadata.
   They preserve original formula stoichiometry and do not select magnetic records or exclude elements.

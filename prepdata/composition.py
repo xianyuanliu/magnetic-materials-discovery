@@ -21,8 +21,8 @@ from pymatgen.core.composition import Composition
 # --- Formula parsing ---
 
 
-def get_normalized_formula(formula: str) -> Optional[str]:
-    """Return a parseable, scale-independent formula for grouping equivalent compositions.
+def get_composition_key(formula: str) -> Optional[str]:
+    """Return the grouping key that equivalent formulas share: a parseable, scale-independent formula.
 
     Uses pymatgen's get_integer_formula_and_factor with its default max_denominator=10000 approximation for fractional
     amounts, then hill_formula for consistent formatting. Hill ordering writes sodium/nitrogen as NNa instead of NaN,
@@ -110,7 +110,7 @@ def get_group_period_maps(
     """Derive element->group and element->period maps, as the OOD split families need them.
 
     Args:
-        pt: Periodic table DataFrame (see loaddata.data_access.load_periodic_table).
+        pt: Periodic table DataFrame (see loaddata.tabular_access.load_periodic_table).
         element_col: Column holding element symbols.
         period_col: Column holding period numbers.
         group_block_col: Column spelled like "group 1, s-block".
@@ -149,7 +149,7 @@ def get_stoich_array(
 
     Args:
         x: DataFrame with a formula column, or a single formula string.
-        pt: Periodic table DataFrame (see loaddata.data_access.load_periodic_table), used for element symbols.
+        pt: Periodic table DataFrame (see loaddata.tabular_access.load_periodic_table), used for element symbols.
         formula_column: Name of the formula column when `x` is a DataFrame.
 
     Returns:

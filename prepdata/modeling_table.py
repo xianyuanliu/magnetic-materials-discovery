@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 
 from prepdata.alloy_descriptors import ENGINEERED_FEATURE_COLUMNS, add_engineered_features
-from prepdata.composition import formula_contains_elements, get_normalized_formula
+from prepdata.composition import formula_contains_elements, get_composition_key
 
 
 # Optional experiment exclusions, retained from the original MP preparation policy.
@@ -77,7 +77,7 @@ def build_modeling_table(
     aggregated. Features are calculated once per composition and metadata never becomes a model input or a median
     operand.
 
-    Returns a table indexed by normalized formula (index name formula_column), with the target and nine feature columns,
+    Returns a table indexed by composition key (index name formula_column), with the target and nine feature columns,
     plus the ordered feature list. Original formulas and metadata remain unchanged in raw_data.
     """
     data = filter_samples(
@@ -87,7 +87,7 @@ def build_modeling_table(
     # Grouping on the literal formula is not enough: Co5Ta1 and Co10Ta2 are the same composition written at different
     # supercell multiples, so they yield identical features. Left as separate rows they straddle a random split and the
     # model is scored on inputs it memorized.
-    keys = {formula: get_normalized_formula(formula) for formula in data[formula_column].unique()}
+    keys = {formula: get_composition_key(formula) for formula in data[formula_column].unique()}
     data["composition_key"] = data[formula_column].map(keys)
     data = data.dropna(subset=["composition_key"])
     # Keep one median target per normalized composition, without discarding distinct source measurements beforehand.

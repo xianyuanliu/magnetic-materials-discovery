@@ -9,11 +9,11 @@ import numpy as np
 import pandas as pd
 from pandas.testing import assert_frame_equal
 
-from loaddata.data_access import load_features_and_target, standardize_records
+from loaddata.tabular_access import load_features_and_target, standardize_records
 from loaddata.materials_project import TESLA_PER_BOHR_MAGNETON_PER_CUBIC_ANGSTROM, load_materials_project
 from loaddata.novamag import load_novamag
 from prepdata.alloy_descriptors import ENGINEERED_FEATURE_COLUMNS
-from prepdata.composition import get_elements, get_normalized_formula
+from prepdata.composition import get_elements, get_composition_key
 from prepdata.modeling_table import build_modeling_table, filter_samples
 
 
@@ -36,26 +36,26 @@ class DataPreparationTests(unittest.TestCase):
 
     def test_equivalent_formulas_share_key_without_merging_different_ratios(self):
         formulas = ["FeNi", "Fe2Ni2", "NiFe", "Fe0.5Ni0.5", "Ni0.1Fe0.1", "(FeNi)2"]
-        assert {get_normalized_formula(formula) for formula in formulas} == {"FeNi"}
-        assert get_normalized_formula("Fe2Ni") != get_normalized_formula("FeNi")
-        assert get_normalized_formula("Fe2Ni") == get_normalized_formula("Ni2Fe4")
-        assert get_normalized_formula("Fe") == get_normalized_formula("Fe8")
+        assert {get_composition_key(formula) for formula in formulas} == {"FeNi"}
+        assert get_composition_key("Fe2Ni") != get_composition_key("FeNi")
+        assert get_composition_key("Fe2Ni") == get_composition_key("Ni2Fe4")
+        assert get_composition_key("Fe") == get_composition_key("Fe8")
         for formula in [*formulas, "CoFe4Ta", "CoFe4Ta2", "Fe0.1Ni0.9", "(Fe0.1Ni0.2)3"]:
-            key = get_normalized_formula(formula)
-            assert get_normalized_formula(key) == key
+            key = get_composition_key(formula)
+            assert get_composition_key(key) == key
 
     def test_invalid_compositions_do_not_form_a_group(self):
-        assert get_normalized_formula(None) is None
-        assert get_normalized_formula(np.nan) is None
-        assert get_normalized_formula(pd.NA) is None
+        assert get_composition_key(None) is None
+        assert get_composition_key(np.nan) is None
+        assert get_composition_key(pd.NA) is None
         with self.assertWarnsRegex(UserWarning, "Could not normalize"):
-            assert get_normalized_formula("invalid") is None
+            assert get_composition_key("invalid") is None
 
     def test_sodium_nitrogen_key_survives_default_csv_reading(self):
-        key = get_normalized_formula("NaN")
+        key = get_composition_key("NaN")
         assert key == "NNa"
-        assert get_normalized_formula("Na2N2") == key
-        assert get_normalized_formula(key) == key
+        assert get_composition_key("Na2N2") == key
+        assert get_composition_key(key) == key
         path = self.tmp_path / "formula.csv"
         pd.DataFrame({"chemical formula": [key]}).to_csv(path, index=False)
         loaded_formula = pd.read_csv(path)["chemical formula"].iloc[0]

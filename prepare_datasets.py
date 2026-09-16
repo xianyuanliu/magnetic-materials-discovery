@@ -10,7 +10,7 @@ from typing import Iterable, Optional
 
 import pandas as pd
 
-from loaddata.data_access import load_element_properties
+from loaddata.tabular_access import load_element_properties
 from loaddata.materials_project import DEFAULT_CSV_PATH, load_materials_project
 from loaddata.novamag import DEFAULT_ROOT_DIR, load_novamag
 from prepdata.modeling_table import NON_COMMERCIAL_ELEMENTS, RARE_EARTH_ELEMENTS, build_modeling_table

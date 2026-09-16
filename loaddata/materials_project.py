@@ -7,7 +7,7 @@ Magnetic and element-based sample selection belongs to prepdata/modeling_table.p
 import numpy as np
 import pandas as pd
 
-from loaddata.data_access import DEFAULT_FORMULA_COLUMN, DEFAULT_TARGET_COLUMN, standardize_records
+from loaddata.tabular_access import DEFAULT_FORMULA_COLUMN, DEFAULT_TARGET_COLUMN, standardize_records
 
 DEFAULT_CSV_PATH = "./data/materials_project/mp-data.csv"
 

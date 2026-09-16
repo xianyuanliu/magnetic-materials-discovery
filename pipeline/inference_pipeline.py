@@ -20,7 +20,7 @@ import pandas as pd
 
 from config import RunConfig
 from utils.registry import ModelSpec, resolve_models
-from loaddata.data_access import load_element_properties, load_features_and_target
+from loaddata.tabular_access import load_element_properties, load_features_and_target
 from utils.persistence import ModelBundle, align_features, load_model_bundle, save_model_bundle
 from prepdata.alloy_descriptors import add_engineered_features
 from utils.reporting import print_predictions

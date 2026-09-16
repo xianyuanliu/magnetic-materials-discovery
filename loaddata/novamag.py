@@ -12,7 +12,7 @@ import warnings
 import numpy as np
 import pandas as pd
 
-from loaddata.data_access import DEFAULT_FORMULA_COLUMN, DEFAULT_TARGET_COLUMN, standardize_records
+from loaddata.tabular_access import DEFAULT_FORMULA_COLUMN, DEFAULT_TARGET_COLUMN, standardize_records
 
 DEFAULT_ROOT_DIR = "./data/novamag/Novamag_Data_Files/"
 
