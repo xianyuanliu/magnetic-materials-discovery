@@ -3,8 +3,8 @@
 End-to-end pipeline for predicting saturation magnetization of alloys using engineered features from the periodic table and Miedema model data. Includes loaders for Novamag and Materials Project exports, multiple regressors, and interpretability plots.
 
 ## What's Inside
-- Data loaders/cleaners for Novamag CSV exports and Materials Project `mp-data.csv`, plus periodic table and Miedema weight helpers.
-- Alloy feature builder: stoichiometric array, mixing entropy, weighted atomic properties, and filtering of non-magnetic entries.
+- Dataset readers for Novamag JSON records and Materials Project `mp-data.csv`, plus shared reference-table and CSV access.
+- Alloy feature builder: magnetic-record selection, normalized-composition aggregation, and composition descriptors.
 - Model zoo with optional GridSearchCV tuning: linear/ridge/lasso/elasticnet, random forest, XGBoost, SVR, and MLP.
   Scale-sensitive models (linear family, SVR, MLP) are fitted inside a `StandardScaler` pipeline, so the
   scaler is fitted on training data only and never leaks across a split; the tree ensembles are left
@@ -39,22 +39,24 @@ notebook or another project without a run's output appearing as a side effect.
   `HoldoutConfig`, `TuningConfig`, `OODConfig`, `UQConfig`, `PredictConfig`). Unknown
   keys are rejected rather than ignored, so a typo in a config file is an error instead
   of a silently disabled setting.
-- `preprocess_data.py`: standalone script that builds `data/novamag-magnetism.csv` and
-  `data/mp-magnetism.csv` from the raw source data.
-- `loaddata/`: one module per dataset, each reading its own raw files and returning the same
-  two-column frame — the chemical formula and the measured target (`unified.py` defines that
-  contract; `novamag.py` walks the JSON tree, `materials_project.py` reads the CSV export and
-  converts its units). `element_properties.py` holds the periodic table and Miedema
-  spreadsheets, which are reference data every dataset reuses rather than a dataset of their
-  own. `featurized_csv.py` is the re-entry point: it reads the modeling table `prepdata/`
-  saved, so a run does not re-parse the raw collections.
-  To add a dataset, write `loaddata/<name>.py` ending in a `select_unified_columns` call;
-  nothing else has to change.
-- `prepdata/`: three levels of task-specificity. `composition.py` is reusable by any materials
-  task — formula parsing, stoichiometry, atomic fractions, and the `get_weighted_property`
-  primitive that descriptor sets are built from. `alloy_descriptors.py` holds this project's
-  nine descriptors. `modeling_table.py` assembles them and applies the task's row selection —
-  non-magnetic cutoff, dropna, duplicate collapsing.
+- `prepare_datasets.py`: standalone data preparation entry point (formerly `preprocess_data.py`).
+  Builds `data/novamag-magnetism.csv` and `data/mp-magnetism.csv`; `main.py` reuses these files.
+- `loaddata/`: three modules, plus the package's `__init__.py`.
+  - `novamag.py`: reads local JSON records, flattens nested fields and standardizes names and types.
+  - `materials_project.py`: reads a local MP CSV export and converts magnetization to tesla.
+  - `data_access.py`: shared record standardization, periodic-table/Miedema spreadsheet readers,
+    and prepared-CSV loading with explicit model-feature selection.
+  Both dataset readers return formula and numeric target columns plus source IDs and metadata.
+  They preserve original formula stoichiometry and do not select magnetic records or exclude elements.
+  No loader imports `prepdata`, and loading never triggers a download.
+  To add a dataset, implement its source mapping and call `standardize_records`, then add
+  its preparation step in `prepare_datasets.py`.
+- `prepdata/`: composition handling, alloy descriptors and modeling-table assembly.
+  - `composition.py`: formula parsing, normalized composition keys, stoichiometry, atomic fractions
+    and reusable descriptor primitives.
+  - `alloy_descriptors.py`: this project's nine features, also used for target-free inference.
+  - `modeling_table.py`: configurable sample selection, then median targets per normalized composition,
+    then feature calculation. Only the target is aggregated; source metadata stays in loaded records.
   Nothing in `prepdata/` reads a file or takes a path; `loaddata/` hands it loaded frames.
 - `embed/`: learned representations. Empty until deep-learning encoders are added.
 - `predict/`: every model's bare constructor, tuner and trainer, one block each, combined
@@ -84,15 +86,66 @@ pip install -U numpy pandas scikit-learn matplotlib seaborn shap xgboost
 ```
 2) Ensure data files match the paths in your chosen config (`configs/novamag.yaml`,
    `configs/mp.yaml`, or `configs/novamag_ood.yaml`).
-3) Run the pipeline:
+3) Prepare the datasets once, or again after changing source data, selection rules or features:
+```bash
+python prepare_datasets.py
+```
+   This reads local sources and saves the feature CSVs used by the run configs. It also saves
+   flattened Novamag records with original formulas and source IDs to `data/novamag/novamag-raw.csv`.
+4) Run the experiment pipeline:
 ```bash
 python main.py --config configs/novamag.yaml
 ```
    - `evaluation_mode` in the config selects `predict`, `holdout`, `cross_validation`,
      `ood`, or `uq`; `enable_hyperparameter_tuning`, `enable_ablation_study`, and
      `enable_data_visualization` toggle the optional stages.
-4) Check outputs in the console (metrics), `plots/` (figures prefixed by the dataset
+5) Check outputs in the console (metrics), `plots/` (figures prefixed by the dataset
    name), and `results/` (CSV tables from the `ood` and `uq` modes).
+
+## Dataset Preparation and Sample Definition
+
+`prepare_datasets.py` is independent of model training. `main.py` reads prepared CSVs and does not
+rebuild them automatically. The preparation command replaces its output files, so use `--output-dir`
+when comparing preparation settings. Existing model bundles and experiment results are not regenerated;
+retrain and re-evaluate them after changing the prepared data.
+
+```bash
+# Prepare only MP with the existing study exclusions and target >= 0.18 T.
+python prepare_datasets.py --dataset mp
+
+# Compare an alternative magnetic threshold in a separate output directory.
+python prepare_datasets.py --min-target 0.3 --output-dir /tmp/magnetic-data-03
+
+# Explicitly exclude these elements for every selected dataset.
+python prepare_datasets.py --exclude-elements Nd Sm U
+
+# Disable element exclusions (pass no element values).
+python prepare_datasets.py --dataset mp --exclude-elements
+```
+
+Defaults retain the existing study scope: both datasets use the inclusive 0.18 T record threshold;
+MP additionally requires `is_magnetic=True` and excludes the existing rare-earth/actinide list.
+Novamag has no default element exclusions and is selected by the target threshold.
+`--mp-include-nonmagnetic` disables only MP's magnetic-label filter, leaving the target threshold active.
+A requested magnetic-label filter requires a standardized boolean column; missing labels do not qualify.
+The reusable `filter_samples` function also accepts `min_target=None` to disable the threshold.
+
+The target is the median magnetization **among selected magnetic records** for each composition:
+source normalization → record selection → composition normalization and median target → features.
+`FeNi`, `Fe2Ni2`, `NiFe` and `Fe0.5Ni0.5` share the key `FeNi`. Keys use pymatgen's
+`Composition.get_integer_formula_and_factor()` with the default `max_denominator=10000` approximation
+for fractional amounts, then `hill_formula` for consistent formatting. Hill ordering avoids the
+CSV missing-value token `NaN` by writing sodium/nitrogen as `NNa`. Keys are written as the prepared CSV's
+`chemical formula` column, preserving compatibility with formula-based evaluation and inference.
+Different structures of the same composition contribute to the median; the output is a composition
+sample, not an individual structure. Original records remain available separately for traceability.
+Filtering takes place before the median: records with targets 0.05, 0.10 and 1.50 T yield 1.50 T
+under the default threshold. No low-target records contribute to that median.
+
+Run the preparation regression checks with:
+```bash
+python -m unittest discover -s tests -v
+```
 
 ## Predicting a Property (`evaluation_mode: predict`)
 The other modes answer "how good is this model"; this one answers "what is the predicted

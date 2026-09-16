@@ -10,8 +10,7 @@ from sklearn.model_selection import train_test_split
 
 from interpret.case_studies import plot_case_studies
 from interpret.model_weights import plot_permutation_importance, plot_shap_summary
-from loaddata.featurized_csv import load_features_and_target
-from loaddata.element_properties import load_element_properties
+from loaddata.data_access import load_element_properties, load_features_and_target
 from pipeline.comparison import report_comparison
 from utils.reporting import print_cv_results, print_holdout_results
 

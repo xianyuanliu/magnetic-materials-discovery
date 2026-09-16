@@ -25,7 +25,7 @@ import pandas as pd
 from config import RunConfig
 from evaluate.calibration import summarize_across_seeds, summarize_calibration
 from evaluate.ood_evaluation import Split
-from loaddata.element_properties import load_periodic_table
+from loaddata.data_access import load_periodic_table
 from pipeline.ood_pipeline import load_ood_dataset
 from pipeline.ood_scenarios import build_scenarios
 from pipeline.ood_splits import build_kfold_splits, build_size_matched_split

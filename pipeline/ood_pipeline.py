@@ -26,8 +26,7 @@ from evaluate.ood_evaluation import (
     summarize_model_comparison,
     summarize_runs_across_splits,
 )
-from loaddata.element_properties import load_periodic_table
-from loaddata.featurized_csv import resolve_feature_columns
+from loaddata.data_access import load_periodic_table, resolve_feature_columns
 from pipeline.ood_scenarios import build_scenarios
 from pipeline.ood_splits import build_size_matched_split
 from prepdata.composition import get_elements_per_row, get_group_period_maps
@@ -62,7 +61,7 @@ def load_ood_dataset(
         target_column: Name of the column being predicted.
         formula_column: Name of the chemical-formula column.
         feature_columns: Explicit feature list, or None to infer and validate them; see
-            loaddata.featurized_csv.resolve_feature_columns.
+            loaddata.data_access.resolve_feature_columns.
 
     Returns:
         (X, y, df_full), where X holds exactly the resolved feature columns.
