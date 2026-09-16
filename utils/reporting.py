@@ -121,9 +121,8 @@ def print_uq_report(across_seeds: pd.DataFrame, alpha: float) -> None:
     print(f"\nCalibration by split type and method (nominal coverage {nominal:.0%}, mean ± std over seeds)")
     print(across_seeds.to_string(index=False))
     print(
-        "\nHow to read it: coverage below nominal means the interval is too narrow "
-        "(overconfident); rms_z above 1 means the same for the sigma itself. "
-        "Compare OOD against ID-random, not ID-kfold — only ID-random holds the "
+        "\nHow to read it: coverage below nominal means the interval is too narrow (overconfident); rms_z above 1 "
+        "means the same for the sigma itself. Compare OOD against ID-random, not ID-kfold — only ID-random holds the "
         "training-set size fixed."
     )
 

@@ -192,9 +192,8 @@ def evaluate_splits_kfold_train_fixed_test(
             can report them.
 
     Returns:
-        (table1, table2) — split summary, and metrics by model and split_type.
-        Model-vs-model significance is deliberately not computed here; see
-        summarize_model_comparison.
+        (table1, table2) — split summary, and metrics by model and split_type. Model-vs-model significance is
+        deliberately not computed here; see summarize_model_comparison.
     """
     summary_rows, metrics_rows = [], []
 
@@ -254,8 +253,7 @@ def summarize_model_comparison(
         min_pairs: Below this many splits, p-values are withheld with a note.
 
     Returns:
-        One row per (scenario, metric), or an empty frame if the requested
-        models or split_type are absent.
+        One row per (scenario, metric), or an empty frame if the requested models or split_type are absent.
     """
     if metrics_df.empty or "split_type" not in metrics_df.columns:
         return pd.DataFrame()
@@ -336,20 +334,17 @@ def summarize_runs_across_splits(metrics_df: pd.DataFrame) -> pd.DataFrame:
 def summarize_generalization_gap(summary_df: pd.DataFrame, metric: str = "mse") -> pd.DataFrame:
     """Decompose each scenario's degradation into a shift part and a training-pool part.
 
-    shift_gap        OOD - ID-paired. Same models and training rows, so this is
-                     purely the cost of testing on the held-out region.
-    train_pool_gap   ID-paired - ID-random. Same training-set size, but one pool
-                     has a whole chemistry family carved out of it; this is what
-                     an unmatched ID-vs-OOD comparison silently folds into the
-                     shift number.
+    shift_gap        OOD - ID-paired. Same models and training rows, so this is purely the cost of testing on the
+                     held-out region.
+    train_pool_gap   ID-paired - ID-random. Same training-set size, but one pool has a whole chemistry family carved out
+                     of it; this is what an unmatched ID-vs-OOD comparison silently folds into the shift number.
 
     Args:
         summary_df: Output of summarize_runs_across_splits.
         metric: Which metric to decompose; lower-is-better metrics only.
 
     Returns:
-        One row per (scenario, model), or an empty frame if `summary_df` lacks
-        the split_type column.
+        One row per (scenario, model), or an empty frame if `summary_df` lacks the split_type column.
     """
     column = f"{metric.upper()}_mean"
     if summary_df.empty or "split_type" not in summary_df.columns:

@@ -2,18 +2,13 @@
 
 Three ways to attach an interval to a point prediction, in increasing order of how much they promise:
 
-  rf_std            Spread of the forest's own trees, read as a Gaussian sigma.
-                    Cheap and interpretable, but it only measures disagreement
-                    between trees — it carries no noise or bias term, so it has
-                    no reason to be calibrated and is included as the naive
-                    reference, not as a recommendation.
-  conformal         Split conformal on absolute residuals. Constant width, and
-                    the only one of the three with a finite-sample coverage
-                    guarantee (in-distribution, exchangeable data).
-  conformal_norm    Split conformal on residuals divided by rf_std. Keeps the
-                    guarantee while letting the width follow the model's own
-                    uncertainty, so it is the adaptive baseline rf_std should
-                    be judged against.
+  rf_std            Spread of the forest's own trees, read as a Gaussian sigma. Cheap and interpretable, but it only
+                    measures disagreement between trees — it carries no noise or bias term, so it has no reason to be
+                    calibrated and is included as the naive reference, not as a recommendation.
+  conformal         Split conformal on absolute residuals. Constant width, and the only one of the three with a
+                    finite-sample coverage guarantee (in-distribution, exchangeable data).
+  conformal_norm    Split conformal on residuals divided by rf_std. Keeps the guarantee while letting the width follow
+                    the model's own uncertainty, so it is the adaptive baseline rf_std should be judged against.
 """
 
 from dataclasses import dataclass
