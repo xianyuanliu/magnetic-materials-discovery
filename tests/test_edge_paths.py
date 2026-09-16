@@ -97,6 +97,13 @@ class AnnotatedPropertyColumnTests(unittest.TestCase):
         stoich = get_stoich_array(pd.DataFrame({"chemical formula": ["FeNi"]}), pt)
         self.assertEqual(get_electronegw(pt, stoich).iloc[0], 0.5 * 1.83 + 0.5 * 1.91)
 
+    def test_numeric_column_is_not_routed_through_text_extraction(self):
+        """str(1e-07) is "1e-07", whose leading number is 1.0 — seven orders of magnitude wrong."""
+        pt = periodic_table_with_f_block()
+        pt["melting_point"] = [1e-7, 3e-7, 1.0]
+        stoich = get_stoich_array(pd.DataFrame({"chemical formula": ["FeNi"]}), pt)
+        self.assertEqual(get_melting_tw(pt, stoich).iloc[0], 0.5 * 1e-7 + 0.5 * 3e-7)
+
 
 class FeatureColumnSelectionTests(unittest.TestCase):
     """resolve_feature_columns is what stops a stray id or text column from becoming a model input."""
