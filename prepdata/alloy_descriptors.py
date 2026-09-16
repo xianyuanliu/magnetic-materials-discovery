@@ -37,10 +37,22 @@ ENGINEERED_FEATURE_COLUMNS: Tuple[str, ...] = (
 )
 
 
+def _numeric_property(pt, column):
+    """Read one element property column as floats, tolerating the prose the spreadsheet stores it in.
+
+    Some columns are annotated rather than numeric — "Pauling scale: 2.20", "912±3 K (639±3 °C, 1182±5 °F)" — so the
+    leading number is extracted and everything else, including "no data", becomes NaN. A NaN drops the composition in
+    prepdata/feature_table.py instead of contributing an invented figure to a weighted mean.
+    """
+    values = pt[column]
+    if pd.api.types.is_numeric_dtype(values):
+        return values.astype(float)
+    return pd.to_numeric(values.astype(str).str.extract(r"(-?\d*\.?\d+)")[0], errors="coerce")
+
+
 def get_electronegw(pt, stoich_array):
     """Calculate element-weighted electronegativity."""
-    en_list = pt["electronegativity"].str.extract(pat=r"(?P<digit>\d*\.\d+)").astype(float)["digit"]
-    return get_weighted_property(en_list, stoich_array)
+    return get_weighted_property(_numeric_property(pt, "electronegativity"), stoich_array)
 
 
 def get_zw(pt, stoich_array):
@@ -55,7 +67,7 @@ def get_periodw(pt, stoich_array):
 
 def get_melting_tw(pt, stoich_array):
     """Calculate element-weighted melting temperature."""
-    return get_weighted_property(pt["melting_point"], stoich_array)
+    return get_weighted_property(_numeric_property(pt, "melting_point"), stoich_array)
 
 
 def get_valencew(pt, stoich_array):

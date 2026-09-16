@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 
 from loaddata.tabular_access import resolve_feature_columns
-from prepdata.alloy_descriptors import get_groupw, get_miedemaw
+from prepdata.alloy_descriptors import get_electronegw, get_groupw, get_melting_tw, get_miedemaw
 from prepdata.composition import get_composition_key, get_stoich_array
 from prepdata.feature_table import build_feature_table
 
@@ -71,6 +71,31 @@ class MissingReferenceDataTests(unittest.TestCase):
         messages = [str(w.message) for w in caught if "Dropped" in str(w.message)]
         self.assertEqual(len(messages), 1, f"expected one drop warning, got {messages}")
         self.assertIn("miedemaH", messages[0])
+
+
+class AnnotatedPropertyColumnTests(unittest.TestCase):
+    """The sheet stores two properties as prose, so the descriptors must read the number out of it."""
+
+    def test_annotated_melting_point_is_parsed_not_crashed_on(self):
+        """Np is spelled "912±3 K (639±3 °C, 1182±5 °F)"; passing that to np.dot raises TypeError."""
+        pt = periodic_table_with_f_block()
+        pt.loc["Nd", "melting_point"] = "912\u00b13 K (639\u00b13 \u00b0C, 1182\u00b15 \u00b0F)"
+        stoich = get_stoich_array(pd.DataFrame({"chemical formula": ["NdFe"]}), pt)
+        self.assertEqual(get_melting_tw(pt, stoich).iloc[0], 0.5 * 912 + 0.5 * 1811)
+
+    def test_property_without_a_number_becomes_nan(self):
+        """"Pauling scale: no data" must not silently weigh as zero."""
+        pt = periodic_table_with_f_block()
+        pt.loc["Nd", "electronegativity"] = "Pauling scale: no data"
+        stoich = get_stoich_array(pd.DataFrame({"chemical formula": ["NdFe"]}), pt)
+        self.assertTrue(np.isnan(get_electronegw(pt, stoich).iloc[0]))
+
+    def test_already_numeric_column_is_accepted(self):
+        """A caller supplying a plain numeric periodic table should not need the sheet's prose format."""
+        pt = periodic_table_with_f_block()
+        pt["electronegativity"] = [1.83, 1.91, 1.14]
+        stoich = get_stoich_array(pd.DataFrame({"chemical formula": ["FeNi"]}), pt)
+        self.assertEqual(get_electronegw(pt, stoich).iloc[0], 0.5 * 1.83 + 0.5 * 1.91)
 
 
 class FeatureColumnSelectionTests(unittest.TestCase):
