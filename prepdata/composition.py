@@ -11,7 +11,7 @@ instead of training on a fabricated all-zero feature vector.
 
 import re
 import warnings
-from typing import Callable, Dict, Iterable, List, Tuple, Union
+from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -19,6 +19,32 @@ from pymatgen.core.composition import Composition
 
 
 # --- Formula parsing ---
+
+
+def get_normalized_formula(formula: str) -> Optional[str]:
+    """Return a parseable, scale-independent formula for grouping equivalent compositions.
+
+    Uses pymatgen's get_integer_formula_and_factor with its default max_denominator=10000 approximation for fractional
+    amounts, then hill_formula for consistent formatting. Hill ordering writes sodium/nitrogen as NNa instead of NaN,
+    which CSV readers treat as a missing value. FeNi, NiFe, Fe2Ni2 and Fe0.5Ni0.5 all yield FeNi. Invalid or empty
+    formulas return None. This identifies composition, not structure; original formulas and source IDs remain in the
+    loaded records.
+    """
+    if pd.isna(formula):
+        return None
+    try:
+        composition = Composition(str(formula), strict=True)
+        amounts = composition.get_el_amt_dict()
+        if not amounts or any(not np.isfinite(amount) or amount <= 0 for amount in amounts.values()):
+            raise ValueError("Element amounts must be finite and positive")
+        total = sum(amounts.values())
+        if not np.isfinite(total) or total <= 0:
+            raise ValueError("Total element amount must be finite and positive")
+        integer_formula, _ = composition.get_integer_formula_and_factor()
+        return Composition(integer_formula).hill_formula.replace(" ", "")
+    except (ValueError, TypeError) as exc:
+        warnings.warn(f"Could not normalize chemical formula {formula!r}; dropping the row ({exc}).")
+        return None
 
 
 def get_elements(formula: str) -> List[str]:
@@ -84,7 +110,7 @@ def get_group_period_maps(
     """Derive element->group and element->period maps, as the OOD split families need them.
 
     Args:
-        pt: Periodic table DataFrame (see loaddata.element_properties.load_periodic_table).
+        pt: Periodic table DataFrame (see loaddata.data_access.load_periodic_table).
         element_col: Column holding element symbols.
         period_col: Column holding period numbers.
         group_block_col: Column spelled like "group 1, s-block".
@@ -123,7 +149,7 @@ def get_stoich_array(
 
     Args:
         x: DataFrame with a formula column, or a single formula string.
-        pt: Periodic table DataFrame (see loaddata.element_properties.load_periodic_table), used for element symbols.
+        pt: Periodic table DataFrame (see loaddata.data_access.load_periodic_table), used for element symbols.
         formula_column: Name of the formula column when `x` is a DataFrame.
 
     Returns:

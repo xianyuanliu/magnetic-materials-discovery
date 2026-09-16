@@ -1,7 +1,7 @@
 """Novamag: a directory of JSON records, one per computed structure.
 
-`read_novamag_records` keeps every field for inspection; `load_novamag` narrows it to the shape described in
-loaddata/unified.py, which is what prepdata/ consumes.
+`read_novamag_records` flattens the source fields; `load_novamag` standardizes column names and types for prepdata/.
+Source metadata is preserved, and task-specific sample selection happens in prepdata/.
 
 Adapted from https://github.com/rich970/ML-alloy-design/blob/master/alloys.py with modifications.
 """
@@ -12,7 +12,7 @@ import warnings
 import numpy as np
 import pandas as pd
 
-from loaddata.unified import DEFAULT_FORMULA_COLUMN, DEFAULT_TARGET_COLUMN, select_unified_columns
+from loaddata.data_access import DEFAULT_FORMULA_COLUMN, DEFAULT_TARGET_COLUMN, standardize_records
 
 DEFAULT_ROOT_DIR = "./data/novamag/Novamag_Data_Files/"
 
@@ -37,8 +37,11 @@ def read_novamag_records(root_dir: str = DEFAULT_ROOT_DIR) -> pd.DataFrame:
         One row per record, with the nested value-dicts flattened and missing-value markers normalized to NaN.
     """
     rows, failed = [], []
-    for dir_name, _, file_names in os.walk(root_dir):
-        for file_name in file_names:
+    if not os.path.isdir(root_dir):
+        raise FileNotFoundError(f"Novamag directory does not exist: {root_dir}")
+    for dir_name, sub_dirs, file_names in os.walk(root_dir):
+        sub_dirs.sort()
+        for file_name in sorted(file_names):
             if not file_name.endswith(".json"):
                 continue
             path = os.path.join(dir_name, file_name)
@@ -48,6 +51,8 @@ def read_novamag_records(root_dir: str = DEFAULT_ROOT_DIR) -> pd.DataFrame:
                     **record.properties.chemistry,
                     **record.properties.crystal,
                     **record.properties.magnetics,
+                    "sample_id": os.path.relpath(path, root_dir),
+                    "source": "novamag",
                 })
             except ValueError:
                 failed.append(path)
@@ -55,6 +60,8 @@ def read_novamag_records(root_dir: str = DEFAULT_ROOT_DIR) -> pd.DataFrame:
     if failed:
         warnings.warn(f"Skipped {len(failed)} unreadable Novamag file(s), the first being {failed[0]}.")
 
+    if not rows:
+        raise ValueError(f"No readable Novamag records found in {root_dir}")
     data = pd.DataFrame(rows).apply(lambda column: column.map(_flatten))
     data = data.replace({None: np.nan, "none": np.nan, "None": np.nan})
     return data.infer_objects(copy=False)
@@ -65,17 +72,21 @@ def load_novamag(
     target_column: str = DEFAULT_TARGET_COLUMN,
     formula_column: str = DEFAULT_FORMULA_COLUMN,
 ) -> pd.DataFrame:
-    """Load Novamag into the unified (formula, target) frame that prepdata/ expects.
+    """Load Novamag with shared formula and numeric target columns, preserving source metadata.
 
     Args:
         root_dir: Directory tree to walk for .json files.
-        target_column: Measured property to carry through.
-        formula_column: Chemical-formula column.
+        target_column: Output name for saturation magnetization (already in tesla in the source).
+        formula_column: Output name for the chemical-formula column.
 
     Returns:
-        A frame with exactly `formula_column` and `target_column`.
+        Standardized records with `formula_column`, `target_column`, source identifiers and other metadata.
 
     Raises:
         ValueError: If either column is absent from the records.
     """
-    return select_unified_columns(read_novamag_records(root_dir), target_column, formula_column)
+    data = read_novamag_records(root_dir).rename(columns={
+        DEFAULT_FORMULA_COLUMN: formula_column,
+        DEFAULT_TARGET_COLUMN: target_column,
+    })
+    return standardize_records(data, target_column, formula_column)
