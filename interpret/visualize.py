@@ -5,8 +5,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
-import prepdata.alloy_transform as alloy_transform
-from prepdata.alloy_transform import formula_contains_elements
+from prepdata.composition import formula_contains_elements, get_compound_radix
 
 
 def plot_ms_distribution_by_tm(data, save_path=None):
@@ -84,7 +83,7 @@ def summarize_compound_radix(data):
     data = data.copy()
 
     # Compute compound radix (number of unique elements in formula)
-    data['compoundradix'] = alloy_transform.get_compound_radix(data)
+    data['compoundradix'] = get_compound_radix(data)
 
     total_compound_radix = data['compoundradix'].value_counts().sort_index()
 

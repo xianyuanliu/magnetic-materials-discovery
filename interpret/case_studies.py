@@ -12,8 +12,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from utils.persistence import align_features
-from prepdata import alloy_transform
-from prepdata.build_features import add_engineered_features
+from prepdata.alloy_descriptors import add_engineered_features
+from prepdata.composition import get_atomic_fraction_array, get_stoich_array
 from interpret.case_study_references import (
     FEAL_FORMULAS,
     FEAL_LITERATURE_MS,
@@ -70,7 +70,7 @@ def build_case_features(
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """Build the feature matrix for a list of chemical formulas.
 
-    Shares prepdata.build_features.add_engineered_features with training, so the
+    Shares prepdata.alloy_descriptors.add_engineered_features with training, so the
     case-study features cannot drift from the ones the models were fitted on.
 
     Args:
@@ -84,7 +84,7 @@ def build_case_features(
         is the per-element stoichiometry they were derived from.
     """
     frame = pd.DataFrame({formula_column: list(formulas)})
-    stoich = alloy_transform.get_stoich_array(frame, periodic_table, formula_column=formula_column)
+    stoich = get_stoich_array(frame, periodic_table, formula_column=formula_column)
     features = add_engineered_features(frame, periodic_table, miedema_weight, formula_column=formula_column)
     return features, stoich
 
@@ -106,14 +106,13 @@ def run_case(
         miedema_weight: Symmetrized Miedema mixing-enthalpy matrix.
 
     Returns:
-        A CaseStudyResult holding the atomic fractions, one prediction array per
-        model, and the literature series.
+        A CaseStudyResult holding the atomic fractions, one prediction array per model, and the literature series.
     """
     features, stoich_array = build_case_features(case.formulas, periodic_table, miedema_weight)
     X = align_features(features, feature_columns, source=f"the {case.title} case study")
 
     return CaseStudyResult(
-        atomic_fraction=alloy_transform.get_atomic_frac(stoich_array),
+        atomic_fraction=get_atomic_fraction_array(stoich_array),
         predictions={name: model.predict(X) for name, model in models.items()},
         literature=pd.Series(case.literature_ms),
     )
