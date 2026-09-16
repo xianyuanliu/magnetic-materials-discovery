@@ -11,8 +11,8 @@ from typing import Iterable, Optional
 import pandas as pd
 
 from loaddata.tabular_access import load_element_properties
-from loaddata.materials_project import DEFAULT_CSV_PATH, load_materials_project
-from loaddata.novamag import DEFAULT_ROOT_DIR, load_novamag
+from loaddata.materials_project import load_materials_project
+from loaddata.novamag import load_novamag
 from prepdata.modeling_table import NON_COMMERCIAL_ELEMENTS, RARE_EARTH_ELEMENTS, build_modeling_table
 
 
@@ -20,8 +20,8 @@ def parse_args() -> argparse.Namespace:
     """Expose data sources, output location and experiment-specific selection settings."""
     parser = argparse.ArgumentParser(description="Prepare composition features from local magnetic-material datasets")
     parser.add_argument("--dataset", choices=("all", "novamag", "mp"), default="all")
-    parser.add_argument("--novamag-dir", default=DEFAULT_ROOT_DIR, help="Directory containing Novamag JSON files")
-    parser.add_argument("--mp-csv", default=DEFAULT_CSV_PATH, help="Materials Project CSV export")
+    parser.add_argument("--novamag-dir", default="./data/novamag/Novamag_Data_Files/", help="Directory containing Novamag JSON files")
+    parser.add_argument("--mp-csv", default="./data/materials_project/mp-data.csv", help="Materials Project CSV export")
     parser.add_argument("--output-dir", type=Path, default=Path("data"))
     parser.add_argument(
         "--min-target", type=float, default=0.18, help="Inclusive record threshold in tesla, before median",
