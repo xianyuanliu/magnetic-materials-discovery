@@ -59,7 +59,7 @@ def filter_samples(
     return selected.reset_index(drop=True)
 
 
-def build_modeling_table(
+def build_feature_table(
     raw_data: pd.DataFrame,
     pt: pd.DataFrame,
     mm: pd.DataFrame,

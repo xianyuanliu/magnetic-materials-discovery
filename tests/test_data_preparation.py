@@ -14,7 +14,7 @@ from loaddata.materials_project import TESLA_PER_BOHR_MAGNETON_PER_CUBIC_ANGSTRO
 from loaddata.novamag import load_novamag
 from prepdata.alloy_descriptors import ENGINEERED_FEATURE_COLUMNS
 from prepdata.composition import get_elements, get_composition_key
-from prepdata.modeling_table import build_modeling_table, filter_samples
+from prepdata.feature_table import build_feature_table, filter_samples
 
 
 def reference_tables():
@@ -71,7 +71,7 @@ class DataPreparationTests(unittest.TestCase):
             "sample_id": ["a", "b", "c", "d", "e"], "space_group": [1, 2, 3, 4, 5],
         })
         original = raw.copy(deep=True)
-        table, features = build_modeling_table(raw, *reference_tables)
+        table, features = build_feature_table(raw, *reference_tables)
         assert len(table) == 2
         # Aggregating first would give 0.8 for FeNi, whereas the selected magnetic subset gives 2.0.
         assert table.loc["FeNi", "saturation magnetization"] == 2.0
@@ -144,7 +144,7 @@ class DataPreparationTests(unittest.TestCase):
     def test_empty_selection_has_valid_output_schema(self):
         reference_tables = self.tables
         raw = pd.DataFrame({"chemical formula": ["FeNi"], "saturation magnetization": [0.05]})
-        table, features = build_modeling_table(raw, *reference_tables)
+        table, features = build_feature_table(raw, *reference_tables)
         assert table.empty
         assert table.index.name == "chemical formula"
         assert list(table.columns) == ["saturation magnetization", *features]

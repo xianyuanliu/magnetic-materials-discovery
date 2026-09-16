@@ -39,23 +39,23 @@ notebook or another project without a run's output appearing as a side effect.
   `HoldoutConfig`, `TuningConfig`, `OODConfig`, `UQConfig`, `PredictConfig`). Unknown
   keys are rejected rather than ignored, so a typo in a config file is an error instead
   of a silently disabled setting.
-- `prepare_datasets.py`: standalone data preparation entry point (formerly `preprocess_data.py`).
+- `build_feature_tables.py`: standalone entry point that builds the feature tables.
   Builds `data/novamag-magnetism.csv` and `data/mp-magnetism.csv`; `main.py` reuses these files.
 - `loaddata/`: three modules, plus the package's `__init__.py`.
   - `novamag.py`: reads local JSON records, flattens nested fields and standardizes names and types.
   - `materials_project.py`: reads a local MP CSV export and converts magnetization to tesla.
   - `tabular_access.py`: shared record standardization, periodic-table/Miedema spreadsheet readers,
-    and prepared-CSV loading with explicit model-feature selection.
+    and feature-table loading with explicit model-feature selection.
   Both dataset readers return formula and numeric target columns plus source IDs and metadata.
   They preserve original formula stoichiometry and do not select magnetic records or exclude elements.
   No loader imports `prepdata`, and loading never triggers a download.
   To add a dataset, implement its source mapping and call `standardize_records`, then add
-  its preparation step in `prepare_datasets.py`.
-- `prepdata/`: composition handling, alloy descriptors and modeling-table assembly.
+  its preparation step in `build_feature_tables.py`.
+- `prepdata/`: composition handling, alloy descriptors and feature-table assembly.
   - `composition.py`: formula parsing, normalized composition keys, stoichiometry, atomic fractions
     and reusable descriptor primitives.
   - `alloy_descriptors.py`: this project's nine features, also used for target-free inference.
-  - `modeling_table.py`: configurable sample selection, then median targets per normalized composition,
+  - `feature_table.py`: configurable sample selection, then median targets per normalized composition,
     then feature calculation. Only the target is aggregated; source metadata stays in loaded records.
   Nothing in `prepdata/` reads a file or takes a path; `loaddata/` hands it loaded frames.
 - `embed/`: learned representations. Empty until deep-learning encoders are added.
@@ -88,7 +88,7 @@ pip install -U numpy pandas scikit-learn matplotlib seaborn shap xgboost
    `configs/mp.yaml`, or `configs/novamag_ood.yaml`).
 3) Prepare the datasets once, or again after changing source data, selection rules or features:
 ```bash
-python prepare_datasets.py
+python build_feature_tables.py
 ```
    This reads local sources and saves the feature CSVs used by the run configs. It also saves
    flattened Novamag records with original formulas and source IDs to `data/novamag/novamag-raw.csv`.
@@ -104,23 +104,23 @@ python main.py --config configs/novamag.yaml
 
 ## Dataset Preparation and Sample Definition
 
-`prepare_datasets.py` is independent of model training. `main.py` reads prepared CSVs and does not
+`build_feature_tables.py` is independent of model training. `main.py` reads the saved feature tables and does not
 rebuild them automatically. The preparation command replaces its output files, so use `--output-dir`
 when comparing preparation settings. Existing model bundles and experiment results are not regenerated;
-retrain and re-evaluate them after changing the prepared data.
+retrain and re-evaluate them after changing the feature tables.
 
 ```bash
 # Prepare only MP with the existing study exclusions and target >= 0.18 T.
-python prepare_datasets.py --dataset mp
+python build_feature_tables.py --dataset mp
 
 # Compare an alternative magnetic threshold in a separate output directory.
-python prepare_datasets.py --min-target 0.3 --output-dir /tmp/magnetic-data-03
+python build_feature_tables.py --min-target 0.3 --output-dir /tmp/magnetic-data-03
 
 # Explicitly exclude these elements for every selected dataset.
-python prepare_datasets.py --exclude-elements Nd Sm U
+python build_feature_tables.py --exclude-elements Nd Sm U
 
 # Disable element exclusions (pass no element values).
-python prepare_datasets.py --dataset mp --exclude-elements
+python build_feature_tables.py --dataset mp --exclude-elements
 ```
 
 Defaults retain the existing study scope: both datasets use the inclusive 0.18 T record threshold;
@@ -135,7 +135,7 @@ source normalization → record selection → composition normalization and medi
 `FeNi`, `Fe2Ni2`, `NiFe` and `Fe0.5Ni0.5` share the key `FeNi`. Keys use pymatgen's
 `Composition.get_integer_formula_and_factor()` with the default `max_denominator=10000` approximation
 for fractional amounts, then `hill_formula` for consistent formatting. Hill ordering avoids the
-CSV missing-value token `NaN` by writing sodium/nitrogen as `NNa`. Keys are written as the prepared CSV's
+CSV missing-value token `NaN` by writing sodium/nitrogen as `NNa`. Keys are written as the feature table's
 `chemical formula` column, preserving compatibility with formula-based evaluation and inference.
 Different structures of the same composition contribute to the median; the output is a composition
 sample, not an individual structure. Original records remain available separately for traceability.

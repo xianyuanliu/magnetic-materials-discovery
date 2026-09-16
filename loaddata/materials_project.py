@@ -1,7 +1,7 @@
 """Materials Project: one CSV export of computed magnetic properties.
 
 `load_materials_project` converts the target to tesla and standardizes record types, preserving source metadata.
-Magnetic and element-based sample selection belongs to prepdata/modeling_table.py.
+Magnetic and element-based sample selection belongs to prepdata/feature_table.py.
 """
 
 import numpy as np
