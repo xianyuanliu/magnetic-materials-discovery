@@ -6,10 +6,12 @@ from typing import Dict, Mapping, Sequence
 from config import RunConfig
 from utils.registry import ModelSpec, resolve_models
 from evaluate.metrics import compute_metrics
+from sklearn.model_selection import train_test_split
+
 from interpret.case_studies import plot_case_studies
 from interpret.model_weights import plot_permutation_importance, plot_shap_summary
-from loaddata.feature_csv_access import load_features_and_target, split_dataset
-from loaddata.raw_loaders import load_elemental_data
+from loaddata.featurized_csv import load_features_and_target
+from loaddata.element_properties import load_element_properties
 from pipeline.comparison import report_comparison
 from utils.reporting import print_cv_results, print_holdout_results
 
@@ -44,7 +46,7 @@ def _run_ablation(
 
     Which model to explain and which to compare come from the config (`interpret_model`, `case_study_models`).
     """
-    pt, mm = load_elemental_data(cfg.pt_path, cfg.mm_path)
+    pt, mm = load_element_properties(cfg.pt_path, cfg.mm_path)
 
     if cfg.ablation.interpret_model:
         (spec,) = resolve_models(registry, [cfg.ablation.interpret_model])
@@ -93,7 +95,7 @@ def run_holdout(cfg: RunConfig, registry: Mapping[str, ModelSpec], plots_dir: Pa
     for run_i, seed in enumerate(cfg.holdout.seeds, start=1):
         print(f"\n=== Holdout Run {run_i}/{len(cfg.holdout.seeds)} (split seed={seed}) ===")
 
-        X_train, X_valid, y_train, y_valid = split_dataset(
+        X_train, X_valid, y_train, y_valid = train_test_split(
             X, y, train_size=cfg.holdout.train_size, random_state=int(seed)
         )
 
@@ -128,7 +130,7 @@ def run_holdout(cfg: RunConfig, registry: Mapping[str, ModelSpec], plots_dir: Pa
     if not cfg.ablation.enabled:
         return
 
-    X_train, X_valid, y_train, y_valid = split_dataset(
+    X_train, X_valid, y_train, y_valid = train_test_split(
         X, y, train_size=cfg.holdout.train_size, random_state=int(cfg.holdout.seeds[0])
     )
     _run_ablation(cfg, registry, first_split_models, feature_columns, X_train, X_valid, y_valid, plots_dir)

@@ -18,19 +18,20 @@ from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 import pandas as pd
 
 from config import RunConfig
-from evaluate.ood_evaluation import Split
-from utils.registry import ModelSpec, resolve_models
 from evaluate.ood_evaluation import (
     OOD,
+    Split,
     evaluate_splits_kfold_train_fixed_test,
     summarize_generalization_gap,
     summarize_model_comparison,
     summarize_runs_across_splits,
 )
-from loaddata.feature_csv_access import resolve_feature_columns
+from loaddata.element_properties import load_periodic_table
+from loaddata.featurized_csv import resolve_feature_columns
 from pipeline.ood_scenarios import build_scenarios
 from pipeline.ood_splits import build_size_matched_split
-from prepdata.alloy_transform import extract_elements_series, load_periodic_table_map
+from prepdata.composition import get_elements_per_row, get_group_period_maps
+from utils.registry import ModelSpec, resolve_models
 from utils.reporting import print_ood_tables
 
 # Result tables, in the order print_ood_tables takes them, paired with the file each is written to.
@@ -61,7 +62,7 @@ def load_ood_dataset(
         target_column: Name of the column being predicted.
         formula_column: Name of the chemical-formula column.
         feature_columns: Explicit feature list, or None to infer and validate them; see
-            loaddata.feature_csv_access.resolve_feature_columns.
+            loaddata.featurized_csv.resolve_feature_columns.
 
     Returns:
         (X, y, df_full), where X holds exactly the resolved feature columns.
@@ -160,8 +161,8 @@ def run_ood_evaluation(*, cfg: RunConfig, model_registry: Mapping[str, ModelSpec
         cfg.train_dataset_path, cfg.test_dataset_path,
         cfg.target_column, cfg.formula_column, cfg.feature_columns,
     )
-    element_to_group, element_to_period = load_periodic_table_map(cfg.pt_path)
-    elements_per_row = extract_elements_series(df_full, formula_column=cfg.formula_column)
+    element_to_group, element_to_period = get_group_period_maps(load_periodic_table(cfg.pt_path))
+    elements_per_row = get_elements_per_row(df_full, formula_column=cfg.formula_column)
 
     scenarios = build_scenarios(ood_cfg, X_full, y_full, elements_per_row, element_to_group, element_to_period)
     seeds = list(ood_cfg.seeds)

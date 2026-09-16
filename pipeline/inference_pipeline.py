@@ -20,10 +20,10 @@ import pandas as pd
 
 from config import RunConfig
 from utils.registry import ModelSpec, resolve_models
-from loaddata.feature_csv_access import load_features_and_target
-from loaddata.raw_loaders import load_elemental_data
+from loaddata.featurized_csv import load_features_and_target
+from loaddata.element_properties import load_element_properties
 from utils.persistence import ModelBundle, align_features, load_model_bundle, save_model_bundle
-from prepdata.build_features import add_engineered_features
+from prepdata.alloy_descriptors import add_engineered_features
 from utils.reporting import print_predictions
 
 # Column the predicted value is written to.
@@ -155,7 +155,7 @@ def run_predict(*, cfg: RunConfig, model_registry: Mapping[str, ModelSpec]) -> p
     print(f"Model: {bundle.describe()}")
 
     formulas = _read_formulas(cfg)
-    pt, mm = load_elemental_data(cfg.pt_path, cfg.mm_path)
+    pt, mm = load_element_properties(cfg.pt_path, cfg.mm_path)
     predictions, skipped = predict_formulas(bundle, formulas, pt, mm, formula_column=cfg.formula_column)
 
     if skipped:

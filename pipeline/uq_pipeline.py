@@ -23,9 +23,9 @@ import numpy as np
 import pandas as pd
 
 from config import RunConfig
-from evaluate.ood_evaluation import Split
-from utils.registry import ModelSpec
 from evaluate.calibration import summarize_across_seeds, summarize_calibration
+from evaluate.ood_evaluation import Split
+from loaddata.element_properties import load_periodic_table
 from pipeline.ood_pipeline import load_ood_dataset
 from pipeline.ood_scenarios import build_scenarios
 from pipeline.ood_splits import build_kfold_splits, build_size_matched_split
@@ -37,7 +37,8 @@ from predict.uncertainty import (
     gaussian_half_width,
     rf_tree_std,
 )
-from prepdata.alloy_transform import extract_elements_series, load_periodic_table_map
+from prepdata.composition import get_elements_per_row, get_group_period_maps
+from utils.registry import ModelSpec
 from utils.reporting import print_uq_report
 
 # Split families, as they appear in the `split_type` column.
@@ -198,8 +199,8 @@ def run_uq_evaluation(*, cfg: RunConfig, model_registry: Mapping[str, ModelSpec]
         cfg.dataset_path, cfg.dataset_path,
         cfg.target_column, cfg.formula_column, cfg.feature_columns,
     )
-    element_to_group, element_to_period = load_periodic_table_map(cfg.pt_path)
-    elements_per_row = extract_elements_series(df_full, formula_column=cfg.formula_column)
+    element_to_group, element_to_period = get_group_period_maps(load_periodic_table(cfg.pt_path))
+    elements_per_row = get_elements_per_row(df_full, formula_column=cfg.formula_column)
 
     ood_scenarios = build_scenarios(ood_cfg, X, y, elements_per_row, element_to_group, element_to_period)
 

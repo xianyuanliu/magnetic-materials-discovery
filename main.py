@@ -5,7 +5,7 @@ from pathlib import Path
 
 from config import RunConfig, load_run_config
 from interpret.visualize import plot_ms_distribution_by_tm, plot_violin_ms_by_tm, summarize_compound_radix
-from loaddata.feature_csv_access import load_raw_data
+from loaddata.featurized_csv import load_raw_data
 from pipeline.cross_validation_pipeline import run_cross_validation
 from pipeline.holdout_pipeline import run_holdout
 from predict.sklearn_models import MODEL_REGISTRY

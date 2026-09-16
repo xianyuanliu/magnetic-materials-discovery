@@ -1,10 +1,13 @@
-"""Loaders for already-featurized CSVs, and the holdout train/valid split."""
+"""Reader for the featurized CSV that prepdata/ saves, and the feature-column contract it is read under.
+
+This is the re-entry point for day-to-day runs: it skips loaddata/<dataset>.py and prepdata/ by reading
+the modeling table they produced, so an experiment does not re-parse the raw collection every time.
+"""
 
 from typing import List, Optional, Sequence, Tuple
 
 import pandas as pd
 from pandas.api import types as pdtypes
-from sklearn.model_selection import train_test_split
 
 
 def resolve_feature_columns(
@@ -88,12 +91,3 @@ def load_features_and_target(
 def load_raw_data(path: str) -> pd.DataFrame:
     """Load a raw dataset from a CSV."""
     return pd.read_csv(path).reset_index(drop=True)
-
-
-def split_dataset(X: pd.DataFrame, y: pd.Series, train_size: float = 0.8, random_state: int = 0):
-    """Split into train and validation sets.
-
-    Returns:
-        (X_train, X_valid, y_train, y_valid).
-    """
-    return train_test_split(X, y, train_size=train_size, test_size=1 - train_size, random_state=random_state)

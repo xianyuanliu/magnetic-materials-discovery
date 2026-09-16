@@ -41,12 +41,21 @@ notebook or another project without a run's output appearing as a side effect.
   of a silently disabled setting.
 - `preprocess_data.py`: standalone script that builds `data/novamag-magnetism.csv` and
   `data/mp-magnetism.csv` from the raw source data.
-- `loaddata/`: raw file readers — Novamag JSON, periodic table/Miedema spreadsheets
-  (`alloy_access.py`), Novamag/MP raw-data cleaning (`raw_loaders.py`), and
-  already-featurized CSV loaders + the holdout train/valid split (`feature_csv_access.py`).
-- `prepdata/`: chemical-formula parsing and element-weighted feature engineering
-  (`alloy_transform.py`), plus the higher-level feature-table builder
-  (`build_features.py`).
+- `loaddata/`: one module per dataset, each reading its own raw files and returning the same
+  two-column frame — the chemical formula and the measured target (`unified.py` defines that
+  contract; `novamag.py` walks the JSON tree, `materials_project.py` reads the CSV export and
+  converts its units). `element_properties.py` holds the periodic table and Miedema
+  spreadsheets, which are reference data every dataset reuses rather than a dataset of their
+  own. `featurized_csv.py` is the re-entry point: it reads the modeling table `prepdata/`
+  saved, so a run does not re-parse the raw collections.
+  To add a dataset, write `loaddata/<name>.py` ending in a `select_unified_columns` call;
+  nothing else has to change.
+- `prepdata/`: three levels of task-specificity. `composition.py` is reusable by any materials
+  task — formula parsing, stoichiometry, atomic fractions, and the `get_weighted_property`
+  primitive that descriptor sets are built from. `alloy_descriptors.py` holds this project's
+  nine descriptors. `modeling_table.py` assembles them and applies the task's row selection —
+  non-magnetic cutoff, dropna, duplicate collapsing.
+  Nothing in `prepdata/` reads a file or takes a path; `loaddata/` hands it loaded frames.
 - `embed/`: learned representations. Empty until deep-learning encoders are added.
 - `predict/`: every model's bare constructor, tuner and trainer, one block each, combined
   into fittable `ModelSpec`s (`sklearn_models.py`, exposes `MODEL_REGISTRY`); and the predictive-
