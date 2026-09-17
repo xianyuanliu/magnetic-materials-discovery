@@ -4,14 +4,13 @@ from pathlib import Path
 from typing import Dict, Mapping, Sequence
 
 from config import RunConfig
-from utils.registry import ModelSpec, resolve_models
-from evaluate.metrics import compute_metrics
-from sklearn.model_selection import train_test_split
-
+from evaluate.metrics import METRICS, compute_metrics
 from interpret.case_studies import plot_case_studies
 from interpret.model_weights import plot_permutation_importance, plot_shap_summary
+from loaddata.splits import build_holdout_split
 from loaddata.tabular_access import load_element_properties, load_feature_table
 from pipeline.comparison import report_comparison
+from utils.registry import ModelSpec, resolve_models
 from utils.reporting import print_cv_results, print_holdout_results
 
 
@@ -74,7 +73,7 @@ def _run_ablation(
         )
 
 
-def run_holdout(cfg: RunConfig, registry: Mapping[str, ModelSpec], plots_dir: Path) -> None:
+def run_holdout(*, cfg: RunConfig, registry: Mapping[str, ModelSpec], plots_dir: Path) -> None:
     """Repeat a train/validate split once per seed in holdout_seeds; report mean ± std.
 
     holdout_seeds seeds the split only, kept separate from random_state (model
@@ -89,15 +88,15 @@ def run_holdout(cfg: RunConfig, registry: Mapping[str, ModelSpec], plots_dir: Pa
     )
     feature_columns = list(X.columns)
 
-    scores = {spec.name: {"mse": [], "mae": [], "mre": [], "r2": []} for spec in specs}
+    scores = {spec.name: {metric: [] for metric in METRICS} for spec in specs}
     first_split_models: Dict[str, object] = {}
 
     for run_i, seed in enumerate(cfg.holdout.seeds, start=1):
         print(f"\n=== Holdout Run {run_i}/{len(cfg.holdout.seeds)} (split seed={seed}) ===")
 
-        X_train, X_valid, y_train, y_valid = train_test_split(
-            X, y, train_size=cfg.holdout.train_size, random_state=int(seed)
-        )
+        _, train_idx, valid_idx = build_holdout_split(len(X), cfg.holdout.train_size, int(seed))
+        X_train, X_valid = X.iloc[train_idx], X.iloc[valid_idx]
+        y_train, y_valid = y.iloc[train_idx], y.iloc[valid_idx]
 
         best_hyperparams = (
             _tune_on_split(specs, X_train, y_train, cfg)
@@ -130,7 +129,7 @@ def run_holdout(cfg: RunConfig, registry: Mapping[str, ModelSpec], plots_dir: Pa
     if not cfg.ablation.enabled:
         return
 
-    X_train, X_valid, y_train, y_valid = train_test_split(
-        X, y, train_size=cfg.holdout.train_size, random_state=int(cfg.holdout.seeds[0])
-    )
+    _, train_idx, valid_idx = build_holdout_split(len(X), cfg.holdout.train_size, int(cfg.holdout.seeds[0]))
+    X_train, X_valid = X.iloc[train_idx], X.iloc[valid_idx]
+    y_train, y_valid = y.iloc[train_idx], y.iloc[valid_idx]
     _run_ablation(cfg, registry, first_split_models, feature_columns, X_train, X_valid, y_valid, plots_dir)

@@ -3,14 +3,15 @@
 from typing import Mapping
 
 from config import RunConfig
-from utils.registry import ModelSpec, resolve_models
 from evaluate.cross_validation import cross_validate_models
+from loaddata.splits import build_kfold_splits
 from loaddata.tabular_access import load_feature_table
 from pipeline.comparison import report_comparison
+from utils.registry import ModelSpec, resolve_models
 from utils.reporting import print_cv_results
 
 
-def run_cross_validation(cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
+def run_cross_validation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
     """Run K-fold CV once per seed in cv_seeds and print the metrics."""
     specs = resolve_models(registry, cfg.models)
     X, y, _ = load_feature_table(
@@ -41,11 +42,9 @@ def run_cross_validation(cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> N
             X,
             y,
             specs,
+            build_kfold_splits(len(X), cfg.kfold.folds, cfg.kfold.shuffle, int(seed)),
             hyperparameter_tuning=cfg.tuning.enabled,
             best_hyperparams=None,
-            cv_folds=cfg.kfold.folds,
-            shuffle=cfg.kfold.shuffle,
-            random_state=int(seed),
             model_random_state=cfg.model_random_state,
             tune_cv_folds=cfg.tuning.cv_folds,
             tune_n_iter=cfg.tuning.n_iter,

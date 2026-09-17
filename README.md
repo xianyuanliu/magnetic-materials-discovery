@@ -41,11 +41,16 @@ notebook or another project without a run's output appearing as a side effect.
   of a silently disabled setting.
 - `build_feature_tables.py`: standalone entry point that builds the feature tables.
   Builds `data/novamag-magnetism.csv` and `data/mp-magnetism.csv`; `main.py` reuses these files.
-- `loaddata/`: three modules, plus the package's `__init__.py`.
+- `loaddata/`: owns the data and how it is organized — which rows exist, and which of them are
+  held out from which.
   - `novamag.py`: reads local JSON records, flattens nested fields and standardizes names and types.
   - `materials_project.py`: reads a local MP CSV export and converts magnetization to tesla.
   - `tabular_access.py`: shared record standardization, periodic-table/Miedema spreadsheet readers,
     and feature-table loading with explicit model-feature selection.
+  - `splits.py`: every train/test split builder — plain K-fold, a single holdout, the size-matched
+    control, and the OOD families. A split is a property of the data, not of the metric computed on
+    it, so the same held-out region applies to every modality a sample carries; WILDS and PyKale
+    organize theirs the same way.
   Both dataset readers return formula and numeric target columns plus source IDs and metadata.
   They preserve original formula stoichiometry and do not select magnetic records or exclude elements.
   No loader imports `prepdata`, and loading never triggers a download.
@@ -63,14 +68,18 @@ notebook or another project without a run's output appearing as a side effect.
   into fittable `ModelSpec`s (`sklearn_models.py`, exposes `MODEL_REGISTRY`); and the predictive-
   uncertainty estimators with split-conformal calibration (`uncertainty.py`).
 - `pipeline/`: one orchestration module per evaluation mode — `holdout_pipeline.py`,
-  `cross_validation_pipeline.py`, `inference_pipeline.py`, `uq_pipeline.py`, and the OOD
-  stress test (`ood_pipeline.py` orchestration + `ood_scenarios.py` config-to-splits
-  selection; the split-family builders themselves live in `loaddata/splits.py`: LOEO/LOPO/LOGO/LOCO/SparseX/SparseY,
-  plus the two in-distribution reference builders); and the paired model-comparison helper
-  shared by holdout and cross-validation (`comparison.py`).
-- `evaluate/`: metric primitives (`metrics.py`), K-fold CV scoring and paired
-  significance testing (`cross_validation.py`), OOD-specific per-split scoring +
-  tables (`ood_evaluation.py`), and calibration metrics (`calibration.py`).
+  `cross_validation_pipeline.py`, `inference_pipeline.py`, `uq_pipeline.py`, `ood_pipeline.py`
+  (with `ood_scenarios.py` turning the config into a list of scenarios); and the paired
+  model-comparison helper shared by holdout and cross-validation (`comparison.py`).
+  Every evaluation mode has the same shape: resolve the models, load the feature table, build
+  splits from `loaddata/splits.py`, score them, report. Only the split family and the tables
+  differ, so a new mode is a new choice of those two rather than a new pipeline shape.
+- `evaluate/`: scores the splits it is handed and decides nothing about them — metric
+  primitives (`metrics.py`), per-split scoring and paired significance testing
+  (`cross_validation.py`), OOD scoring and its summary tables (`ood_evaluation.py`), and
+  calibration metrics (`calibration.py`). `KFold` and `train_test_split` appear nowhere here;
+  the caller passes `(split_id, train_idx, test_idx)` tuples, so swapping in a grouped or
+  shifted split changes a line in `pipeline/` and nothing in `evaluate/`.
 - `interpret/`: dataset distribution plots (`visualize.py`), permutation importance +
   SHAP (`model_weights.py`), and FeAl/FeCo/FeCr literature case studies
   (`case_studies.py` + `case_study_references.py`).

@@ -139,19 +139,19 @@ def predict_formulas(
     return predictions, skipped
 
 
-def run_predict(*, cfg: RunConfig, model_registry: Mapping[str, ModelSpec]) -> pd.DataFrame:
+def run_predict(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> pd.DataFrame:
     """Run the predict pipeline: resolve a model, score compositions, save output.
 
     Called from main.py when evaluation_mode == 'predict'.
 
     Args:
         cfg: The resolved run configuration.
-        model_registry: Registry to resolve `predict_model` against.
+        registry: Registry to resolve `predict_model` against.
 
     Returns:
         The prediction table, one row per successfully featurized composition.
     """
-    bundle = _resolve_bundle(cfg, model_registry)
+    bundle = _resolve_bundle(cfg, registry)
     print(f"Model: {bundle.describe()}")
 
     formulas = _read_formulas(cfg)

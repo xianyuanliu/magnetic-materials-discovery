@@ -3,8 +3,9 @@
 Reads the dataset CSV, asks pipeline/ood_scenarios.py which splits to build, builds the size-matched in-distribution
 controls, hands all of that to evaluate/ood_evaluation.py for scoring, and writes the result tables.
 
-Deciding *which* splits exist lives here; scoring them lives in `evaluate/`. That is why the controls are built here and
-passed down rather than constructed inside the evaluator, which would make the two packages import each other.
+Deciding *which* splits exist lives here; scoring them lives in `evaluate/`. The size-matched controls and the inner
+K-fold over each split's training rows are therefore both built here and passed down, so the evaluator never has to
+know what a scenario is.
 """
 
 from __future__ import annotations
@@ -24,7 +25,7 @@ from evaluate.ood_evaluation import (
     summarize_model_comparison,
     summarize_runs_across_splits,
 )
-from loaddata.splits import Split, build_size_matched_split
+from loaddata.splits import Split, build_kfold_splits, build_size_matched_split
 from loaddata.tabular_access import load_feature_table
 from pipeline.ood_scenarios import build_scenarios, resolve_split_elements
 from utils.registry import ModelSpec, resolve_models
@@ -94,7 +95,7 @@ def _report_skip(scenario: str):
     return _on_skip
 
 
-def run_ood_evaluation(*, cfg: RunConfig, model_registry: Mapping[str, ModelSpec]) -> None:
+def run_ood_evaluation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
     """Run the OOD pipeline: build split families, score each, print and save tables.
 
     Called from main.py when evaluation_mode == 'ood'. Every OOD split is scored alongside its in-distribution
@@ -103,10 +104,10 @@ def run_ood_evaluation(*, cfg: RunConfig, model_registry: Mapping[str, ModelSpec
 
     Args:
         cfg: The resolved run configuration.
-        model_registry: Registry to resolve `cfg.models` against.
+        registry: Registry to resolve `cfg.models` against.
     """
     ood_cfg = cfg.ood
-    specs = resolve_models(model_registry, cfg.models)
+    specs = resolve_models(registry, cfg.models)
 
     X_full, y_full, metadata = load_feature_table(
         [cfg.train_dataset_path, cfg.test_dataset_path],
@@ -134,7 +135,9 @@ def run_ood_evaluation(*, cfg: RunConfig, model_registry: Mapping[str, ModelSpec
         evaluate = partial(
             evaluate_splits_kfold_train_fixed_test,
             X_full, y_full, specs=specs,
-            cv_folds=cfg.kfold.folds, shuffle=cfg.kfold.shuffle,
+            inner_splitter=lambda n_train, seed: build_kfold_splits(
+                n_train, cfg.kfold.folds, cfg.kfold.shuffle, seed
+            ),
             hyperparameter_tuning=cfg.tuning.enabled, best_hyperparams=None,
             model_random_state=cfg.model_random_state,
             tune_cv_folds=cfg.tuning.cv_folds, tune_n_iter=cfg.tuning.n_iter,
@@ -152,7 +155,7 @@ def run_ood_evaluation(*, cfg: RunConfig, model_registry: Mapping[str, ModelSpec
     comparison_significance = pd.DataFrame()
     if cfg.compare_models is not None:
         name_a, name_b = (
-            spec.name for spec in resolve_models(model_registry, cfg.compare_models)
+            spec.name for spec in resolve_models(registry, cfg.compare_models)
         )
         comparison_significance = summarize_model_comparison(metrics_by_model, name_a, name_b, split_type=OOD)
 

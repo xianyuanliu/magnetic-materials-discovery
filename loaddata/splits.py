@@ -18,7 +18,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import numpy as np
 import pandas as pd
 from sklearn.cluster import KMeans
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, train_test_split
 from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import StandardScaler
 
@@ -61,7 +61,13 @@ def build_kfold_splits(
     min_train: int = 1,
     min_test: int = 1,
 ) -> List[Split]:
-    """Plain K-fold, expressed as splits so the ID baseline reuses the OOD code path."""
+    """Plain K-fold, expressed as splits so the ID baseline reuses the OOD code path.
+
+    Too few samples to fill the folds yields an empty list rather than an error, matching how a split that falls below
+    min_train or min_test is dropped: the caller decides whether an empty family is worth reporting.
+    """
+    if n_samples < n_splits:
+        return []
     kf = KFold(n_splits=n_splits, shuffle=shuffle, random_state=seed if shuffle else None)
 
     splits: List[Split] = []
@@ -71,6 +77,19 @@ def build_kfold_splits(
             splits.append(split)
 
     return splits
+
+
+def build_holdout_split(
+    n_samples: int,
+    train_size: float = 0.8,
+    seed: int = 0,
+    split_id: str = "holdout",
+) -> Split:
+    """One random train/valid split, expressed as a split so it shares the scoring path with K-fold and OOD."""
+    # Only train_size is passed on: naming test_size as 1 - train_size too makes the pair sum above 1 for values
+    # like 0.7, which scikit-learn rejects. It also raises on sizes too small to split, so no size check is needed.
+    train_idx, test_idx = train_test_split(np.arange(n_samples), train_size=train_size, random_state=seed)
+    return split_id, np.asarray(train_idx, dtype=int), np.asarray(test_idx, dtype=int)
 
 
 def build_size_matched_split(

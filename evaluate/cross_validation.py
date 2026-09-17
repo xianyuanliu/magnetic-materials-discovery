@@ -1,4 +1,4 @@
-"""K-fold cross-validation scoring and paired significance testing.
+"""Per-split scoring and paired significance testing.
 
 Every function here returns data. Formatting and printing live in reporting.py, so these can be called from a notebook
 or another library without a run's console output appearing as a side effect.
@@ -11,10 +11,10 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from sklearn.model_selection import KFold
 
 from utils.registry import ModelSpec
 from evaluate.metrics import METRICS, compute_metrics
+from loaddata.splits import Split
 
 # Below this many paired observations a signed-rank test cannot reach any conventional significance level at all: with n
 # pairs the smallest attainable two-sided Wilcoxon p is 2 / 2**n, so n = 3 bottoms out at 0.25 and n = 5 at 0.0625.
@@ -56,48 +56,43 @@ def cross_validate_models(
     X: pd.DataFrame,
     y: pd.Series,
     specs: Sequence[ModelSpec],
+    splits: Sequence[Split],
     hyperparameter_tuning: bool = False,
     best_hyperparams: Optional[Mapping[str, Dict]] = None,
-    cv_folds: int = 5,
-    shuffle: bool = True,
-    random_state: int = 0,
     model_random_state: int = 0,
     tune_cv_folds: int = 3,
     tune_n_iter: int = 20,
 ) -> FoldScores:
-    """Run K-fold cross-validation for the given models.
+    """Score the given models on splits the caller has already built.
 
-    random_state seeds the KFold split; model_random_state seeds model construction and hyperparameter search so the two
-    sources of randomness can be controlled independently.
+    Which rows form each fold is not decided here: the caller passes splits from loaddata/splits.py, so a plain K-fold
+    and a grouped or shifted split go through this same scoring path.
 
-    When hyperparameter_tuning is set, the search re-runs inside every outer fold (proper nested CV — the outer fold's
-    validation data never informs the search). That is why the search budget is a separate, smaller pair of knobs:
-    tune_cv_folds inner folds and tune_n_iter sampled candidates, whose cost is multiplied by cv_folds x len(specs).
-    Pass best_hyperparams to skip the search entirely and reuse one fixed set of parameters.
+    When hyperparameter_tuning is set, the search re-runs inside every split (proper nested CV — a split's validation
+    rows never inform its own search). That is why the search budget is a separate, smaller pair of knobs: tune_cv_folds
+    inner folds and tune_n_iter sampled candidates, whose cost is multiplied by len(splits) x len(specs). Pass
+    best_hyperparams to skip the search entirely and reuse one fixed set of parameters.
 
     Args:
         X: Feature matrix.
         y: Target.
         specs: Resolved model specifications to score.
-        hyperparameter_tuning: Search inside every outer fold.
+        splits: (split_id, train_idx, valid_idx) tuples; the identifier is unused, scores are returned per split in
+            the order given.
+        hyperparameter_tuning: Search inside every split.
         best_hyperparams: Fixed parameters per model key, bypassing the search.
-        cv_folds: Number of outer folds.
-        shuffle: Shuffle before splitting.
-        random_state: Seed for the outer KFold split.
         model_random_state: Seed for model construction and the search.
         tune_cv_folds: Inner folds for the search.
         tune_n_iter: Candidates sampled by a randomized search.
 
     Returns:
-        {model name: {metric: [one score per fold]}}.
+        {model name: {metric: [one score per split]}}.
     """
     results: FoldScores = {
         spec.name: {metric: [] for metric in METRICS} for spec in specs
     }
 
-    kf = KFold(n_splits=cv_folds, shuffle=shuffle, random_state=random_state if shuffle else None)
-
-    for train_idx, valid_idx in kf.split(X):
+    for _, train_idx, valid_idx in splits:
         X_train, X_valid = X.iloc[train_idx], X.iloc[valid_idx]
         y_train, y_valid = y.iloc[train_idx], y.iloc[valid_idx]
 

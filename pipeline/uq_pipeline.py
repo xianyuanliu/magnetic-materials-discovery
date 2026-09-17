@@ -154,7 +154,7 @@ def _collect_samples(
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
-def resolve_uq_model(model_registry: Mapping[str, ModelSpec], model_key: str) -> ModelSpec:
+def resolve_uq_model(registry: Mapping[str, ModelSpec], model_key: str) -> ModelSpec:
     """Look up the UQ model and check it can actually supply a spread.
 
     The estimators in predict/uncertainty.py read the per-member predictions of an ensemble, so the model has to be in
@@ -163,12 +163,12 @@ def resolve_uq_model(model_registry: Mapping[str, ModelSpec], model_key: str) ->
     Raises:
         ValueError: If the key is unknown, or names a model with no ensemble spread to read.
     """
-    if model_key not in model_registry:
-        raise ValueError(f"Unknown uq_model {model_key!r}. Available: {sorted(model_registry)}")
+    if model_key not in registry:
+        raise ValueError(f"Unknown uq_model {model_key!r}. Available: {sorted(registry)}")
 
-    spec = model_registry[model_key]
+    spec = registry[model_key]
     if model_key not in ENSEMBLE_STD_MODELS:
-        usable = sorted(ENSEMBLE_STD_MODELS & set(model_registry))
+        usable = sorted(ENSEMBLE_STD_MODELS & set(registry))
         raise ValueError(
             f"uq_model {model_key!r} ({spec.name}) exposes no ensemble spread, which the "
             f"uncertainty estimators need. Models that do: {usable}"
@@ -176,18 +176,18 @@ def resolve_uq_model(model_registry: Mapping[str, ModelSpec], model_key: str) ->
     return spec
 
 
-def run_uq_evaluation(*, cfg: RunConfig, model_registry: Mapping[str, ModelSpec]) -> None:
+def run_uq_evaluation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
     """Run the UQ pipeline: score ID, OOD and control splits, then save the tables.
 
     Called from main.py when evaluation_mode == 'uq'.
 
     Args:
         cfg: The resolved run configuration.
-        model_registry: Registry to resolve `uq_model` against.
+        registry: Registry to resolve `uq_model` against.
     """
     uq_cfg = cfg.uq
     ood_cfg = cfg.ood
-    spec = resolve_uq_model(model_registry, uq_cfg.model)
+    spec = resolve_uq_model(registry, uq_cfg.model)
     alpha = uq_cfg.alpha
     calibration_fraction = uq_cfg.calibration_fraction
     seeds = list(uq_cfg.seeds)

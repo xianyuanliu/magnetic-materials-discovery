@@ -48,17 +48,17 @@ def main() -> None:
     plots_dir.mkdir(parents=True, exist_ok=True)
 
     if cfg.evaluation_mode == "predict":
-        run_predict(cfg=cfg, model_registry=MODEL_REGISTRY)
+        run_predict(cfg=cfg, registry=MODEL_REGISTRY)
         return
 
     if cfg.evaluation_mode == "cross_validation":
-        run_cross_validation(cfg, MODEL_REGISTRY)
+        run_cross_validation(cfg=cfg, registry=MODEL_REGISTRY)
     elif cfg.evaluation_mode == "ood":
-        run_ood_evaluation(cfg=cfg, model_registry=MODEL_REGISTRY)
+        run_ood_evaluation(cfg=cfg, registry=MODEL_REGISTRY)
     elif cfg.evaluation_mode == "uq":
-        run_uq_evaluation(cfg=cfg, model_registry=MODEL_REGISTRY)
+        run_uq_evaluation(cfg=cfg, registry=MODEL_REGISTRY)
     else:
-        run_holdout(cfg, MODEL_REGISTRY, plots_dir)
+        run_holdout(cfg=cfg, registry=MODEL_REGISTRY, plots_dir=plots_dir)
 
     # Data visualization reads the raw dataset, which OOD mode does not require.
     if cfg.enable_data_visualization and cfg.evaluation_mode != "ood":

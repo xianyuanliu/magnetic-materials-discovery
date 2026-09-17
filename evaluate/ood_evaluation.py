@@ -1,8 +1,8 @@
 """Per-split scoring and table-building for OOD stress tests.
 
 Given a set of (split_id, train_idx, test_idx) splits — built by loaddata/splits.py and orchestrated by
-pipeline/ood_pipeline.py — this runs KFold on the TRAIN portion of each split and scores against the fixed, held-out OOD
-TEST portion.
+pipeline/ood_pipeline.py — this runs K-fold on the TRAIN portion of each split and scores against the fixed,
+held-out OOD TEST portion.
 
 Every OOD split is scored next to two in-distribution references, so a drop can be attributed instead of merely
 observed:
@@ -18,12 +18,11 @@ Reporting lives in reporting.py.
 
 from dataclasses import dataclass
 from functools import partial
-from typing import Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
 
-from sklearn.model_selection import KFold
 
 from evaluate.cross_validation import MIN_PAIRS_FOR_TEST, compare_models_significance
 from loaddata.splits import Split
@@ -77,7 +76,7 @@ def _score_fold_models(
     test_idx: np.ndarray,
     specs: Sequence[ModelSpec],
     *,
-    kf: KFold,
+    inner_splits: Sequence[Split],
     score_inner: bool,
     hyperparameter_tuning: bool,
     best_hyperparams: Optional[Mapping[str, Dict]],
@@ -87,8 +86,8 @@ def _score_fold_models(
 ) -> Tuple[_FoldScores, Optional[_FoldScores]]:
     """Fit one model per inner fold and score it on the split's fixed test set.
 
-    The inner KFold exists to average over training subsamples, not to select anything: no fold's score feeds back into
-    fitting.
+    The inner splits exist to average over training subsamples, not to select anything: no fold's score feeds
+    back into fitting.
 
     Args:
         score_inner: Also score every fold model on the inner validation fold it held out. Free — the models are already
@@ -104,7 +103,7 @@ def _score_fold_models(
     inner_scores = _empty_scores(specs) if score_inner else None
     inner_sizes: List[int] = []
 
-    for fit_idx, inner_idx in kf.split(X_train_full):
+    for _, fit_idx, inner_idx in inner_splits:
         X_fit, y_fit = X_train_full.iloc[fit_idx], y_train_full.iloc[fit_idx]
         X_inner, y_inner = X_train_full.iloc[inner_idx], y_train_full.iloc[inner_idx]
         inner_sizes.append(len(inner_idx))
@@ -154,8 +153,7 @@ def evaluate_splits_kfold_train_fixed_test(
     *,
     scenario: str,
     seed: int,
-    cv_folds: int,
-    shuffle: bool,
+    inner_splitter: Callable[[int, int], Sequence[Split]],
     hyperparameter_tuning: bool,
     best_hyperparams: Optional[Mapping[str, Dict]] = None,
     model_random_state: int = 0,
@@ -175,9 +173,9 @@ def evaluate_splits_kfold_train_fixed_test(
         splits: The OOD splits to score.
         specs: Resolved model specifications.
         scenario: Scenario name, carried into the output tables.
-        seed: Seed for the inner KFold split on the training portion.
-        cv_folds: Inner folds per split.
-        shuffle: Shuffle before the inner split.
+        seed: Seed handed to `inner_splitter`, and recorded in the output rows.
+        inner_splitter: (n_train, seed) -> splits over a split's training portion. Supplied by the caller so this
+            module never decides which rows are held out; an empty result skips the split.
         hyperparameter_tuning: Search inside every inner fold.
         best_hyperparams: Fixed parameters per model key, bypassing the search.
         model_random_state: Seed for model construction and the search.
@@ -195,15 +193,16 @@ def evaluate_splits_kfold_train_fixed_test(
     summary_rows, metrics_rows = [], []
 
     for split_id, train_idx, test_idx in splits:
-        if len(train_idx) < cv_folds:
+        inner_splits = inner_splitter(len(train_idx), seed)
+        if not inner_splits:
             if on_skip is not None:
-                on_skip(split_id, f"n_train={len(train_idx)} < cv_folds={cv_folds}")
+                on_skip(split_id, f"n_train={len(train_idx)} leaves no inner folds")
             continue
 
-        kf = KFold(n_splits=cv_folds, shuffle=shuffle, random_state=seed if shuffle else None)
         score = partial(
             _score_fold_models,
-            X, y, specs=specs, kf=kf,
+            X, y, specs=specs,
+            inner_splits=inner_splits,
             hyperparameter_tuning=hyperparameter_tuning, best_hyperparams=best_hyperparams,
             model_random_state=model_random_state,
             tune_cv_folds=tune_cv_folds, tune_n_iter=tune_n_iter,
@@ -261,7 +260,7 @@ def summarize_model_comparison(
 
     rows = []
     for scenario, group in subset.groupby("scenario", sort=True):
-        # One paired observation per split, averaging over seeds first. Seeds differ only in the inner KFold and score
+        # One paired observation per split, averaging over seeds first. Seeds differ only in the inner K-fold and score
         # the *same* test set, so treating them as separate observations would reintroduce a milder version of the non-
         # independence this function exists to avoid.
         wide = group.pivot_table(
