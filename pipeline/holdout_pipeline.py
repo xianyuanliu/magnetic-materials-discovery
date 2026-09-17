@@ -124,7 +124,11 @@ def run_holdout(*, cfg: RunConfig, registry: Mapping[str, ModelSpec], plots_dir:
         print(f"\n=== Holdout across {len(cfg.holdout.seeds)} splits ===")
         print_cv_results(scores, title="Holdout Metrics (mean ± std over split seeds):")
         if cfg.compare_models is not None:
-            report_comparison(cfg, registry, scores)
+            # One observation per seed, each a fresh split of the same rows, so the training sets overlap.
+            report_comparison(
+                cfg, registry, scores,
+                test_train_ratio=(1.0 - cfg.holdout.train_size) / cfg.holdout.train_size,
+            )
 
     if not cfg.ablation.enabled:
         return

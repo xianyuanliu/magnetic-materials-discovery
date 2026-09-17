@@ -52,4 +52,6 @@ def run_cross_validation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -
 
         print_cv_results(results)
         if cfg.compare_models is not None:
-            report_comparison(cfg, registry, results)
+            # Every fold trains on all but one of K parts, so one fold's test set is 1 / (K - 1) of its
+            # training set. The folds share training data; compare_models_significance corrects for it.
+            report_comparison(cfg, registry, results, test_train_ratio=1.0 / (cfg.kfold.folds - 1))

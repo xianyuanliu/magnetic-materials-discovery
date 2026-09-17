@@ -137,24 +137,50 @@ def _paired_scores(results: FoldScores, model_a: str, model_b: str, metric: str)
     return a, b
 
 
+def _corrected_ttest(a: np.ndarray, b: np.ndarray, test_train_ratio: float):
+    """Paired t-test whose variance accounts for observations that share training data.
+
+    Resampled validation reuses most of the data in every round — two of ten K-fold training sets overlap by 89% — so
+    the K differences are correlated and the textbook paired t-test, which assumes them independent, reports p-values
+    that are too small. Nadeau and Bengio (2003) correct this by scaling the variance of the mean difference from
+    1/K to 1/K + n_test/n_train. At `test_train_ratio` 0 the formula reduces exactly to `scipy.stats.ttest_rel`.
+
+    Returns:
+        (t_stat, p_value), two-sided, on len(a) - 1 degrees of freedom.
+    """
+    differences = a - b
+    n = len(differences)
+    variance = float(np.var(differences, ddof=1))
+    if variance == 0.0:
+        return np.nan, np.nan
+
+    t_stat = float(np.mean(differences)) / np.sqrt((1.0 / n + test_train_ratio) * variance)
+    p_value = 2.0 * stats.t.sf(abs(t_stat), df=n - 1)
+    return t_stat, float(p_value)
+
+
 def compare_models_significance(
     results: FoldScores,
     model_a: str,
     model_b: str,
     metric: str = "mse",
     min_pairs: int = MIN_PAIRS_FOR_TEST,
+    test_train_ratio: float = 0.0,
 ) -> SignificanceResult:
     """Paired t-test and Wilcoxon signed-rank on two models' scores.
 
-    The pairing is only meaningful when each observation comes from a *different* evaluation set — cross-validation
-    folds, or one OOD split per pair. Scores that share a test set are not independent observations of a difference, and
-    the caller is responsible for not passing those in.
+    Two things have to hold for the p-values to mean anything, and only one of them is checked here. Each observation
+    must come from a different evaluation set — the caller is responsible for not passing in scores that share a test
+    set. The observations must also not share training data, which K-fold and repeated holdout both violate; pass
+    `test_train_ratio` so the t-test can correct for it.
 
     Args:
         results: Paired scores, keyed by model name then metric.
         model_a, model_b: Model names to compare.
         metric: Which metric to compare; lower-is-better metrics only.
         min_pairs: Below this, p-values are withheld and `note` explains why; see MIN_PAIRS_FOR_TEST.
+        test_train_ratio: n_test / n_train for one observation, or 0 when the observations share no training data.
+            1 / (K - 1) for K-fold, (1 - train_size) / train_size for repeated holdout.
 
     Returns:
         A SignificanceResult. `mean_difference` is always populated; the
@@ -183,10 +209,16 @@ def compare_models_significance(
             ),
         )
 
-    t_stat, t_p = stats.ttest_rel(a, b, nan_policy="omit")
+    t_stat, t_p = _corrected_ttest(a, b, test_train_ratio)
 
     if not np.any(a != b):
         return _result(t_stat, t_p, np.nan, np.nan, note="all differences are zero")
 
     w_stat, w_p = stats.wilcoxon(a, b, zero_method="wilcox")
-    return _result(t_stat, t_p, w_stat, w_p)
+    # No signed-rank equivalent of the Nadeau-Bengio correction exists, so the Wilcoxon p-value stays optimistic
+    # whenever the observations share training data.
+    note = (
+        "t-test variance corrected for shared training data; the Wilcoxon p-value is uncorrected and reads optimistic"
+        if test_train_ratio > 0 else None
+    )
+    return _result(t_stat, t_p, w_stat, w_p, note=note)
