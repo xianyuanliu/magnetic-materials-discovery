@@ -1,7 +1,6 @@
 """CLI entry point: run one evaluation mode against a YAML run config."""
 
 import argparse
-from pathlib import Path
 
 from config import load_run_config
 from pipeline.cross_validation_pipeline import run_cross_validation
@@ -25,9 +24,6 @@ def main() -> None:
     args = parse_args()
     cfg = load_run_config(args.config)
 
-    plots_dir = Path(cfg.plots_output_dir)
-    plots_dir.mkdir(parents=True, exist_ok=True)
-
     if cfg.evaluation_mode == "predict":
         run_predict(cfg=cfg, registry=MODEL_REGISTRY)
         return
@@ -39,10 +35,10 @@ def main() -> None:
     elif cfg.evaluation_mode == "uq":
         run_uq_evaluation(cfg=cfg, registry=MODEL_REGISTRY)
     else:
-        run_holdout(cfg=cfg, registry=MODEL_REGISTRY, plots_dir=plots_dir)
+        run_holdout(cfg=cfg, registry=MODEL_REGISTRY)
 
     if cfg.enable_data_visualization:
-        run_data_visualization(cfg, plots_dir)
+        run_data_visualization(cfg)
 
 
 if __name__ == "__main__":

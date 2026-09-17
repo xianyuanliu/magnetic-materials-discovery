@@ -73,13 +73,15 @@ def _run_ablation(
         )
 
 
-def run_holdout(*, cfg: RunConfig, registry: Mapping[str, ModelSpec], plots_dir: Path) -> None:
+def run_holdout(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
     """Repeat a train/validate split once per seed in holdout_seeds; report mean ± std.
 
     holdout_seeds seeds the split only, kept separate from random_state (model
     construction and tuning). Ablation plots use the first seed's models only.
     """
     specs = resolve_models(registry, cfg.models)
+    plots_dir = Path(cfg.plots_output_dir)
+    plots_dir.mkdir(parents=True, exist_ok=True)
     X, y, _ = load_feature_table(
         cfg.dataset_path,
         target_column=cfg.target_column,
