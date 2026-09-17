@@ -3,15 +3,14 @@
 import argparse
 from pathlib import Path
 
-from config import RunConfig, load_run_config
-from interpret.visualize import plot_ms_distribution_by_tm, plot_violin_ms_by_tm, summarize_compound_radix
-from loaddata.tabular_access import load_feature_table
+from config import load_run_config
 from pipeline.cross_validation_pipeline import run_cross_validation
+from pipeline.data_visualization import run_data_visualization
 from pipeline.holdout_pipeline import run_holdout
-from predict.sklearn_models import MODEL_REGISTRY
-from pipeline.ood_pipeline import run_ood_evaluation
 from pipeline.inference_pipeline import run_predict
+from pipeline.ood_pipeline import run_ood_evaluation
 from pipeline.uq_pipeline import run_uq_evaluation
+from predict.sklearn_models import MODEL_REGISTRY
 
 
 def parse_args() -> argparse.Namespace:
@@ -19,24 +18,6 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train and evaluate ML models for material property prediction")
     parser.add_argument("--config", type=str, default="./configs/novamag.yaml", help="Path to YAML configuration file")
     return parser.parse_args()
-
-
-def run_data_visualization(cfg: RunConfig, plots_dir: Path) -> None:
-    """Plot the target's distribution across the transition-metal subsets."""
-    _, y, metadata = load_feature_table(
-        cfg.dataset_path,
-        target_column=cfg.target_column,
-        formula_column=cfg.formula_column,
-        feature_columns=cfg.feature_columns,
-    )
-    raw = metadata.assign(**{cfg.target_column: y})
-    plot_ms_distribution_by_tm(raw, save_path=plots_dir / f"{cfg.prefix}_ms_distribution_by_tm.png")
-    plot_violin_ms_by_tm(
-        raw,
-        title=f"{cfg.prefix.upper()} Violin Plot",
-        save_path=plots_dir / f"{cfg.prefix}_violin_ms_by_tm.png",
-    )
-    summarize_compound_radix(raw)
 
 
 def main() -> None:
@@ -60,8 +41,7 @@ def main() -> None:
     else:
         run_holdout(cfg=cfg, registry=MODEL_REGISTRY, plots_dir=plots_dir)
 
-    # Data visualization reads the raw dataset, which OOD mode does not require.
-    if cfg.enable_data_visualization and cfg.evaluation_mode != "ood":
+    if cfg.enable_data_visualization:
         run_data_visualization(cfg, plots_dir)
 
 

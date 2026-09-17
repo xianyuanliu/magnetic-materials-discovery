@@ -70,7 +70,8 @@ notebook or another project without a run's output appearing as a side effect.
 - `pipeline/`: one orchestration module per evaluation mode — `holdout_pipeline.py`,
   `cross_validation_pipeline.py`, `inference_pipeline.py`, `uq_pipeline.py`, `ood_pipeline.py`
   (with `ood_scenarios.py` turning the config into a list of scenarios); and the paired
-  model-comparison helper shared by holdout and cross-validation (`comparison.py`).
+  model-comparison helper shared by holdout and cross-validation (`comparison.py`), plus the optional
+  dataset distribution plots (`data_visualization.py`).
   Every evaluation mode has the same shape: resolve the models, load the feature table, build
   splits from `loaddata/splits.py`, score them, report. Only the split family and the tables
   differ, so a new mode is a new choice of those two rather than a new pipeline shape.
