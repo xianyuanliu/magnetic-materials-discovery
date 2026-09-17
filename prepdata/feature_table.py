@@ -24,6 +24,31 @@ NON_COMMERCIAL_ELEMENTS = (
 )
 
 
+# Carried through for traceability and for a later modality to key off. Never model inputs: they are excluded from the
+# feature fallback in loaddata.tabular_access.resolve_feature_columns.
+PROVENANCE_COLUMNS = ("n_records", "sample_id")
+
+
+def _describe_sources(data: pd.DataFrame, targets: pd.Series, target_column: str) -> pd.DataFrame:
+    """Record how many source rows each composition aggregates, and which one the median came from.
+
+    The median of an even number of differing values is the mean of the middle two, so no single source produced it and
+    `sample_id` is left empty. Writing a nearby id instead would pair a later modality with a structure whose
+    measurement is not the target being predicted.
+    """
+    grouped = data.groupby("composition_key", sort=True)
+    provenance = pd.DataFrame({"n_records": grouped.size()})
+    provenance.index.name = targets.index.name
+
+    if "sample_id" in data.columns:
+        median_of = data["composition_key"].map(targets)
+        exact = data.loc[data[target_column] == median_of, ["composition_key", "sample_id"]]
+        first = exact.groupby("composition_key")["sample_id"].first()
+        provenance["sample_id"] = first.reindex(provenance.index)
+
+    return provenance
+
+
 def filter_samples(
     data: pd.DataFrame,
     min_target: Optional[float] = 0.18,
@@ -91,9 +116,12 @@ def build_feature_table(
     data["composition_key"] = data[formula_column].map(keys)
     data = data.dropna(subset=["composition_key"])
     # Keep one median target per normalized composition, without discarding distinct source measurements beforehand.
-    targets = data.groupby("composition_key", sort=True)[target_column].median()
+    grouped = data.groupby("composition_key", sort=True)
+    targets = grouped[target_column].median()
     targets.index.name = formula_column
+    provenance = _describe_sources(data, targets, target_column)
     data = add_engineered_features(targets.reset_index(), pt, mm, formula_column=formula_column)
+    data = data.join(provenance, on=formula_column)
 
     feature_columns = list(ENGINEERED_FEATURE_COLUMNS)
     data = data.replace([np.inf, -np.inf], np.nan)
@@ -104,4 +132,6 @@ def build_feature_table(
             f"Dropped {int(incomplete.sum())} of {len(data)} compositions with features that could not be "
             f"calculated from the reference tables: {unusable}."
         )
-    return data.loc[~incomplete].set_index(formula_column)[[target_column] + feature_columns], feature_columns
+    kept = data.loc[~incomplete].set_index(formula_column)
+    carried = [column for column in PROVENANCE_COLUMNS if column in kept.columns]
+    return kept[[target_column] + feature_columns + carried], feature_columns

@@ -109,9 +109,10 @@ class FeatureColumnSelectionTests(unittest.TestCase):
     """resolve_feature_columns is what stops a stray id or text column from becoming a model input."""
 
     def setUp(self):
+        # row_index and note stand for columns this project has never seen, which the fallback cannot recognize.
         self.data = pd.DataFrame({
             "chemical formula": ["FeNi"], "saturation magnetization": [1.5],
-            "Zw": [57.3], "sample_id": [7], "source": ["novamag"],
+            "Zw": [57.3], "row_index": [7], "note": ["measured twice"],
         })
 
     def test_named_columns_are_used_in_the_given_order(self):
@@ -122,13 +123,20 @@ class FeatureColumnSelectionTests(unittest.TestCase):
     def test_fallback_rejects_a_non_numeric_column_instead_of_passing_it_through(self):
         with self.assertRaises(ValueError) as caught:
             resolve_feature_columns(self.data, "saturation magnetization")
-        self.assertIn("source", str(caught.exception))
+        self.assertIn("note", str(caught.exception))
 
-    def test_fallback_promotes_every_remaining_numeric_column(self):
-        """Including sample_id, which is why naming the features explicitly is the documented default."""
-        numeric = self.data.drop(columns=["source"])
+    def test_fallback_promotes_an_unrecognized_numeric_column(self):
+        """row_index becomes a model input, which is why naming the features explicitly is the documented default."""
+        numeric = self.data.drop(columns=["note"])
         self.assertEqual(
-            resolve_feature_columns(numeric, "saturation magnetization"), ["Zw", "sample_id"]
+            resolve_feature_columns(numeric, "saturation magnetization"), ["Zw", "row_index"]
+        )
+
+    def test_fallback_skips_the_provenance_columns(self):
+        """sample_id and n_records are carried for traceability; promoting them would leak row provenance."""
+        data = self.data.drop(columns=["note"]).assign(sample_id=["a/b.json"], n_records=[3], source=["novamag"])
+        self.assertEqual(
+            resolve_feature_columns(data, "saturation magnetization"), ["Zw", "row_index"]
         )
 
     def test_unknown_named_column_is_rejected(self):

@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 from pandas.testing import assert_frame_equal
 
-from loaddata.tabular_access import load_features_and_target, standardize_records
+from loaddata.tabular_access import load_feature_table, standardize_records
 from loaddata.materials_project import TESLA_PER_BOHR_MAGNETON_PER_CUBIC_ANGSTROM, load_materials_project
 from loaddata.novamag import load_novamag
 from prepdata.alloy_descriptors import ENGINEERED_FEATURE_COLUMNS
@@ -77,14 +77,20 @@ class DataPreparationTests(unittest.TestCase):
         assert table.loc["FeNi", "saturation magnetization"] == 2.0
         self.assertAlmostEqual(table.loc["FeNi", "Zw"], (55.845 + 58.6934) / 2)
         assert table.loc["FeNi", "miedemaH"] == -2.0
-        assert list(table.columns) == ["saturation magnetization", *ENGINEERED_FEATURE_COLUMNS]
+        assert list(table.columns) == [
+            "saturation magnetization", *ENGINEERED_FEATURE_COLUMNS, "n_records", "sample_id",
+        ]
+        # Two records survive selection for FeNi, and the median of an even pair is not either of them.
+        assert table.loc["FeNi", "n_records"] == 2
+        assert pd.isna(table.loc["FeNi", "sample_id"])
         assert_frame_equal(raw, original)
         path = tmp_path / "prepared.csv"
         table.to_csv(path)
-        X, y, resolved = load_features_and_target(path, feature_columns=features)
-        assert resolved == features
+        X, y, metadata = load_feature_table(path, feature_columns=features)
+        assert list(X.columns) == features
         assert len(X) == len(y) == 2
         assert np.isfinite(X.to_numpy()).all()
+        assert list(metadata["chemical formula"]) == list(table.index)
 
     def test_selection_parameters_and_missing_labels(self):
         raw = standardize_records(pd.DataFrame({
@@ -147,7 +153,7 @@ class DataPreparationTests(unittest.TestCase):
         table, features = build_feature_table(raw, *reference_tables)
         assert table.empty
         assert table.index.name == "chemical formula"
-        assert list(table.columns) == ["saturation magnetization", *features]
+        assert list(table.columns) == ["saturation magnetization", *features, "n_records"]
 
 
 if __name__ == "__main__":
