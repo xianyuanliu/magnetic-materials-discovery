@@ -10,8 +10,8 @@ from typing import Mapping, Optional, Sequence
 import numpy as np
 import pandas as pd
 
-from evaluate.cross_validation import SignificanceResult
-from evaluate.metrics import METRICS, METRIC_DECIMALS, compute_metrics
+from evaluate.cross_validation import SignificanceResult, compare_models_significance
+from evaluate.metrics import COMPARABLE_METRICS, METRICS, METRIC_DECIMALS, compute_metrics
 
 
 def format_mean_std(mean: float, std: float, decimals: int = 4) -> str:
@@ -53,16 +53,50 @@ def print_cv_results(
             print(f"{label + ':':<5}{summary}")
 
 
+def print_comparisons(
+    results,
+    model_a: str,
+    model_b: str,
+    metrics: Sequence[str] = COMPARABLE_METRICS,
+    test_train_ratio: float = 0.0,
+) -> None:
+    """Print one paired significance test per metric for a pair of models.
+
+    Args:
+        results: {model name: {metric: [one score per observation]}}.
+        model_a, model_b: Model names to compare.
+        metrics: Which metrics to test; lower-is-better only.
+        test_train_ratio: Passed through so the t-test can correct for observations that share training data.
+    """
+    for metric in metrics:
+        print_significance(compare_models_significance(
+            results, model_a, model_b, metric=metric, test_train_ratio=test_train_ratio,
+        ))
+
+
 def print_significance(result: SignificanceResult) -> None:
     """Print one paired model comparison, including why a p-value is missing."""
     print(f"\n{result.model_a} vs {result.model_b} — metric={result.metric.upper()}")
     print(f"  paired observations: {result.n_pairs}")
-    print(f"  mean difference (a - b): {result.mean_difference:+.6g}")
-    if result.note:
+
+    # The difference and its interval lead because they are in the metric's own units: they say by how much and how
+    # precisely, where a p-value only says whether zero is excluded.
+    if np.isnan(result.ci_low):
+        print(f"  difference (a - b): {result.mean_difference:+.6g}")
+    else:
+        print(
+            f"  difference (a - b): {result.mean_difference:+.6g}"
+            f"  95% CI [{result.ci_low:+.6g}, {result.ci_high:+.6g}]"
+        )
+
+    # A note can mean either "the test did not run" or "it ran, read it with care", so the p-values decide which.
+    if np.isnan(result.t_pvalue):
         print(f"  no p-value reported: {result.note}")
         return
-    print(f"  paired t-test:        t={result.t_stat:.4f}, p={result.t_pvalue:.6g}")
-    print(f"  Wilcoxon signed-rank: W={result.w_stat:.4f}, p={result.w_pvalue:.6g}")
+
+    print(f"  paired t-test: t={result.t_stat:.4f}, p={result.t_pvalue:.6g}")
+    if result.note:
+        print(f"  note: {result.note}")
 
 
 def format_metric_table(df: pd.DataFrame) -> pd.DataFrame:

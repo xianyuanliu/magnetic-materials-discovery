@@ -26,7 +26,7 @@ import pandas as pd
 
 from evaluate.cross_validation import MIN_PAIRS_FOR_TEST, compare_models_significance
 from loaddata.splits import Split
-from evaluate.metrics import METRICS, compute_metrics
+from evaluate.metrics import COMPARABLE_METRICS, METRICS, compute_metrics
 from utils.registry import ModelSpec
 
 # Values of the `split_type` column that distinguishes a shifted test set from
@@ -232,7 +232,7 @@ def summarize_model_comparison(
     metrics_df: pd.DataFrame,
     model_a: str,
     model_b: str,
-    metrics: Sequence[str] = ("mse", "mae"),
+    metrics: Sequence[str] = COMPARABLE_METRICS,
     split_type: str = OOD,
     min_pairs: int = MIN_PAIRS_FOR_TEST,
 ) -> pd.DataFrame:
@@ -285,9 +285,11 @@ def summarize_model_comparison(
                 model_a=model_a, model_b=model_b,
                 n_splits=result.n_pairs,
                 mean_difference=result.mean_difference,
+                ci_low=result.ci_low,
+                ci_high=result.ci_high,
                 t_pvalue=result.t_pvalue,
-                wilcoxon_pvalue=result.w_pvalue,
-                significant=bool(result.note is None and ((result.t_pvalue < 0.05) or (result.w_pvalue < 0.05))),
+                # An interval clear of zero is the same statement as p < 0.05, read off the quantity that was reported.
+                significant=bool(np.isfinite(result.ci_low) and (result.ci_low > 0 or result.ci_high < 0)),
                 note=result.note or "",
             ))
 
