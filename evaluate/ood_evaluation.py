@@ -1,6 +1,6 @@
 """Per-split scoring and table-building for OOD stress tests.
 
-Given a set of (split_id, train_idx, test_idx) splits — built by pipeline/ood_splits.py and orchestrated by
+Given a set of (split_id, train_idx, test_idx) splits — built by loaddata/splits.py and orchestrated by
 pipeline/ood_pipeline.py — this runs KFold on the TRAIN portion of each split and scores against the fixed, held-out OOD
 TEST portion.
 
@@ -26,12 +26,9 @@ import pandas as pd
 from sklearn.model_selection import KFold
 
 from evaluate.cross_validation import MIN_PAIRS_FOR_TEST, compare_models_significance
+from loaddata.splits import Split
 from evaluate.metrics import METRICS, compute_metrics
 from utils.registry import ModelSpec
-
-# A train/test split: an identifier plus the row positions on each side. Split builders live in pipeline/ood_splits.py;
-# the type is declared here, with the evaluators that consume it, so `evaluate/` never has to import `pipeline/`.
-Split = Tuple[str, np.ndarray, np.ndarray]
 
 # Values of the `split_type` column that distinguishes a shifted test set from
 # its two in-distribution references (see the module docstring).

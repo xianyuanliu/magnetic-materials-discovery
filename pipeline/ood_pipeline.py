@@ -9,27 +9,24 @@ passed down rather than constructed inside the evaluator, which would make the t
 
 from __future__ import annotations
 
-import os
 import zlib
 from functools import partial
 from pathlib import Path
-from typing import Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Dict, List, Mapping, Sequence, Tuple
 
 import pandas as pd
 
 from config import RunConfig
 from evaluate.ood_evaluation import (
     OOD,
-    Split,
     evaluate_splits_kfold_train_fixed_test,
     summarize_generalization_gap,
     summarize_model_comparison,
     summarize_runs_across_splits,
 )
-from loaddata.tabular_access import load_periodic_table, resolve_feature_columns
-from pipeline.ood_scenarios import build_scenarios
-from pipeline.ood_splits import build_size_matched_split
-from prepdata.composition import get_elements_per_row, get_group_period_maps
+from loaddata.splits import Split, build_size_matched_split
+from loaddata.tabular_access import load_feature_table
+from pipeline.ood_scenarios import build_scenarios, resolve_split_elements
 from utils.registry import ModelSpec, resolve_models
 from utils.reporting import print_ood_tables
 
@@ -41,51 +38,6 @@ TABLE_FILENAMES = (
     "table4_combined_comparison.csv",
     "table5_generalization_gap.csv",
 )
-
-
-def load_ood_dataset(
-    train_dataset_path: str,
-    test_dataset_path: Optional[str],
-    target_column: str,
-    formula_column: str,
-    feature_columns: Optional[Sequence[str]] = None,
-) -> Tuple[pd.DataFrame, pd.Series, pd.DataFrame]:
-    """Load the pool the OOD splits are carved out of.
-
-    Both config paths are read and concatenated, because the OOD splits define their own train/test boundary — the two
-    files are only a way of pointing at the data, not a pre-existing split that is honored here.
-
-    Args:
-        train_dataset_path: First (or only) CSV to read.
-        test_dataset_path: Second CSV, or the same path, or None.
-        target_column: Name of the column being predicted.
-        formula_column: Name of the chemical-formula column.
-        feature_columns: Explicit feature list, or None to infer and validate them; see
-            loaddata.tabular_access.resolve_feature_columns.
-
-    Returns:
-        (X, y, df_full), where X holds exactly the resolved feature columns.
-
-    Raises:
-        ValueError: If a required column is missing or the features do not resolve to a usable numeric matrix.
-    """
-    if not train_dataset_path:
-        raise ValueError("OOD mode requires train_dataset_path (can be the full dataset CSV).")
-
-    same_file = (not test_dataset_path) or (
-        os.path.normpath(test_dataset_path) == os.path.normpath(train_dataset_path)
-    )
-    if same_file:
-        df_full = pd.read_csv(train_dataset_path).reset_index(drop=True)
-    else:
-        df_full = pd.concat([pd.read_csv(train_dataset_path), pd.read_csv(test_dataset_path)], ignore_index=True)
-
-    for column in (target_column, formula_column):
-        if column not in df_full.columns:
-            raise ValueError(f"Missing column '{column}' in the dataset CSV(s)")
-
-    resolved = resolve_feature_columns(df_full, target_column, formula_column, feature_columns)
-    return df_full[resolved].copy(), df_full[target_column].copy(), df_full
 
 
 def build_controls(splits: Sequence[Split], n_samples: int, seed: int, scenario: str) -> Dict[str, Split]:
@@ -156,12 +108,15 @@ def run_ood_evaluation(*, cfg: RunConfig, model_registry: Mapping[str, ModelSpec
     ood_cfg = cfg.ood
     specs = resolve_models(model_registry, cfg.models)
 
-    X_full, y_full, df_full = load_ood_dataset(
-        cfg.train_dataset_path, cfg.test_dataset_path,
-        cfg.target_column, cfg.formula_column, cfg.feature_columns,
+    X_full, y_full, metadata = load_feature_table(
+        [cfg.train_dataset_path, cfg.test_dataset_path],
+        target_column=cfg.target_column,
+        formula_column=cfg.formula_column,
+        feature_columns=cfg.feature_columns,
     )
-    element_to_group, element_to_period = get_group_period_maps(load_periodic_table(cfg.pt_path))
-    elements_per_row = get_elements_per_row(df_full, formula_column=cfg.formula_column)
+    elements_per_row, element_to_group, element_to_period = resolve_split_elements(
+        metadata, cfg.formula_column, cfg.pt_path
+    )
 
     scenarios = build_scenarios(ood_cfg, X_full, y_full, elements_per_row, element_to_group, element_to_period)
     seeds = list(ood_cfg.seeds)

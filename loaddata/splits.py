@@ -1,14 +1,19 @@
-"""Builders for out-of-distribution (OOD) train/test splits.
+"""Train/test split builders: which samples are held out, and why.
 
-Each build_*_splits function returns a list of (split_id, train_idx, test_idx)
-tuples. Splits are deterministic where seeded.
+A split is a property of the data, not of the metric computed on it — the same held-out region has to apply to every
+modality a sample carries, so the split is defined here, once, from sample metadata and the feature geometry. This
+follows how WILDS and PyKale organize theirs.
 
-Two of the builders describe in-distribution references rather than shifts —
-build_kfold_splits and build_size_matched_split — so that an OOD score can be
-compared against a baseline produced by the identical evaluation code path.
+Each build_*_splits function returns a list of (split_id, train_idx, test_idx) tuples, deterministic where seeded.
+Nothing here reads a file, resolves a config, or knows what a model is: the caller supplies the parsed chemistry and
+the feature matrix, and decides which families to build.
+
+Two of the builders describe in-distribution references rather than shifts — build_kfold_splits and
+build_size_matched_split — so that an OOD score can be compared against a baseline produced by the identical
+evaluation code path.
 """
 
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
@@ -17,7 +22,8 @@ from sklearn.model_selection import KFold
 from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import StandardScaler
 
-from evaluate.ood_evaluation import Split
+# A train/test split: an identifier plus the row positions on each side.
+Split = Tuple[str, np.ndarray, np.ndarray]
 
 
 def _standardized(X: pd.DataFrame) -> np.ndarray:

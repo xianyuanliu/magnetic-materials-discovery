@@ -10,7 +10,7 @@ from sklearn.model_selection import train_test_split
 
 from interpret.case_studies import plot_case_studies
 from interpret.model_weights import plot_permutation_importance, plot_shap_summary
-from loaddata.tabular_access import load_element_properties, load_features_and_target
+from loaddata.tabular_access import load_element_properties, load_feature_table
 from pipeline.comparison import report_comparison
 from utils.reporting import print_cv_results, print_holdout_results
 
@@ -81,12 +81,13 @@ def run_holdout(cfg: RunConfig, registry: Mapping[str, ModelSpec], plots_dir: Pa
     construction and tuning). Ablation plots use the first seed's models only.
     """
     specs = resolve_models(registry, cfg.models)
-    X, y, feature_columns = load_features_and_target(
+    X, y, _ = load_feature_table(
         cfg.dataset_path,
         target_column=cfg.target_column,
-        feature_columns=cfg.feature_columns,
         formula_column=cfg.formula_column,
+        feature_columns=cfg.feature_columns,
     )
+    feature_columns = list(X.columns)
 
     scores = {spec.name: {"mse": [], "mae": [], "mre": [], "r2": []} for spec in specs}
     first_split_models: Dict[str, object] = {}

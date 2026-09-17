@@ -1,7 +1,7 @@
 """Config-driven selection of OOD scenarios and their splits.
 
 Turns a resolved OODConfig into a list of (scenario_name, splits) pairs by picking which
-elements/periods/groups/clusters to hold out and delegating to pipeline/ood_splits.py. Shared by the OOD and UQ
+elements/periods/groups/clusters to hold out and delegating to loaddata/splits.py. Shared by the OOD and UQ
 pipelines so both evaluate exactly the same scenarios.
 
 Hold-out targets are named per family (`elements`, `periods`, `groups`) rather than through one shared list: element
@@ -15,8 +15,9 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 import pandas as pd
 
 from config import OODConfig
-from evaluate.ood_evaluation import Split
-from pipeline.ood_splits import (
+from loaddata.tabular_access import load_periodic_table
+from loaddata.splits import (
+    Split,
     build_group_splits,
     build_kmeans_cluster_splits,
     build_loeo_splits,
@@ -24,6 +25,7 @@ from pipeline.ood_splits import (
     build_sparsex_splits,
     build_sparsey_splits,
 )
+from prepdata.composition import get_elements_per_row, get_group_period_maps
 
 
 def _counts_by_attr(
@@ -55,6 +57,34 @@ def _ranked_targets(counts: Dict[Any, int], max_n: Optional[int]) -> List[Any]:
 
 def _capped(splits: List[Split], max_splits: Optional[int]) -> List[Split]:
     return splits if max_splits is None else splits[:max_splits]
+
+
+def resolve_split_elements(
+    metadata: pd.DataFrame,
+    formula_column: str,
+    pt_path: str,
+) -> Tuple[List[List[str]], Dict[str, int], Dict[str, int]]:
+    """Turn the loaded formula column into everything the element, period and group families need.
+
+    Args:
+        metadata: Per-sample metadata from loaddata.tabular_access.load_feature_table.
+        formula_column: Column in `metadata` holding the chemical formula.
+        pt_path: Periodic table spreadsheet, read for the group and period maps.
+
+    Returns:
+        (elements_per_row, element_to_group, element_to_period).
+
+    Raises:
+        ValueError: If `metadata` has no formula column, since every split family here is defined by chemistry.
+    """
+    if formula_column not in metadata.columns:
+        raise ValueError(
+            f"OOD and UQ splits hold out elements, periods and groups, so they need the {formula_column!r} column, "
+            f"but the feature table has none. Rebuild it with build_feature_tables.py, or point the run at a table "
+            f"that keeps the formula. Available metadata: {sorted(metadata.columns)}."
+        )
+    element_to_group, element_to_period = get_group_period_maps(load_periodic_table(pt_path))
+    return get_elements_per_row(metadata[formula_column]), element_to_group, element_to_period
 
 
 def build_scenarios(

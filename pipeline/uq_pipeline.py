@@ -24,11 +24,9 @@ import pandas as pd
 
 from config import RunConfig
 from evaluate.calibration import summarize_across_seeds, summarize_calibration
-from evaluate.ood_evaluation import Split
-from loaddata.tabular_access import load_periodic_table
-from pipeline.ood_pipeline import load_ood_dataset
-from pipeline.ood_scenarios import build_scenarios
-from pipeline.ood_splits import build_kfold_splits, build_size_matched_split
+from loaddata.tabular_access import load_feature_table
+from pipeline.ood_scenarios import build_scenarios, resolve_split_elements
+from loaddata.splits import Split, build_kfold_splits, build_size_matched_split
 from predict.uncertainty import (
     CONFORMAL,
     CONFORMAL_NORM,
@@ -37,7 +35,6 @@ from predict.uncertainty import (
     gaussian_half_width,
     rf_tree_std,
 )
-from prepdata.composition import get_elements_per_row, get_group_period_maps
 from utils.registry import ModelSpec
 from utils.reporting import print_uq_report
 
@@ -195,12 +192,15 @@ def run_uq_evaluation(*, cfg: RunConfig, model_registry: Mapping[str, ModelSpec]
     calibration_fraction = uq_cfg.calibration_fraction
     seeds = list(uq_cfg.seeds)
 
-    X, y, df_full = load_ood_dataset(
-        cfg.dataset_path, cfg.dataset_path,
-        cfg.target_column, cfg.formula_column, cfg.feature_columns,
+    X, y, metadata = load_feature_table(
+        cfg.dataset_path,
+        target_column=cfg.target_column,
+        formula_column=cfg.formula_column,
+        feature_columns=cfg.feature_columns,
     )
-    element_to_group, element_to_period = get_group_period_maps(load_periodic_table(cfg.pt_path))
-    elements_per_row = get_elements_per_row(df_full, formula_column=cfg.formula_column)
+    elements_per_row, element_to_group, element_to_period = resolve_split_elements(
+        metadata, cfg.formula_column, cfg.pt_path
+    )
 
     ood_scenarios = build_scenarios(ood_cfg, X, y, elements_per_row, element_to_group, element_to_period)
 

@@ -65,12 +65,19 @@ def get_elements(formula: str) -> List[str]:
         return []
 
 
-def get_elements_per_row(df: pd.DataFrame, formula_column: str = "chemical formula") -> List[List[str]]:
-    """Return one element list per row of `df`, in row order."""
-    if formula_column not in df.columns:
-        raise ValueError(f"Missing column: {formula_column}")
+def get_elements_per_row(x, formula_column: str = "chemical formula") -> List[List[str]]:
+    """Return one element list per row, in row order.
 
-    formulas = df[formula_column].tolist()
+    Args:
+        x: DataFrame carrying `formula_column`, or a Series of formulas.
+        formula_column: Name of the formula column when `x` is a DataFrame.
+    """
+    if isinstance(x, pd.DataFrame):
+        if formula_column not in x.columns:
+            raise ValueError(f"Missing column: {formula_column}")
+        formulas = x[formula_column].tolist()
+    else:
+        formulas = list(x)
     elements_per_row = [get_elements(formula) for formula in formulas]
 
     n_unparsed = sum(

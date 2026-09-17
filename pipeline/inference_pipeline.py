@@ -20,7 +20,7 @@ import pandas as pd
 
 from config import RunConfig
 from utils.registry import ModelSpec, resolve_models
-from loaddata.tabular_access import load_element_properties, load_features_and_target
+from loaddata.tabular_access import load_element_properties, load_feature_table
 from utils.persistence import ModelBundle, align_features, load_model_bundle, save_model_bundle
 from prepdata.alloy_descriptors import add_engineered_features
 from utils.reporting import print_predictions
@@ -63,12 +63,13 @@ def _read_formulas(cfg: RunConfig) -> pd.DataFrame:
 
 def _train_bundle(cfg: RunConfig, spec: ModelSpec) -> ModelBundle:
     """Fit `spec` on the whole configured dataset and wrap it in a bundle."""
-    X, y, feature_columns = load_features_and_target(
+    X, y, _ = load_feature_table(
         cfg.dataset_path,
         target_column=cfg.target_column,
-        feature_columns=cfg.feature_columns,
         formula_column=cfg.formula_column,
+        feature_columns=cfg.feature_columns,
     )
+    feature_columns = list(X.columns)
     # Every row on purpose, unlike the evaluation modes: this model is going to be used, not scored.
     print(f"Fitting {spec.name} on all {len(X)} row(s) of {cfg.dataset_path}")
     model = spec.train(X, y, hyperparams=None, random_state=cfg.model_random_state)

@@ -6,6 +6,8 @@ composition parsing, sample selection and feature calculation belong to prepdata
 Reference-table readers adapted from https://github.com/rich970/ML-alloy-design/blob/master/alloys.py.
 """
 
+import os
+from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
 
 import numpy as np
@@ -14,6 +16,10 @@ from pandas.api import types as pdtypes
 
 DEFAULT_TARGET_COLUMN = "saturation magnetization"
 DEFAULT_FORMULA_COLUMN = "chemical formula"
+
+# Columns a feature table carries for traceability rather than for the model. They are numeric or id-like, so the
+# fallback in resolve_feature_columns would otherwise promote them into model inputs and leak row provenance.
+METADATA_COLUMNS = ("sample_id", "n_records", "source")
 DEFAULT_PERIODIC_TABLE_PATH = "./data/Periodic-table/periodic_table.xlsx"
 DEFAULT_MIEDEMA_PATH = "./data/Miedema-model/Miedema-model-reduced.xlsx"
 
@@ -85,8 +91,9 @@ def resolve_feature_columns(
 ) -> List[str]:
     """Determine and validate which columns are model inputs.
 
-    Naming the features explicitly is strongly preferred: the fallback — "every column that is not the target or the
-    formula" — would otherwise promote a stray id or text column into a model input.
+    Naming the features explicitly is strongly preferred: the fallback — "every remaining column" — would otherwise
+    promote a stray id or text column into a model input. It skips the target, the formula and METADATA_COLUMNS, but
+    it cannot recognize a column this project has never seen.
 
     Args:
         data: The loaded table.
@@ -110,7 +117,7 @@ def resolve_feature_columns(
             )
         resolved = list(feature_columns)
     else:
-        excluded = {target_column, formula_column}
+        excluded = {target_column, formula_column, *METADATA_COLUMNS}
         resolved = [c for c in data.columns if c not in excluded]
         if not resolved:
             raise ValueError(f"No feature columns left after excluding {sorted(excluded)}.")
@@ -126,35 +133,56 @@ def resolve_feature_columns(
     return resolved
 
 
-def load_features_and_target(
-    path: str,
-    target_column: str = "saturation magnetization",
+def load_feature_table(
+    paths,
+    target_column: str = DEFAULT_TARGET_COLUMN,
+    formula_column: str = DEFAULT_FORMULA_COLUMN,
     feature_columns: Optional[Sequence[str]] = None,
-    formula_column: str = "chemical formula",
-) -> Tuple[pd.DataFrame, pd.Series, List[str]]:
-    """Load a featurized CSV into (features, target, feature_columns).
+) -> Tuple[pd.DataFrame, pd.Series, pd.DataFrame]:
+    """Read one or more feature tables written by build_feature_tables.py.
+
+    Several paths are concatenated into one pool. Which rows end up in training and which in test is decided by the
+    evaluation mode, so a train/test pair of files is only a way of naming the data, not a split that is honored here.
 
     Args:
-        path: Path to the featurized CSV.
+        paths: One path, or an iterable of paths to concatenate.
         target_column: Name of the column being predicted.
-        feature_columns: Explicit feature list, or None to infer them.
-        formula_column: Name of the chemical-formula column.
+        formula_column: Name of the chemical-formula column, absent for tasks that have none.
+        feature_columns: Explicit model inputs, or None to infer and validate them.
 
     Returns:
-        (X, y, feature_columns).
+        (X, y, metadata). X holds exactly the resolved feature columns in the order the models will see them, so the
+        feature names are `list(X.columns)`. metadata holds every remaining column — the formula, and whatever the
+        table records about where each sample came from — row-aligned with X, so splits and a second modality can key
+        off the same samples without re-reading the file.
 
     Raises:
-        ValueError: If the target column is missing, or feature resolution fails; see resolve_feature_columns.
+        ValueError: If no path is given, the target column is missing, or the features do not resolve to a usable
+            numeric matrix.
     """
-    data = pd.read_csv(path).reset_index(drop=True)
+    if isinstance(paths, (str, Path)):
+        paths = [paths]
+    paths = [path for path in paths if path]
+    if not paths:
+        raise ValueError("load_feature_table needs at least one path.")
+
+    # Deduplicated because a config may name the same file as both train and test.
+    unique_paths, seen = [], set()
+    for path in paths:
+        key = os.path.normpath(str(path))
+        if key not in seen:
+            seen.add(key)
+            unique_paths.append(path)
+
+    frames = [pd.read_csv(path) for path in unique_paths]
+    data = frames[0] if len(frames) == 1 else pd.concat(frames, ignore_index=True)
+    data = data.reset_index(drop=True)
 
     if target_column not in data.columns:
-        raise ValueError(f"Missing target column {target_column!r} in {path}. Available: {sorted(data.columns)}")
+        raise ValueError(
+            f"Missing target column {target_column!r} in {unique_paths}. Available: {sorted(data.columns)}"
+        )
 
     resolved = resolve_feature_columns(data, target_column, formula_column, feature_columns)
-    return data[resolved].copy(), data[target_column], resolved
-
-
-def load_raw_data(path: str) -> pd.DataFrame:
-    """Load a raw dataset from a CSV."""
-    return pd.read_csv(path).reset_index(drop=True)
+    metadata = [column for column in data.columns if column not in resolved and column != target_column]
+    return data[resolved].copy(), data[target_column].copy(), data[metadata].copy()

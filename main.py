@@ -5,7 +5,7 @@ from pathlib import Path
 
 from config import RunConfig, load_run_config
 from interpret.visualize import plot_ms_distribution_by_tm, plot_violin_ms_by_tm, summarize_compound_radix
-from loaddata.tabular_access import load_raw_data
+from loaddata.tabular_access import load_feature_table
 from pipeline.cross_validation_pipeline import run_cross_validation
 from pipeline.holdout_pipeline import run_holdout
 from predict.sklearn_models import MODEL_REGISTRY
@@ -23,7 +23,13 @@ def parse_args() -> argparse.Namespace:
 
 def run_data_visualization(cfg: RunConfig, plots_dir: Path) -> None:
     """Plot the target's distribution across the transition-metal subsets."""
-    raw = load_raw_data(cfg.dataset_path)
+    _, y, metadata = load_feature_table(
+        cfg.dataset_path,
+        target_column=cfg.target_column,
+        formula_column=cfg.formula_column,
+        feature_columns=cfg.feature_columns,
+    )
+    raw = metadata.assign(**{cfg.target_column: y})
     plot_ms_distribution_by_tm(raw, save_path=plots_dir / f"{cfg.prefix}_ms_distribution_by_tm.png")
     plot_violin_ms_by_tm(
         raw,

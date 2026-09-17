@@ -5,7 +5,7 @@ from typing import Mapping
 from config import RunConfig
 from utils.registry import ModelSpec, resolve_models
 from evaluate.cross_validation import cross_validate_models
-from loaddata.tabular_access import load_features_and_target
+from loaddata.tabular_access import load_feature_table
 from pipeline.comparison import report_comparison
 from utils.reporting import print_cv_results
 
@@ -13,11 +13,11 @@ from utils.reporting import print_cv_results
 def run_cross_validation(cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
     """Run K-fold CV once per seed in cv_seeds and print the metrics."""
     specs = resolve_models(registry, cfg.models)
-    X, y, _ = load_features_and_target(
+    X, y, _ = load_feature_table(
         cfg.dataset_path,
         target_column=cfg.target_column,
-        feature_columns=cfg.feature_columns,
         formula_column=cfg.formula_column,
+        feature_columns=cfg.feature_columns,
     )
 
     if cfg.tuning.enabled:
