@@ -11,10 +11,9 @@ from interpret.case_studies import plot_case_studies
 from interpret.model_weights import plot_permutation_importance, plot_shap_summary
 from loaddata.splits import build_holdout_split
 from loaddata.tabular_access import load_element_properties, load_feature_table
-from pipeline.comparison import report_comparison
-from pipeline.results import save_results
+from utils.persistence import save_results
 from utils.registry import ModelSpec, resolve_models
-from utils.reporting import print_cv_results, print_holdout_results
+from utils.reporting import print_comparisons, print_cv_results, print_holdout_results
 
 
 def _tune_on_split(specs, X_train, y_train, cfg: RunConfig) -> Dict[str, Dict]:
@@ -145,8 +144,9 @@ def run_holdout(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
         print_cv_results(scores, title="Holdout Metrics (mean ± std over split seeds):")
         if cfg.compare_models is not None:
             # One observation per seed, each a fresh split of the same rows, so the training sets overlap.
-            report_comparison(
-                cfg, registry, scores,
+            name_a, name_b = (spec.name for spec in resolve_models(registry, cfg.compare_models))
+            print_comparisons(
+                scores, name_a, name_b,
                 test_train_ratio=(1.0 - cfg.holdout.train_size) / cfg.holdout.train_size,
             )
 

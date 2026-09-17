@@ -1,9 +1,10 @@
-"""Saving and loading fitted models together with what they need to be used.
+"""Saving and loading what a run produces: fitted models, and the tables of numbers they scored.
 
 A fitted estimator on its own is not enough to make a prediction: the caller also has to know which feature columns it
 was trained on, in which order, and what the values mean. Bundling those with the estimator is what lets a model outlive
 the run that produced it, which is the difference between a pipeline that reports scores and a library something else
-can build on.
+can build on. The result tables are the same idea for the numbers — every figure and significance test in the repo is
+derived from them, so a run that saves them can be re-analysed without being repeated.
 """
 
 from dataclasses import dataclass, field
@@ -11,6 +12,9 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Sequence, Tuple
 
 import joblib
+import pandas as pd
+
+from evaluate.metrics import SUMMARY_GROUPS, summarize_scores
 
 # Bumped when the bundle layout changes in a way older readers cannot handle.
 BUNDLE_FORMAT_VERSION = 1
@@ -117,3 +121,39 @@ def align_features(features, feature_columns: Sequence[str], source: Optional[st
         where = f" in {source}" if source else ""
         raise ValueError(f"Missing feature column(s){where}: {missing}. The model expects {list(feature_columns)}.")
     return features[list(feature_columns)]
+
+
+RESULTS_FILENAME = "results.csv"
+SUMMARY_FILENAME = "summary.csv"
+
+
+def save_results(
+    results: pd.DataFrame,
+    output_dir: Optional[str],
+    *,
+    prefix: str = "",
+    by: Sequence[str] = SUMMARY_GROUPS,
+    enabled: bool = True,
+) -> Tuple[pd.DataFrame, Optional[Path]]:
+    """Summarize a long-form result table, and write both tables unless saving is turned off.
+
+    Args:
+        results: Rows shaped like evaluate.metrics.RESULT_COLUMNS.
+        output_dir: Directory to write into; saving is skipped when it is empty.
+        prefix: Prepended to both filenames, so several runs can share a directory.
+        by: Identifying columns the summary groups on.
+        enabled: False computes the summary but writes nothing, for a caller that only wants the numbers.
+
+    Returns:
+        (summary, directory), where directory is None when nothing was written.
+    """
+    summary = summarize_scores(results, by=by)
+
+    if not enabled or not output_dir:
+        return summary, None
+
+    directory = Path(output_dir)
+    directory.mkdir(parents=True, exist_ok=True)
+    results.to_csv(directory / f"{prefix}{RESULTS_FILENAME}", index=False)
+    summary.to_csv(directory / f"{prefix}{SUMMARY_FILENAME}", index=False)
+    return summary, directory

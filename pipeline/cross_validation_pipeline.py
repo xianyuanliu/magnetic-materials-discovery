@@ -8,10 +8,9 @@ from config import RunConfig
 from evaluate.cross_validation import cross_validate_models, scores_to_results
 from loaddata.splits import build_kfold_splits
 from loaddata.tabular_access import load_feature_table
-from pipeline.comparison import report_comparison
-from pipeline.results import save_results
+from utils.persistence import save_results
 from utils.registry import ModelSpec, resolve_models
-from utils.reporting import print_cv_results
+from utils.reporting import print_comparisons, print_cv_results
 
 
 def run_cross_validation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
@@ -60,7 +59,8 @@ def run_cross_validation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -
         if cfg.compare_models is not None:
             # Every fold trains on all but one of K parts, so one fold's test set is 1 / (K - 1) of its
             # training set. The folds share training data; compare_models_significance corrects for it.
-            report_comparison(cfg, registry, results, test_train_ratio=1.0 / (cfg.kfold.folds - 1))
+            name_a, name_b = (spec.name for spec in resolve_models(registry, cfg.compare_models))
+            print_comparisons(results, name_a, name_b, test_train_ratio=1.0 / (cfg.kfold.folds - 1))
 
     _, directory = save_results(
         pd.concat(collected, ignore_index=True),

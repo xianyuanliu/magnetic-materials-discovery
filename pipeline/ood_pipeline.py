@@ -18,6 +18,7 @@ from typing import Dict, List, Mapping, Sequence, Tuple
 import pandas as pd
 
 from config import RunConfig
+from evaluate.metrics import METRICS, melt_to_results
 from evaluate.ood_evaluation import (
     OOD,
     evaluate_splits_kfold_train_fixed_test,
@@ -28,6 +29,7 @@ from evaluate.ood_evaluation import (
 from loaddata.splits import Split, build_kfold_splits, build_size_matched_split
 from loaddata.tabular_access import load_feature_table
 from pipeline.ood_scenarios import build_scenarios, resolve_split_elements
+from utils.persistence import save_results
 from utils.registry import ModelSpec, resolve_models
 from utils.reporting import print_ood_tables
 
@@ -175,3 +177,20 @@ def run_ood_evaluation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> 
             table.to_csv(out_dir / filename, index=False)
 
     print(f"\nSaved OOD tables to: {out_dir.resolve()}")
+
+    # The unified table reports one observation per split, matching table 2's *_mean columns: the inner folds all score
+    # the same held-out rows, so their spread belongs in *_std rather than as separate observations.
+    _, directory = save_results(
+        melt_to_results(
+            metrics_by_model,
+            {f"{metric.upper()}_mean": metric for metric in METRICS},
+            identifiers={
+                "scenario": "scenario", "split_type": "split_type", "split_id": "split_id",
+                "seed": "seed", "model": "model",
+            },
+        ),
+        ood_cfg.output_dir,
+        enabled=cfg.save_results,
+    )
+    if directory is not None:
+        print(f"Saved the unified result table to: {directory.resolve()}")

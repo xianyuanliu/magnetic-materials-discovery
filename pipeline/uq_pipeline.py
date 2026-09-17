@@ -24,6 +24,7 @@ import pandas as pd
 
 from config import RunConfig
 from evaluate.calibration import summarize_across_seeds, summarize_calibration
+from evaluate.metrics import melt_to_results
 from loaddata.tabular_access import load_feature_table
 from pipeline.ood_scenarios import build_scenarios, resolve_split_elements
 from loaddata.splits import Split, build_kfold_splits, build_size_matched_split
@@ -35,6 +36,7 @@ from predict.uncertainty import (
     gaussian_half_width,
     rf_tree_std,
 )
+from utils.persistence import save_results
 from utils.registry import ModelSpec
 from utils.reporting import print_uq_report
 
@@ -47,6 +49,10 @@ ID_RANDOM = "ID-random"
 # predict/uncertainty.py's rf_tree_std can read as a spread. RandomForestRegressor is a bag of interchangeable trees;
 # XGBoost fits one additive model, so its boosters carry no comparable spread.
 ENSEMBLE_STD_MODELS = frozenset({"rf"})
+
+# Calibration metrics, as named in evaluate/calibration.py. These replace the regression metrics: a UQ run
+# scores how well an interval is earned, not how close a point prediction is.
+UQ_METRICS = ("mae", "coverage", "coverage_error", "mean_width", "rms_z")
 
 TABLE_FILENAMES = (
     "uq_table1_by_split.csv",
@@ -244,3 +250,20 @@ def run_uq_evaluation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> N
         table.to_csv(out_dir / filename, index=False)
 
     print(f"\nSaved UQ tables to: {out_dir.resolve()}")
+
+    # `model` carries the interval method here: the fitted model is fixed by uq_model, and what the run compares is
+    # how each method's intervals behave.
+    _, directory = save_results(
+        melt_to_results(
+            by_split,
+            {metric: metric for metric in UQ_METRICS},
+            identifiers={
+                "scenario": "scenario", "split_type": "split_type", "split_id": "split_id",
+                "seed": "seed", "model": "method",
+            },
+        ),
+        uq_cfg.output_dir,
+        enabled=cfg.save_results,
+    )
+    if directory is not None:
+        print(f"Saved the unified result table to: {directory.resolve()}")

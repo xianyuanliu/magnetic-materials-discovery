@@ -33,8 +33,9 @@ notebook or another project without a run's output appearing as a side effect.
     (config keys to specs). A leaf, because `evaluate/` needs `ModelSpec` too and must
     not import `pipeline/` to get it.
   - `reporting.py`: every `print_*` and display formatter in the codebase.
-  - `persistence.py`: `ModelBundle` — a fitted model plus the feature columns, in
-    training order, that it must be given — with `save_model_bundle` / `load_model_bundle`.
+  - `persistence.py`: what a run leaves behind — `ModelBundle` (a fitted model plus the feature
+    columns, in training order, that it must be given) with `save_model_bundle` /
+    `load_model_bundle`, and `save_results`, which every mode writes its numbers through.
 - `config.py`: the whole run config as frozen dataclasses (`RunConfig`, `KFoldConfig`,
   `HoldoutConfig`, `TuningConfig`, `OODConfig`, `UQConfig`, `PredictConfig`). Unknown
   keys are rejected rather than ignored, so a typo in a config file is an error instead
@@ -69,11 +70,12 @@ notebook or another project without a run's output appearing as a side effect.
   uncertainty estimators with split-conformal calibration (`uncertainty.py`).
 - `pipeline/`: one orchestration module per evaluation mode — `holdout_pipeline.py`,
   `cross_validation_pipeline.py`, `inference_pipeline.py`, `uq_pipeline.py`, `ood_pipeline.py`
-  (with `ood_scenarios.py` turning the config into a list of scenarios); and the paired
-  model-comparison helper shared by holdout and cross-validation (`comparison.py`), plus the optional
-  dataset distribution plots (`data_visualization.py`).
+  (with `ood_scenarios.py` turning the config into a list of scenarios), plus the optional dataset
+  distribution plots (`data_visualization.py`). Nothing else lives here: helpers a mode needs but
+  does not orchestrate belong in `utils/` or `evaluate/`.
   Every evaluation mode has the same shape: resolve the models, load the feature table, build
-  splits from `loaddata/splits.py`, score them, report. Only the split family and the tables
+  splits from `loaddata/splits.py`, score them, then write one `results.csv` of raw per-split
+  numbers and one `summary.csv` of means and standard deviations. Only the split family and the tables
   differ, so a new mode is a new choice of those two rather than a new pipeline shape.
 - `evaluate/`: scores the splits it is handed and decides nothing about them — metric
   primitives (`metrics.py`), per-split scoring and paired significance testing

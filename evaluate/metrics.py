@@ -21,6 +21,11 @@ from sklearn.metrics import (
 METRICS = ("mse", "mae", "mre", "r2")
 METRIC_DECIMALS = {"mse": 4, "mae": 4, "mre": 6, "r2": 4}
 
+# The paired tests read a positive difference as "model_a is worse", so they only apply to metrics where lower wins.
+# Derived rather than listed, so a metric added to METRICS is compared unless it is explicitly higher-is-better.
+HIGHER_IS_BETTER = ("r2",)
+COMPARABLE_METRICS = tuple(metric for metric in METRICS if metric not in HIGHER_IS_BETTER)
+
 
 def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
     """Compute MSE/MAE/MRE/R² using sklearn's metric implementations.
@@ -46,6 +51,45 @@ RESULT_COLUMNS = ("scenario", "split_type", "split_id", "seed", "model", "metric
 
 # What a summary is grouped by unless the caller says otherwise: one row per model and metric within a family.
 SUMMARY_GROUPS = ("scenario", "split_type", "model", "metric")
+
+
+def melt_to_results(
+    table: pd.DataFrame,
+    value_columns: Dict[str, str],
+    *,
+    identifiers: Dict[str, str],
+) -> pd.DataFrame:
+    """Reshape a mode's wide result table into the long form, without recomputing anything.
+
+    The values are carried over as they are, so a table already written to disk and its long-form twin cannot drift.
+
+    Args:
+        table: One row per split, with a column per metric.
+        value_columns: {column in `table`: metric name in the output}.
+        identifiers: {column in RESULT_COLUMNS: column in `table`, or a constant if absent from it}.
+
+    Returns:
+        A frame with exactly RESULT_COLUMNS, empty if `table` is.
+    """
+    if table.empty:
+        return pd.DataFrame(columns=list(RESULT_COLUMNS))
+
+    frame = pd.DataFrame(index=table.index)
+    for target, source in identifiers.items():
+        frame[target] = table[source] if source in table.columns else source
+
+    melted = []
+    for column, metric in value_columns.items():
+        if column not in table.columns:
+            continue
+        part = frame.copy()
+        part["metric"] = metric
+        part["value"] = pd.to_numeric(table[column], errors="coerce")
+        melted.append(part)
+
+    if not melted:
+        return pd.DataFrame(columns=list(RESULT_COLUMNS))
+    return pd.concat(melted, ignore_index=True)[list(RESULT_COLUMNS)]
 
 
 def build_result_rows(
