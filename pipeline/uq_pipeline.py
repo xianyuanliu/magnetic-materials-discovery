@@ -16,7 +16,6 @@ The model is chosen from ENSEMBLE_STD_MODELS rather than by hard-coding a Random
 from __future__ import annotations
 
 import zlib
-from pathlib import Path
 from typing import List, Mapping, Optional, Sequence, Tuple
 
 import numpy as np
@@ -36,7 +35,7 @@ from predict.uncertainty import (
     gaussian_half_width,
     rf_tree_std,
 )
-from utils.persistence import save_results
+from utils.persistence import save_results, save_tables
 from utils.registry import ModelSpec
 from utils.reporting import print_uq_report
 
@@ -242,14 +241,16 @@ def run_uq_evaluation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> N
     pooled_by_seed = summarize_calibration(samples, ("seed", "split_type", "method"), alpha)
     across_seeds = summarize_across_seeds(pooled_by_seed, ("split_type", "method"))
 
-    print_uq_report(across_seeds, alpha)
+    if cfg.print_results:
+        print_uq_report(across_seeds, alpha)
 
-    out_dir = Path(uq_cfg.output_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    for table, filename in zip((by_split, pooled_by_seed, across_seeds), TABLE_FILENAMES):
-        table.to_csv(out_dir / filename, index=False)
-
-    print(f"\nSaved UQ tables to: {out_dir.resolve()}")
+    out_dir = save_tables(
+        dict(zip(TABLE_FILENAMES, (by_split, pooled_by_seed, across_seeds))),
+        uq_cfg.output_dir,
+        enabled=cfg.save_results,
+    )
+    if out_dir is not None:
+        print(f"\nSaved UQ tables to: {out_dir.resolve()}")
 
     # `model` carries the interval method here: the fitted model is fixed by uq_model, and what the run compares is
     # how each method's intervals behave.

@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import zlib
 from functools import partial
-from pathlib import Path
 from typing import Dict, List, Mapping, Sequence, Tuple
 
 import pandas as pd
@@ -29,7 +28,7 @@ from evaluate.ood_evaluation import (
 from loaddata.splits import Split, build_kfold_splits, build_size_matched_split
 from loaddata.tabular_access import load_feature_table
 from pipeline.ood_scenarios import build_scenarios, resolve_split_elements
-from utils.persistence import save_results
+from utils.persistence import save_results, save_tables
 from utils.registry import ModelSpec, resolve_models
 from utils.reporting import print_ood_tables
 
@@ -168,15 +167,12 @@ def run_ood_evaluation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> 
         splits_summary, metrics_by_model, comparison_significance,
         combined_comparison, generalization_gap,
     )
-    print_ood_tables(*tables)
+    if cfg.print_results:
+        print_ood_tables(*tables)
 
-    out_dir = Path(ood_cfg.output_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    for table, filename in zip(tables, TABLE_FILENAMES):
-        if not table.empty:
-            table.to_csv(out_dir / filename, index=False)
-
-    print(f"\nSaved OOD tables to: {out_dir.resolve()}")
+    out_dir = save_tables(dict(zip(TABLE_FILENAMES, tables)), ood_cfg.output_dir, enabled=cfg.save_results)
+    if out_dir is not None:
+        print(f"\nSaved OOD tables to: {out_dir.resolve()}")
 
     # The unified table reports one observation per split, matching table 2's *_mean columns: the inner folds all score
     # the same held-out rows, so their spread belongs in *_std rather than as separate observations.

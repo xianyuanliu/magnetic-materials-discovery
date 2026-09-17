@@ -190,6 +190,7 @@ class RunConfig:
     plots_output_dir: str = "./plots"
     results_output_dir: str = "./results"
     save_results: bool = True
+    print_results: bool = True
 
     kfold: KFoldConfig = field(default_factory=KFoldConfig)
     holdout: HoldoutConfig = field(default_factory=HoldoutConfig)
@@ -216,7 +217,7 @@ _TOP_LEVEL_KEYS = frozenset({
     "cv_folds", "cv_shuffle", "cv_random_state", "cv_seeds",
     "holdout_seeds", "holdout_train_size",
     "tune_cv_folds", "tune_n_iter", "random_state", "plots_output_dir",
-    "results_output_dir", "save_results",
+    "results_output_dir", "save_results", "print_results",
 })
 
 _OOD_KEYS = frozenset({
@@ -393,6 +394,7 @@ def parse_run_config(raw: Mapping[str, Any]) -> RunConfig:
         plots_output_dir=str(raw.get("plots_output_dir", "./plots")),
         results_output_dir=str(raw.get("results_output_dir", "./results")),
         save_results=bool(raw.get("save_results", True)),
+        print_results=bool(raw.get("print_results", True)),
         ablation=AblationConfig(
             enabled=bool(raw.get("enable_ablation_study", False)),
             interpret_model=raw.get("interpret_model"),

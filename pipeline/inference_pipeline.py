@@ -21,7 +21,7 @@ import pandas as pd
 from config import RunConfig
 from utils.registry import ModelSpec, resolve_models
 from loaddata.tabular_access import load_element_properties, load_feature_table
-from utils.persistence import ModelBundle, align_features, load_model_bundle, save_model_bundle
+from utils.persistence import save_tables, ModelBundle, align_features, load_model_bundle, save_model_bundle
 from prepdata.alloy_descriptors import add_engineered_features
 from utils.reporting import print_predictions
 
@@ -162,12 +162,12 @@ def run_predict(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> pd.Data
         print(f"\n[WARN] Could not featurize {len(skipped)} formula(s): {skipped}")
 
     print(f"\nPredicted {bundle.target_column} for {len(predictions)} composition(s):")
-    print_predictions(predictions)
+    if cfg.print_results:
+        print_predictions(predictions)
 
-    if cfg.predict.output_path:
+    if cfg.predict.output_path and cfg.save_results:
         destination = Path(cfg.predict.output_path)
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        predictions.to_csv(destination, index=False)
+        save_tables({destination.name: predictions}, str(destination.parent))
         print(f"\nSaved predictions to: {destination.resolve()}")
 
     return predictions

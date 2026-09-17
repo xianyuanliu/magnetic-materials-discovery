@@ -13,7 +13,7 @@ from loaddata.splits import build_holdout_split
 from loaddata.tabular_access import load_element_properties, load_feature_table
 from utils.persistence import save_results
 from utils.registry import ModelSpec, resolve_models
-from utils.reporting import print_comparisons, print_cv_results, print_holdout_results
+from utils.reporting import print_comparisons, print_holdout_results, print_summary
 
 
 def _tune_on_split(specs, X_train, y_train, cfg: RunConfig) -> Dict[str, Dict]:
@@ -116,7 +116,8 @@ def run_holdout(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
             trained[spec.key] = model
             predictions[spec.name] = model.predict(X_valid)
 
-        print_holdout_results(y_valid, predictions)
+        if cfg.print_results:
+            print_holdout_results(y_valid, predictions)
 
         per_seed = {name: compute_metrics(y_valid, y_pred) for name, y_pred in predictions.items()}
         for name, metrics in per_seed.items():
@@ -130,7 +131,7 @@ def run_holdout(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
         if not first_split_models:
             first_split_models = trained
 
-    _, directory = save_results(
+    summary, directory = save_results(
         pd.concat(collected, ignore_index=True),
         cfg.results_output_dir,
         prefix=f"{cfg.prefix}_holdout_",
@@ -139,9 +140,8 @@ def run_holdout(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
     if directory is not None:
         print(f"\nSaved holdout results to: {directory.resolve()}")
 
-    if len(cfg.holdout.seeds) > 1:
-        print(f"\n=== Holdout across {len(cfg.holdout.seeds)} splits ===")
-        print_cv_results(scores, title="Holdout Metrics (mean ± std over split seeds):")
+    if cfg.print_results and len(cfg.holdout.seeds) > 1:
+        print_summary(summary, f"Holdout Metrics across {len(cfg.holdout.seeds)} seed(s) (mean ± std):")
         if cfg.compare_models is not None:
             # One observation per seed, each a fresh split of the same rows, so the training sets overlap.
             name_a, name_b = (spec.name for spec in resolve_models(registry, cfg.compare_models))

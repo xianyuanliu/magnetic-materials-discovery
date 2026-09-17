@@ -35,7 +35,9 @@ notebook or another project without a run's output appearing as a side effect.
   - `reporting.py`: every `print_*` and display formatter in the codebase.
   - `persistence.py`: what a run leaves behind — `ModelBundle` (a fitted model plus the feature
     columns, in training order, that it must be given) with `save_model_bundle` /
-    `load_model_bundle`, and `save_results`, which every mode writes its numbers through.
+    `load_model_bundle`, and `save_results` / `save_tables`, which every mode writes its numbers
+    through. `save_results` and `print_results` in the config turn saving and printing off
+    independently, so a sweep can keep the tables and drop the console output.
 - `config.py`: the whole run config as frozen dataclasses (`RunConfig`, `KFoldConfig`,
   `HoldoutConfig`, `TuningConfig`, `OODConfig`, `UQConfig`, `PredictConfig`). Unknown
   keys are rejected rather than ignored, so a typo in a config file is an error instead

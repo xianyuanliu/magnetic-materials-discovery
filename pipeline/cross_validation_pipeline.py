@@ -10,7 +10,7 @@ from loaddata.splits import build_kfold_splits
 from loaddata.tabular_access import load_feature_table
 from utils.persistence import save_results
 from utils.registry import ModelSpec, resolve_models
-from utils.reporting import print_comparisons, print_cv_results
+from utils.reporting import print_comparisons, print_cv_results, print_summary
 
 
 def run_cross_validation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
@@ -55,18 +55,22 @@ def run_cross_validation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -
         )
         collected.append(scores_to_results(results, splits, scenario="cross_validation", seed=int(seed)))
 
-        print_cv_results(results)
-        if cfg.compare_models is not None:
+        if cfg.print_results:
+            print_cv_results(results)
+        if cfg.compare_models is not None and cfg.print_results:
             # Every fold trains on all but one of K parts, so one fold's test set is 1 / (K - 1) of its
             # training set. The folds share training data; compare_models_significance corrects for it.
             name_a, name_b = (spec.name for spec in resolve_models(registry, cfg.compare_models))
             print_comparisons(results, name_a, name_b, test_train_ratio=1.0 / (cfg.kfold.folds - 1))
 
-    _, directory = save_results(
+    summary, directory = save_results(
         pd.concat(collected, ignore_index=True),
         cfg.results_output_dir,
         prefix=f"{cfg.prefix}_cv_",
         enabled=cfg.save_results,
     )
+    # Across every fold of every seed, so cross-validation and holdout close on the same statement.
+    if cfg.print_results and len(cfg.kfold.seeds) > 1:
+        print_summary(summary, f"Cross-Validation Metrics across {len(cfg.kfold.seeds)} seed(s) (mean ± std):")
     if directory is not None:
         print(f"\nSaved cross-validation results to: {directory.resolve()}")

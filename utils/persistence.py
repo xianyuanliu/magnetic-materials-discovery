@@ -9,7 +9,7 @@ derived from them, so a run that saves them can be re-analysed without being rep
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Optional, Sequence, Tuple
+from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
 import joblib
 import pandas as pd
@@ -125,6 +125,36 @@ def align_features(features, feature_columns: Sequence[str], source: Optional[st
 
 RESULTS_FILENAME = "results.csv"
 SUMMARY_FILENAME = "summary.csv"
+
+
+def save_tables(
+    tables: Mapping[str, pd.DataFrame],
+    output_dir: Optional[str],
+    *,
+    enabled: bool = True,
+) -> Optional[Path]:
+    """Write a mode's derived tables, honoring the same switch that governs the raw results.
+
+    Derived tables are analyses of the raw table — a gap decomposition, a calibration summary — so they are worth
+    keeping together with it and worth skipping together with it.
+
+    Args:
+        tables: {filename: table}. An empty table is skipped, since a file of headers reads as a result of zero.
+        output_dir: Directory to write into; saving is skipped when it is empty.
+        enabled: False writes nothing.
+
+    Returns:
+        The directory written to, or None when nothing was written.
+    """
+    if not enabled or not output_dir:
+        return None
+
+    directory = Path(output_dir)
+    directory.mkdir(parents=True, exist_ok=True)
+    for filename, table in tables.items():
+        if not table.empty:
+            table.to_csv(directory / filename, index=False)
+    return directory
 
 
 def save_results(

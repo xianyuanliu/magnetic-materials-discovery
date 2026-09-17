@@ -74,6 +74,29 @@ def print_comparisons(
         ))
 
 
+def print_summary(summary: pd.DataFrame, title: str) -> None:
+    """Print a summary table from utils.persistence.save_results as mean ± std per model.
+
+    Args:
+        summary: Rows of (identifying columns..., mean, std, n).
+        title: Heading, which names what the observations were.
+    """
+    if summary.empty:
+        print(f"\n{title}\n  (no observations)")
+        return
+
+    print(f"\n{title}")
+    for model, group in summary.groupby("model", sort=True):
+        print(f"\n{model}:")
+        for metric in METRICS:
+            row = group[group["metric"] == metric]
+            if row.empty:
+                continue
+            mean, std, n = float(row["mean"].iloc[0]), float(row["std"].iloc[0]), int(row["n"].iloc[0])
+            label = "R2" if metric == "r2" else metric.upper()
+            print(f"{label + ':':<5}{format_mean_std(mean, std, METRIC_DECIMALS[metric])}  (n={n})")
+
+
 def print_significance(result: SignificanceResult) -> None:
     """Print one paired model comparison, including why a p-value is missing."""
     print(f"\n{result.model_a} vs {result.model_b} — metric={result.metric.upper()}")
