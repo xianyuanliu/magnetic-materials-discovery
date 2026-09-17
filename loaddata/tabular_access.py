@@ -109,6 +109,8 @@ def resolve_feature_columns(
             feature column is non-numeric.
     """
     if feature_columns is not None:
+        if not list(feature_columns):
+            raise ValueError("feature_columns was given but is empty, which would leave the model no inputs.")
         missing = [c for c in feature_columns if c not in data.columns]
         if missing:
             raise ValueError(
@@ -160,7 +162,7 @@ def load_feature_table(
         ValueError: If no path is given, the target column is missing, or the features do not resolve to a usable
             numeric matrix.
     """
-    if isinstance(paths, (str, Path)):
+    if paths is None or isinstance(paths, (str, Path)):
         paths = [paths]
     paths = [path for path in paths if path]
     if not paths:

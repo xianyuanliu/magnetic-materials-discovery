@@ -331,9 +331,13 @@ def _load_predict_config(raw: Mapping[str, Any], models: Sequence[str]) -> Predi
 def _validate(cfg: RunConfig) -> None:
     """Check cross-field constraints that a single key cannot express.
 
+    Checks only what a later failure would report badly: an unknown mode falls through main.py's dispatch to holdout,
+    and a `compare_models` list of the wrong length is read positionally. Bounds that scikit-learn or the loaders
+    already reject with a clear message are left to them.
+
     Raises:
-        ValueError: On an unsupported mode, a missing dataset path for the
-            chosen mode, or a `compare_models` pair that is not a pair.
+        ValueError: On an unsupported mode, a missing dataset path for the chosen mode, or a `compare_models` pair that
+            is not a pair.
     """
     if cfg.evaluation_mode not in EVALUATION_MODES:
         raise ValueError(
@@ -349,12 +353,6 @@ def _validate(cfg: RunConfig) -> None:
 
     if cfg.compare_models is not None and len(cfg.compare_models) != 2:
         raise ValueError(f"compare_models must name exactly two models, got {list(cfg.compare_models)}.")
-
-    if cfg.feature_columns is not None and not cfg.feature_columns:
-        raise ValueError("feature_columns was given but is empty.")
-
-    if not 0.0 < cfg.holdout.train_size < 1.0:
-        raise ValueError(f"holdout_train_size must be in (0, 1), got {cfg.holdout.train_size}.")
 
 
 def parse_run_config(raw: Mapping[str, Any]) -> RunConfig:
