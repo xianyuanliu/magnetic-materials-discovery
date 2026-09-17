@@ -13,7 +13,7 @@ from scipy import stats
 
 
 from utils.registry import ModelSpec
-from evaluate.metrics import METRICS, compute_metrics
+from evaluate.metrics import METRICS, build_result_rows, compute_metrics
 from loaddata.splits import Split
 
 # Below this many paired observations a signed-rank test cannot reach any conventional significance level at all: with n
@@ -135,6 +135,35 @@ def _paired_scores(results: FoldScores, model_a: str, model_b: str, metric: str)
     if len(a) != len(b):
         raise ValueError(f"Paired count mismatch: {model_a} has {len(a)}, {model_b} has {len(b)}")
     return a, b
+
+
+def scores_to_results(
+    scores: FoldScores,
+    splits: Sequence[Split],
+    *,
+    scenario: str,
+    split_type: str = "ID",
+    seed: int = 0,
+) -> pd.DataFrame:
+    """Re-express per-split scores as the long-form table every mode reports through.
+
+    Args:
+        scores: What cross_validate_models returned for `splits`.
+        splits: The same splits, read for their identifiers.
+        scenario: Split family name carried into the table.
+        split_type: Shifted or in-distribution; plain K-fold and holdout are in-distribution.
+        seed: The seed that produced `splits`.
+
+    Returns:
+        A frame shaped like evaluate.metrics.RESULT_COLUMNS.
+    """
+    return build_result_rows(
+        scores,
+        scenario=scenario,
+        split_type=split_type,
+        split_ids=[split_id for split_id, _, _ in splits],
+        seed=seed,
+    )
 
 
 def _corrected_ttest(a: np.ndarray, b: np.ndarray, test_train_ratio: float):

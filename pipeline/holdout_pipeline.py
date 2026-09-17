@@ -3,13 +3,16 @@
 from pathlib import Path
 from typing import Dict, Mapping, Sequence
 
+import pandas as pd
+
 from config import RunConfig
-from evaluate.metrics import METRICS, compute_metrics
+from evaluate.metrics import METRICS, build_result_rows, compute_metrics
 from interpret.case_studies import plot_case_studies
 from interpret.model_weights import plot_permutation_importance, plot_shap_summary
 from loaddata.splits import build_holdout_split
 from loaddata.tabular_access import load_element_properties, load_feature_table
 from pipeline.comparison import report_comparison
+from pipeline.results import save_results
 from utils.registry import ModelSpec, resolve_models
 from utils.reporting import print_cv_results, print_holdout_results
 
@@ -91,6 +94,7 @@ def run_holdout(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
     feature_columns = list(X.columns)
 
     scores = {spec.name: {metric: [] for metric in METRICS} for spec in specs}
+    collected = []
     first_split_models: Dict[str, object] = {}
 
     for run_i, seed in enumerate(cfg.holdout.seeds, start=1):
@@ -115,12 +119,26 @@ def run_holdout(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
 
         print_holdout_results(y_valid, predictions)
 
-        for name, y_pred in predictions.items():
-            for metric, value in compute_metrics(y_valid, y_pred).items():
+        per_seed = {name: compute_metrics(y_valid, y_pred) for name, y_pred in predictions.items()}
+        for name, metrics in per_seed.items():
+            for metric, value in metrics.items():
                 scores[name][metric].append(value)
+        collected.append(build_result_rows(
+            {name: {m: [v] for m, v in metrics.items()} for name, metrics in per_seed.items()},
+            scenario="holdout", split_type="ID", split_ids=[f"seed{seed}"], seed=int(seed),
+        ))
 
         if not first_split_models:
             first_split_models = trained
+
+    _, directory = save_results(
+        pd.concat(collected, ignore_index=True),
+        cfg.results_output_dir,
+        prefix=f"{cfg.prefix}_holdout_",
+        enabled=cfg.save_results,
+    )
+    if directory is not None:
+        print(f"\nSaved holdout results to: {directory.resolve()}")
 
     if len(cfg.holdout.seeds) > 1:
         print(f"\n=== Holdout across {len(cfg.holdout.seeds)} splits ===")
