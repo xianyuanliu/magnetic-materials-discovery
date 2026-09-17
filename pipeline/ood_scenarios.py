@@ -1,8 +1,12 @@
-"""Config-driven selection of OOD scenarios and their splits.
+"""Config-driven setup for an OOD run: which scenarios to build, and the chemistry they are defined over.
 
-Turns a resolved OODConfig into a list of (scenario_name, splits) pairs by picking which
-elements/periods/groups/clusters to hold out and delegating to loaddata/splits.py. Shared by the OOD and UQ
-pipelines so both evaluate exactly the same scenarios.
+`resolve_split_elements` turns a loaded feature table's metadata into the parsed elements and the group/period maps
+every chemistry-based family needs. `build_scenarios` then reads a resolved OODConfig and returns
+(scenario_name, splits) pairs, delegating the actual index arithmetic to loaddata/splits.py. Both are shared by the OOD
+and UQ pipelines so the two evaluate exactly the same scenarios.
+
+Which families *can* be built is a property of the data and lives in loaddata/splits.py; which ones this run wants is a
+config decision and lives here. That is the only reason this module imports `config` while the split builders do not.
 
 Hold-out targets are named per family (`elements`, `periods`, `groups`) rather than through one shared list: element
 targets are symbols and period/group targets are integers, so a single list could not serve all three — under `ood_mode:
