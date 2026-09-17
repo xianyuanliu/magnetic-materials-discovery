@@ -76,32 +76,10 @@ def plot_violin_ms_by_tm(data, title: str = "Violin Plot", save_path=None):
         plt.show()
 
 
-def summarize_compound_radix(data):
+def count_compounds_by_radix(data) -> pd.Series:
+    """Count how many compounds have each number of distinct elements.
+
+    Returns:
+        Counts indexed by radix, ascending.
     """
-    Print the number of compounds in the dataset.
-    """
-    data = data.copy()
-
-    # Compute compound radix (number of unique elements in formula)
-    data['compoundradix'] = get_compound_radix(data)
-
-    total_compound_radix = data['compoundradix'].value_counts().sort_index()
-
-    # Print results cleanly
-    for radix, count in total_compound_radix.items():
-        if radix == 2:
-            name = "binary"
-        elif radix == 3:
-            name = "ternary"
-        elif radix == 4:
-            name = "quaternary"
-        elif radix == 5:
-            name = "quinary"
-        elif radix == 6:
-            name = "senary"
-        elif radix == 7:
-            name = "septenary"
-        else:
-            name = f"{radix}-component"
-
-        print(f"We have {count} {name} compounds")
+    return get_compound_radix(data).value_counts().sort_index()

@@ -44,10 +44,9 @@ def _grid_search_best_hyperparams(
     X_train,
     y_train,
     cv_folds: int,
-    label: str,
     scale: bool = False,
 ) -> Dict:
-    """Run GridSearchCV for a given model instance, print and return the best hyperparams.
+    """Run GridSearchCV for a given model instance and return the best hyperparams.
 
     Returns bare (un-prefixed) parameter names even when `scale` is set, so the
     result stays a valid kwargs dict for the matching build_* function.
@@ -60,10 +59,7 @@ def _grid_search_best_hyperparams(
         n_jobs=-1,
     )
     grid_search.fit(X_train, y_train)
-    best_hyperparams = _strip_hyperparams(grid_search.best_params_) if scale else grid_search.best_params_
-    print(f"{label} Best Parameters:", best_hyperparams)
-    print(f"{label} Best Score (neg_mean_squared_error):", grid_search.best_score_)
-    return best_hyperparams
+    return _strip_hyperparams(grid_search.best_params_) if scale else grid_search.best_params_
 
 
 def _randomized_search_best_hyperparams(
@@ -73,11 +69,10 @@ def _randomized_search_best_hyperparams(
     y_train,
     cv_folds: int,
     random_state: int,
-    label: str,
     n_iter: int = 20,
     scale: bool = False,
 ) -> Dict:
-    """Run RandomizedSearchCV for a given model instance, print and return the best hyperparams.
+    """Run RandomizedSearchCV for a given model instance and return the best hyperparams.
 
     Returns bare (un-prefixed) parameter names even when `scale` is set; see _grid_search_best_hyperparams.
     """
@@ -91,10 +86,7 @@ def _randomized_search_best_hyperparams(
         random_state=random_state,
     )
     random_search.fit(X_train, y_train)
-    best_hyperparams = _strip_hyperparams(random_search.best_params_) if scale else random_search.best_params_
-    print(f"{label} Best Parameters:", best_hyperparams)
-    print(f"{label} Best Score (neg_mean_squared_error):", random_search.best_score_)
-    return best_hyperparams
+    return _strip_hyperparams(random_search.best_params_) if scale else random_search.best_params_
 
 
 # --- Linear Regression ---
@@ -126,7 +118,7 @@ def tune_ridge_hyperparams(
     param_grid = {
         "alpha": [0.001, 0.01, 0.1, 1.0, 10.0, 100.0, 1000.0],
     }
-    return _grid_search_best_hyperparams(build_ridge(), param_grid, X_train, y_train, cv_folds, "Ridge", scale=True)
+    return _grid_search_best_hyperparams(build_ridge(), param_grid, X_train, y_train, cv_folds, scale=True)
 
 
 def train_ridge(X_train, y_train, hyperparams: Optional[Dict] = None, random_state: int = 0):
@@ -155,7 +147,7 @@ def tune_lasso_hyperparams(
     param_grid = {
         "alpha": [0.0001, 0.001, 0.01, 0.1, 1.0, 10.0],
     }
-    return _grid_search_best_hyperparams(build_lasso(), param_grid, X_train, y_train, cv_folds, "Lasso", scale=True)
+    return _grid_search_best_hyperparams(build_lasso(), param_grid, X_train, y_train, cv_folds, scale=True)
 
 
 def train_lasso(X_train, y_train, hyperparams: Optional[Dict] = None, random_state: int = 0):
@@ -186,7 +178,7 @@ def tune_elasticnet_hyperparams(
         "l1_ratio": [0.1, 0.3, 0.5, 0.7, 0.9],
     }
     return _grid_search_best_hyperparams(
-        build_elasticnet(), param_grid, X_train, y_train, cv_folds, "ElasticNet", scale=True
+        build_elasticnet(), param_grid, X_train, y_train, cv_folds, scale=True
     )
 
 
@@ -237,7 +229,7 @@ def tune_random_forest_hyperparams(
         "max_features": [0.5, 0.75, 1.0],
     }
     return _grid_search_best_hyperparams(
-        build_random_forest(random_state=random_state), param_grid, X_train, y_train, cv_folds, "RF"
+        build_random_forest(random_state=random_state), param_grid, X_train, y_train, cv_folds
     )
 
 
@@ -309,7 +301,7 @@ def tune_xgboost_hyperparams(
         for learning_rate, n_estimators in [(0.01, 1500), (0.05, 600), (0.1, 300)]
     ]
     return _grid_search_best_hyperparams(
-        build_xgboost(random_state=random_state), param_grid, X_train, y_train, cv_folds, "XGB"
+        build_xgboost(random_state=random_state), param_grid, X_train, y_train, cv_folds
     )
 
 
@@ -362,7 +354,7 @@ def tune_svr_hyperparams(
         "gamma": ["scale", 0.01, 0.1, 1.0],
         "epsilon": [0.01, 0.05, 0.1],
     }
-    return _grid_search_best_hyperparams(build_svr(), param_grid, X_train, y_train, cv_folds, "SVR", scale=True)
+    return _grid_search_best_hyperparams(build_svr(), param_grid, X_train, y_train, cv_folds, scale=True)
 
 
 def train_svr(X_train, y_train, hyperparams: Optional[Dict] = None, random_state: int = 0):
@@ -414,7 +406,7 @@ def tune_mlp_hyperparams(
     }
     return _randomized_search_best_hyperparams(
         build_mlp(random_state=random_state), param_dist, X_train, y_train, cv_folds,
-        random_state, "MLP", n_iter=n_iter, scale=True,
+        random_state, n_iter=n_iter, scale=True,
     )
 
 

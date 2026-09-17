@@ -22,9 +22,11 @@ there is no learned representation yet; it is where deep-learning encoders will 
 Dependencies run one way. `config.py` and `utils/registry.py` are leaves that import
 nothing from the stage packages; `evaluate/` scores the splits it is handed and never
 imports `pipeline/`; `pipeline/` decides which splits exist and calls into `evaluate/`.
-Nothing under `evaluate/` prints — all console output lives in `utils/reporting.py`,
-which formats what `evaluate/` returns, so the scoring functions can be called from a
-notebook or another project without a run's output appearing as a side effect.
+No stage package prints — every `print` lives in `utils/reporting.py`, which formats what
+the stages return, so they can be called from a notebook or another project without a run's
+output appearing as a side effect. `print_results: false` in the config silences a run
+completely. Problems still surface: a skipped split or an unusable formula goes through
+`warnings.warn`, which that switch does not touch and a caller can filter or capture.
 
 - `main.py`: thin CLI entry point; parses `--config`, then dispatches to a predict,
   holdout, cross-validation, OOD, or UQ run.

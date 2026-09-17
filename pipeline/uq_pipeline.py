@@ -15,6 +15,7 @@ The model is chosen from ENSEMBLE_STD_MODELS rather than by hard-coding a Random
 
 from __future__ import annotations
 
+import warnings
 import zlib
 from typing import List, Mapping, Optional, Sequence, Tuple
 
@@ -147,7 +148,7 @@ def _collect_samples(
                 seed=seed, model_random_state=model_random_state,
             )
             if samples is None:
-                print(f"[WARN] Skipping {scenario} {split_id}: too few training rows to calibrate")
+                warnings.warn(f"Skipping {scenario} {split_id}: too few training rows to calibrate.")
                 continue
             samples.insert(0, "n_train", len(train_idx))
             samples.insert(0, "split_id", split_id)
@@ -233,7 +234,7 @@ def run_uq_evaluation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> N
 
     frames = [f for f in per_seed_frames if not f.empty]
     if not frames:
-        print("[WARN] No UQ samples produced; nothing to report.")
+        warnings.warn("No UQ samples produced; nothing to report.")
         return
     samples = pd.concat(frames, ignore_index=True)
 
@@ -249,7 +250,7 @@ def run_uq_evaluation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> N
         uq_cfg.output_dir,
         enabled=cfg.save_results,
     )
-    if out_dir is not None:
+    if out_dir is not None and cfg.print_results:
         print(f"\nSaved UQ tables to: {out_dir.resolve()}")
 
     # `model` carries the interval method here: the fitted model is fixed by uq_model, and what the run compares is
@@ -266,5 +267,5 @@ def run_uq_evaluation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> N
         uq_cfg.output_dir,
         enabled=cfg.save_results,
     )
-    if directory is not None:
+    if directory is not None and cfg.print_results:
         print(f"Saved the unified result table to: {directory.resolve()}")

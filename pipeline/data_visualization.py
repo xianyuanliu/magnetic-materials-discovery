@@ -7,7 +7,8 @@ produces the same metrics.
 from pathlib import Path
 
 from config import RunConfig
-from interpret.visualize import plot_ms_distribution_by_tm, plot_violin_ms_by_tm, summarize_compound_radix
+from interpret.visualize import count_compounds_by_radix, plot_ms_distribution_by_tm, plot_violin_ms_by_tm
+from utils.reporting import print_compound_counts
 from loaddata.tabular_access import load_feature_table
 
 
@@ -45,4 +46,4 @@ def run_data_visualization(cfg: RunConfig) -> None:
         title=f"{cfg.prefix.upper()} Violin Plot",
         save_path=plots_dir / f"{cfg.prefix}_violin_ms_by_tm.png",
     )
-    summarize_compound_radix(data)
+    print_compound_counts(count_compounds_by_radix(data))

@@ -10,7 +10,7 @@ from loaddata.splits import build_kfold_splits
 from loaddata.tabular_access import load_feature_table
 from utils.persistence import save_results
 from utils.registry import ModelSpec, resolve_models
-from utils.reporting import print_comparisons, print_cv_results, print_summary
+from utils.reporting import print_comparisons, print_cv_results, print_search_budget, print_summary
 
 
 def run_cross_validation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
@@ -23,23 +23,23 @@ def run_cross_validation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -
         feature_columns=cfg.feature_columns,
     )
 
-    if cfg.tuning.enabled:
-        # Nested search multiplies fast; warn before spending an hour on it.
-        tunable = [spec for spec in specs if spec.tune is not None]
-        searches = len(cfg.kfold.seeds) * cfg.kfold.folds * len(tunable)
-        print(
-            f"\n[INFO] Nested hyperparameter search: {len(cfg.kfold.seeds)} seed(s) x "
-            f"{cfg.kfold.folds} folds x {len(tunable)} tunable model(s) = {searches} searches, "
-            f"each up to {cfg.tuning.n_iter} candidates x {cfg.tuning.cv_folds} inner folds "
-            f"(~{searches * cfg.tuning.n_iter * cfg.tuning.cv_folds} model fits). "
-            f"Lower tune_n_iter / tune_cv_folds in the config to shrink this."
+    if cfg.tuning.enabled and cfg.print_results:
+        print_search_budget(
+            len(cfg.kfold.seeds), cfg.kfold.folds,
+            sum(1 for spec in specs if spec.tune is not None),
+            cfg.tuning.n_iter, cfg.tuning.cv_folds,
         )
+
+    # Resolved once: the pair is the same for every seed.
+    compared = (
+        tuple(spec.name for spec in resolve_models(registry, cfg.compare_models))
+        if cfg.compare_models is not None else None
+    )
 
     collected = []
     for run_i, seed in enumerate(cfg.kfold.seeds, start=1):
-        print(f"\n{'=' * 30}")
-        print(f"=== CV Run {run_i}/{len(cfg.kfold.seeds)} (seed={seed}) ===")
-        print(f"{'=' * 30}")
+        if cfg.print_results:
+            print(f"\n=== CV Run {run_i}/{len(cfg.kfold.seeds)} (seed={seed}) ===")
 
         splits = build_kfold_splits(len(X), cfg.kfold.folds, cfg.kfold.shuffle, int(seed))
         results = cross_validate_models(
@@ -57,11 +57,10 @@ def run_cross_validation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -
 
         if cfg.print_results:
             print_cv_results(results)
-        if cfg.compare_models is not None and cfg.print_results:
+        if compared is not None and cfg.print_results:
             # Every fold trains on all but one of K parts, so one fold's test set is 1 / (K - 1) of its
             # training set. The folds share training data; compare_models_significance corrects for it.
-            name_a, name_b = (spec.name for spec in resolve_models(registry, cfg.compare_models))
-            print_comparisons(results, name_a, name_b, test_train_ratio=1.0 / (cfg.kfold.folds - 1))
+            print_comparisons(results, *compared, test_train_ratio=1.0 / (cfg.kfold.folds - 1))
 
     summary, directory = save_results(
         pd.concat(collected, ignore_index=True),
@@ -72,5 +71,5 @@ def run_cross_validation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -
     # Across every fold of every seed, so cross-validation and holdout close on the same statement.
     if cfg.print_results and len(cfg.kfold.seeds) > 1:
         print_summary(summary, f"Cross-Validation Metrics across {len(cfg.kfold.seeds)} seed(s) (mean ± std):")
-    if directory is not None:
+    if directory is not None and cfg.print_results:
         print(f"\nSaved cross-validation results to: {directory.resolve()}")

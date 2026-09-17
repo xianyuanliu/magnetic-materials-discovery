@@ -18,7 +18,6 @@ from utils.reporting import print_comparisons, print_holdout_results, print_summ
 
 def _tune_on_split(specs, X_train, y_train, cfg: RunConfig) -> Dict[str, Dict]:
     """Search hyperparameters on one split's training set."""
-    print("--- Hyperparameter Tuning (on this split's training set) ---")
     return {
         spec.key: spec.tune(
             X_train,
@@ -97,7 +96,8 @@ def run_holdout(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
     first_split_models: Dict[str, object] = {}
 
     for run_i, seed in enumerate(cfg.holdout.seeds, start=1):
-        print(f"\n=== Holdout Run {run_i}/{len(cfg.holdout.seeds)} (split seed={seed}) ===")
+        if cfg.print_results:
+            print(f"\n=== Holdout Run {run_i}/{len(cfg.holdout.seeds)} (split seed={seed}) ===")
 
         _, train_idx, valid_idx = build_holdout_split(len(X), cfg.holdout.train_size, int(seed))
         X_train, X_valid = X.iloc[train_idx], X.iloc[valid_idx]
@@ -137,7 +137,7 @@ def run_holdout(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
         prefix=f"{cfg.prefix}_holdout_",
         enabled=cfg.save_results,
     )
-    if directory is not None:
+    if directory is not None and cfg.print_results:
         print(f"\nSaved holdout results to: {directory.resolve()}")
 
     if cfg.print_results and len(cfg.holdout.seeds) > 1:

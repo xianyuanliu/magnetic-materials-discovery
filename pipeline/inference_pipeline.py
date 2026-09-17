@@ -13,6 +13,7 @@ Either way the compositions to score come from `predict_input_path` (a CSV) or `
 config), are featurized with exactly the same code as the training data, and are written out with their predictions.
 """
 
+import warnings
 from pathlib import Path
 from typing import List, Mapping, Tuple
 
@@ -159,7 +160,7 @@ def run_predict(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> pd.Data
     predictions, skipped = predict_formulas(bundle, formulas, pt, mm, formula_column=cfg.formula_column)
 
     if skipped:
-        print(f"\n[WARN] Could not featurize {len(skipped)} formula(s): {skipped}")
+        warnings.warn(f"Could not featurize {len(skipped)} formula(s): {skipped}")
 
     print(f"\nPredicted {bundle.target_column} for {len(predictions)} composition(s):")
     if cfg.print_results:

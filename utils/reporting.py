@@ -74,6 +74,47 @@ def print_comparisons(
         ))
 
 
+# Latin names for the first few, which read better than "3-component" in a dataset summary.
+RADIX_NAMES = {2: "binary", 3: "ternary", 4: "quaternary", 5: "quinary", 6: "senary", 7: "septenary"}
+
+
+def print_compound_counts(counts: pd.Series) -> None:
+    """Print how many compounds have each number of distinct elements.
+
+    Args:
+        counts: Counts indexed by radix, from interpret.visualize.count_compounds_by_radix.
+    """
+    for radix, count in counts.items():
+        name = RADIX_NAMES.get(int(radix), f"{int(radix)}-component")
+        print(f"We have {count} {name} compounds")
+
+
+def print_search_budget(
+    n_seeds: int,
+    n_folds: int,
+    n_tunable: int,
+    n_iter: int,
+    tune_cv_folds: int,
+) -> None:
+    """Print what a nested hyperparameter search is about to cost, before it starts.
+
+    The search re-runs inside every outer fold, so the fit count is a product of five numbers and reaches the hours
+    long before any of them looks large on its own.
+
+    Args:
+        n_seeds, n_folds: Outer repeats and folds per repeat.
+        n_tunable: Models that actually have something to search.
+        n_iter, tune_cv_folds: Candidates sampled and inner folds per search.
+    """
+    searches = n_seeds * n_folds * n_tunable
+    print(
+        f"\n[INFO] Nested hyperparameter search: {n_seeds} seed(s) x {n_folds} folds x "
+        f"{n_tunable} tunable model(s) = {searches} searches, each up to {n_iter} candidates x "
+        f"{tune_cv_folds} inner folds (~{searches * n_iter * tune_cv_folds} model fits). "
+        f"Lower tune_n_iter / tune_cv_folds in the config to shrink this."
+    )
+
+
 def print_summary(summary: pd.DataFrame, title: str) -> None:
     """Print a summary table from utils.persistence.save_results as mean ± std per model.
 

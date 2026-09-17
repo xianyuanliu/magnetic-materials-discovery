@@ -10,6 +10,7 @@ know what a scenario is.
 
 from __future__ import annotations
 
+import warnings
 import zlib
 from functools import partial
 from typing import Dict, List, Mapping, Sequence, Tuple
@@ -57,7 +58,7 @@ def build_controls(splits: Sequence[Split], n_samples: int, seed: int, scenario:
             split_id=split_id,
         )
         if control is None:
-            print(f"[WARN] No size-matched control fits for {scenario} {split_id}")
+            warnings.warn(f"No size-matched control fits for {scenario} {split_id}.")
         else:
             controls[split_id] = control
     return controls
@@ -91,7 +92,7 @@ def _run_scenario(
 def _report_skip(scenario: str):
     """Return an on_skip callback that labels the scenario it came from."""
     def _on_skip(split_id: str, reason: str) -> None:
-        print(f"[WARN] Skipping split {split_id} in {scenario}: {reason}")
+        warnings.warn(f"Skipping split {split_id} in {scenario}: {reason}")
 
     return _on_skip
 
@@ -171,7 +172,7 @@ def run_ood_evaluation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> 
         print_ood_tables(*tables)
 
     out_dir = save_tables(dict(zip(TABLE_FILENAMES, tables)), ood_cfg.output_dir, enabled=cfg.save_results)
-    if out_dir is not None:
+    if out_dir is not None and cfg.print_results:
         print(f"\nSaved OOD tables to: {out_dir.resolve()}")
 
     # The unified table reports one observation per split, matching table 2's *_mean columns: the inner folds all score
@@ -188,5 +189,5 @@ def run_ood_evaluation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> 
         ood_cfg.output_dir,
         enabled=cfg.save_results,
     )
-    if directory is not None:
+    if directory is not None and cfg.print_results:
         print(f"Saved the unified result table to: {directory.resolve()}")
