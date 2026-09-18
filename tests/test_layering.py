@@ -28,7 +28,6 @@ RUNNERS_STILL_READING_CONFIG = (
     "pipeline/ood_pipeline.py",
     "pipeline/ood_scenarios.py",
     "pipeline/uncertainty_pipeline.py",
-    "pipeline/data_visualization.py",
 )
 
 

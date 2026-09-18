@@ -67,15 +67,12 @@ def plot_shap_summary(model, X_train, X_valid, save_path: Optional[str] = None, 
     explainer = shap.Explainer(model, X_train)
     shap_values = explainer(X_valid, check_additivity=False)
 
-    # The beeswarm scatters overlapping points through numpy's global RNG and takes no seed of its own, so the same
-    # attributions plotted twice give two different figures. Seed it here and hand the global state back, so the
-    # figure is reproducible without the rest of the run inheriting a reset RNG.
-    entropy = np.random.get_state()
-    np.random.seed(random_state)
-    try:
-        shap.summary_plot(shap_values, X_valid, feature_names=X_valid.columns, show=False)
-    finally:
-        np.random.set_state(entropy)
+    # The beeswarm scatters overlapping points at random, so the same attributions plotted twice give two different
+    # figures unless it is seeded. `rng` takes the seed without touching numpy's global state.
+    shap.summary_plot(
+        shap_values, X_valid, feature_names=X_valid.columns, show=False,
+        rng=np.random.default_rng(random_state),
+    )
 
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches="tight")

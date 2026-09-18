@@ -3,8 +3,7 @@
 import argparse
 
 from config import load_run_config
-from examples import cross_validation, inference, random_split
-from pipeline.data_visualization import run_data_visualization
+from examples import cross_validation, data_visualization, inference, random_split
 from pipeline.ood_pipeline import run_ood_evaluation
 from pipeline.uncertainty_pipeline import run_uncertainty_evaluation
 from predict.sklearn_models import MODEL_REGISTRY
@@ -36,7 +35,7 @@ def main() -> None:
         random_split.run(cfg=cfg, registry=MODEL_REGISTRY)
 
     if cfg.enable_data_visualization:
-        run_data_visualization(cfg)
+        data_visualization.run(cfg=cfg)
 
 
 if __name__ == "__main__":

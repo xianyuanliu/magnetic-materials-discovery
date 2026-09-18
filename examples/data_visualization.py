@@ -1,4 +1,7 @@
-"""Dataset distribution plots, drawn from the feature table rather than from any model's predictions.
+"""Config adapter for `enable_data_visualization`: dataset distribution plots, drawn from the feature table.
+
+All adapter, no pipeline: the plotting itself is already config-free in `interpret/visualize.py`, and what is left
+here is reading the file the config names and pointing the figures at the directory it names.
 
 Optional and independent of the evaluation modes: nothing downstream reads what this writes, so a run that skips it
 produces the same metrics.
@@ -12,7 +15,7 @@ from utils.reporting import print_compound_counts
 from loaddata.tabular_access import load_feature_table
 
 
-def run_data_visualization(cfg: RunConfig) -> None:
+def run(*, cfg: RunConfig) -> None:
     """Plot the target's distribution across the transition-metal subsets.
 
     Args:
