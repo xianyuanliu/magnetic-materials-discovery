@@ -6,6 +6,7 @@ from typing import Dict, Mapping, Sequence
 import pandas as pd
 
 from config import RunConfig
+from evaluate.cross_validation import fit_models
 from evaluate.metrics import METRICS, build_result_rows, compute_metrics
 from interpret.case_studies import plot_case_studies
 from interpret.model_explanations import plot_model_explanations
@@ -14,21 +15,6 @@ from loaddata.tabular_access import load_element_properties, load_feature_table
 from utils.persistence import save_results
 from utils.registry import ModelSpec, resolve_models
 from utils.reporting import print_comparisons, print_split_results, print_summary
-
-
-def _tune_on_split(specs, X_train, y_train, cfg: RunConfig) -> Dict[str, Dict]:
-    """Search hyperparameters on one split's training set."""
-    return {
-        spec.key: spec.tune(
-            X_train,
-            y_train,
-            cv_folds=cfg.tuning.cv_folds,
-            random_state=cfg.model_random_state,
-            n_iter=cfg.tuning.n_iter,
-        )
-        for spec in specs
-        if spec.tune is not None
-    }
 
 
 def _run_ablation(
@@ -102,18 +88,14 @@ def run_random_split(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> No
         X_train, X_valid = X.iloc[train_idx], X.iloc[valid_idx]
         y_train, y_valid = y.iloc[train_idx], y.iloc[valid_idx]
 
-        best_hyperparams = (
-            _tune_on_split(specs, X_train, y_train, cfg)
-            if cfg.tuning.enabled else {}
+        trained = fit_models(
+            X_train, y_train, specs,
+            hyperparameter_tuning=cfg.tuning.enabled,
+            model_random_state=cfg.model_random_state,
+            tune_cv_folds=cfg.tuning.cv_folds,
+            tune_n_iter=cfg.tuning.n_iter,
         )
-
-        trained: Dict[str, object] = {}
-        predictions = {}
-        for spec in specs:
-            model = spec.train(X_train, y_train, hyperparams=best_hyperparams.get(spec.key),
-                               random_state=cfg.model_random_state)
-            trained[spec.key] = model
-            predictions[spec.name] = model.predict(X_valid)
+        predictions = {spec.name: trained[spec.key].predict(X_valid) for spec in specs}
 
         if cfg.print_results:
             print_split_results(y_valid, predictions)

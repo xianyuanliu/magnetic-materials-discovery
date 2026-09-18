@@ -24,7 +24,7 @@ import numpy as np
 import pandas as pd
 
 
-from evaluate.cross_validation import MIN_PAIRS_FOR_TEST, compare_models_significance
+from evaluate.cross_validation import MIN_PAIRS_FOR_TEST, compare_models_significance, fit_models
 from loaddata.splits import Split
 from evaluate.metrics import COMPARABLE_METRICS, METRICS, compute_metrics
 from utils.registry import ModelSpec
@@ -55,18 +55,6 @@ def heldout_target(split_id: str) -> str:
     hold out a *fraction*, not a target, so they have no label to extract.
     """
     return split_id.split("=", 1)[1] if "=" in split_id else ""
-
-
-def _resolve_hyperparams(
-    spec: ModelSpec, X_fit, y_fit, best_hyperparams, hyperparameter_tuning,
-    model_random_state, tune_cv_folds, tune_n_iter,
-) -> Optional[Dict]:
-    """Pick fixed parameters, or search for them inside this fold."""
-    if best_hyperparams is not None and spec.key in best_hyperparams:
-        return best_hyperparams[spec.key]
-    if hyperparameter_tuning and spec.tune is not None:
-        return spec.tune(X_fit, y_fit, cv_folds=tune_cv_folds, random_state=model_random_state, n_iter=tune_n_iter)
-    return None
 
 
 def _score_fold_models(
@@ -108,13 +96,17 @@ def _score_fold_models(
         X_inner, y_inner = X_train_full.iloc[inner_idx], y_train_full.iloc[inner_idx]
         inner_sizes.append(len(inner_idx))
 
-        for spec in specs:
-            hyperparams = _resolve_hyperparams(
-                spec, X_fit, y_fit, best_hyperparams, hyperparameter_tuning,
-                model_random_state, tune_cv_folds, tune_n_iter,
-            )
-            model = spec.train(X_fit, y_fit, hyperparams=hyperparams, random_state=model_random_state)
+        fitted = fit_models(
+            X_fit, y_fit, specs,
+            hyperparameter_tuning=hyperparameter_tuning,
+            best_hyperparams=best_hyperparams,
+            model_random_state=model_random_state,
+            tune_cv_folds=tune_cv_folds,
+            tune_n_iter=tune_n_iter,
+        )
 
+        for spec in specs:
+            model = fitted[spec.key]
             for metric, value in compute_metrics(y_test, model.predict(X_test)).items():
                 test_scores[spec.name][metric].append(value)
             if score_inner:
