@@ -3,7 +3,7 @@
 import argparse
 
 from config import load_run_config
-from pipeline.cross_validation_pipeline import run_cross_validation
+from examples import cross_validation
 from pipeline.data_visualization import run_data_visualization
 from pipeline.random_split_pipeline import run_random_split
 from pipeline.inference_pipeline import run_predict
@@ -29,7 +29,7 @@ def main() -> None:
         return
 
     if cfg.evaluation_mode == "cross_validation":
-        run_cross_validation(cfg=cfg, registry=MODEL_REGISTRY)
+        cross_validation.run(cfg=cfg, registry=MODEL_REGISTRY)
     elif cfg.evaluation_mode == "ood":
         run_ood_evaluation(cfg=cfg, registry=MODEL_REGISTRY)
     elif cfg.evaluation_mode == "uncertainty":

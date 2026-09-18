@@ -14,7 +14,7 @@ from loaddata.splits import build_random_split
 from loaddata.tabular_access import load_element_properties, load_feature_table
 from utils.persistence import save_results
 from utils.registry import ModelSpec, resolve_models
-from utils.reporting import print_comparisons, print_split_results, print_summary
+from utils.reporting import format_comparisons, print_split_results, print_summary
 
 
 def _run_ablation(
@@ -126,10 +126,10 @@ def run_random_split(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> No
         if cfg.compare_models is not None:
             # One observation per seed, each a fresh split of the same rows, so the training sets overlap.
             name_a, name_b = (spec.name for spec in resolve_models(registry, cfg.compare_models))
-            print_comparisons(
+            print(format_comparisons(
                 scores, name_a, name_b,
                 test_train_ratio=(1.0 - cfg.random_split.train_size) / cfg.random_split.train_size,
-            )
+            ), end="")
 
     if not cfg.ablation.enabled:
         return

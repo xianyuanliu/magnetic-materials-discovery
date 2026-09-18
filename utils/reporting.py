@@ -1,10 +1,16 @@
 """Console formatting for run results.
 
-All printing lives here. The scoring modules under `evaluate/` return frames and dataclasses, so they can be called from
-a notebook or another project without a run's console output appearing as a side effect; this module turns those results
-into the text a CLI run shows.
+All formatting lives here. The scoring modules under `evaluate/` return frames and dataclasses, so they can be called
+from a notebook or another project without a run's console output appearing as a side effect; this module turns those
+results into the text a CLI run shows.
+
+Anything a pipeline emits while it is still running goes through a `Logger` rather than a bare `print`, so the caller
+decides where the text lands and the pipeline only decides what it says. WILDS passes the same `write`-shaped sink into
+its train and evaluate functions. Results a pipeline has finished computing are formatted by a `format_*` function and
+printed by the caller.
 """
 
+import sys
 from typing import Mapping, Optional, Sequence
 
 import numpy as np
@@ -12,6 +18,27 @@ import pandas as pd
 
 from evaluate.cross_validation import SignificanceResult, compare_models_significance
 from evaluate.metrics import COMPARABLE_METRICS, METRICS, METRIC_DECIMALS, compute_metrics
+
+
+class Logger:
+    """A `write`-shaped sink for text a pipeline emits as it runs.
+
+    Args:
+        stream: Where the text goes. None discards it, which is what a pipeline called from a notebook, a test or
+            another library wants — and is the default the pipelines themselves declare.
+    """
+
+    def __init__(self, stream=sys.stdout):
+        self.stream = stream
+
+    def write(self, message: str) -> None:
+        """Write `message` verbatim; no newline is added, so callers format complete text."""
+        if self.stream is not None:
+            self.stream.write(message)
+
+
+# The default every pipeline declares: a library call prints nothing until its caller asks for it.
+SILENT = Logger(None)
 
 
 def format_mean_std(mean: float, std: float, decimals: int = 4) -> str:
@@ -33,34 +60,35 @@ def print_split_results(y_true, predictions: Mapping[str, np.ndarray]) -> None:
         print(f"R2:  {metrics['r2']:.4f}")
 
 
-def print_cross_validation_results(
+def format_cross_validation_results(
     results: Mapping[str, Mapping[str, Sequence[float]]],
     title: str = "Cross-Validation Metrics (mean ± std):",
-) -> None:
-    """Print mean ± std metrics across repeats, for cross-validation folds or random splits."""
-    print(title)
+) -> str:
+    """Render mean ± std metrics across repeats, for cross-validation folds or random splits."""
 
     def _std(values: Sequence[float]) -> float:
         # ddof=1 is undefined for a single repeat (one random split, say).
         return float(np.std(values, ddof=1)) if len(values) > 1 else 0.0
 
+    lines = [title]
     for name, scores in results.items():
-        print(f"\n{name}:")
+        lines.append(f"\n{name}:")
         for metric in METRICS:
             values = list(scores[metric])
             label = "R2" if metric == "r2" else metric.upper()
             summary = format_mean_std(float(np.mean(values)), _std(values), METRIC_DECIMALS[metric])
-            print(f"{label + ':':<5}{summary}")
+            lines.append(f"{label + ':':<5}{summary}")
+    return "\n".join(lines) + "\n"
 
 
-def print_comparisons(
+def format_comparisons(
     results,
     model_a: str,
     model_b: str,
     metrics: Sequence[str] = COMPARABLE_METRICS,
     test_train_ratio: float = 0.0,
-) -> None:
-    """Print one paired significance test per metric for a pair of models.
+) -> str:
+    """Render one paired significance test per metric for a pair of models.
 
     Args:
         results: {model name: {metric: [one score per observation]}}.
@@ -68,10 +96,12 @@ def print_comparisons(
         metrics: Which metrics to test; lower-is-better only.
         test_train_ratio: Passed through so the t-test can correct for observations that share training data.
     """
-    for metric in metrics:
-        print_significance(compare_models_significance(
+    return "".join(
+        format_significance(compare_models_significance(
             results, model_a, model_b, metric=metric, test_train_ratio=test_train_ratio,
         ))
+        for metric in metrics
+    )
 
 
 # Latin names for the first few, which read better than "3-component" in a dataset summary.
@@ -89,14 +119,14 @@ def print_compound_counts(counts: pd.Series) -> None:
         print(f"We have {count} {name} compounds")
 
 
-def print_search_budget(
+def format_search_budget(
     n_seeds: int,
     n_folds: int,
     n_tunable: int,
     n_iter: int,
     tune_cv_folds: int,
-) -> None:
-    """Print what a nested hyperparameter search is about to cost, before it starts.
+) -> str:
+    """Render what a nested hyperparameter search is about to cost, before it starts.
 
     The search re-runs inside every outer fold, so the fit count is a product of five numbers and reaches the hours
     long before any of them looks large on its own.
@@ -107,11 +137,11 @@ def print_search_budget(
         n_iter, tune_cv_folds: Candidates sampled and inner folds per search.
     """
     searches = n_seeds * n_folds * n_tunable
-    print(
+    return (
         f"\n[INFO] Nested hyperparameter search: {n_seeds} seed(s) x {n_folds} folds x "
         f"{n_tunable} tunable model(s) = {searches} searches, each up to {n_iter} candidates x "
         f"{tune_cv_folds} inner folds (~{searches * n_iter * tune_cv_folds} model fits). "
-        f"Lower tune_n_iter / tune_cv_folds in the config to shrink this."
+        f"Lower tune_n_iter / tune_cv_folds in the config to shrink this.\n"
     )
 
 
@@ -138,29 +168,32 @@ def print_summary(summary: pd.DataFrame, title: str) -> None:
             print(f"{label + ':':<5}{format_mean_std(mean, std, METRIC_DECIMALS[metric])}  (n={n})")
 
 
-def print_significance(result: SignificanceResult) -> None:
-    """Print one paired model comparison, including why a p-value is missing."""
-    print(f"\n{result.model_a} vs {result.model_b} — metric={result.metric.upper()}")
-    print(f"  paired observations: {result.n_pairs}")
+def format_significance(result: SignificanceResult) -> str:
+    """Render one paired model comparison, including why a p-value is missing."""
+    lines = [
+        f"\n{result.model_a} vs {result.model_b} — metric={result.metric.upper()}",
+        f"  paired observations: {result.n_pairs}",
+    ]
 
     # The difference and its interval lead because they are in the metric's own units: they say by how much and how
     # precisely, where a p-value only says whether zero is excluded.
     if np.isnan(result.ci_low):
-        print(f"  difference (a - b): {result.mean_difference:+.6g}")
+        lines.append(f"  difference (a - b): {result.mean_difference:+.6g}")
     else:
-        print(
+        lines.append(
             f"  difference (a - b): {result.mean_difference:+.6g}"
             f"  95% CI [{result.ci_low:+.6g}, {result.ci_high:+.6g}]"
         )
 
     # A note can mean either "the test did not run" or "it ran, read it with care", so the p-values decide which.
     if np.isnan(result.t_pvalue):
-        print(f"  no p-value reported: {result.note}")
-        return
+        lines.append(f"  no p-value reported: {result.note}")
+    else:
+        lines.append(f"  paired t-test: t={result.t_stat:.4f}, p={result.t_pvalue:.6g}")
+        if result.note:
+            lines.append(f"  note: {result.note}")
 
-    print(f"  paired t-test: t={result.t_stat:.4f}, p={result.t_pvalue:.6g}")
-    if result.note:
-        print(f"  note: {result.note}")
+    return "\n".join(lines) + "\n"
 
 
 def format_metric_table(df: pd.DataFrame) -> pd.DataFrame:
