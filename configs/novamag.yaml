@@ -25,9 +25,6 @@ cv_random_state: 0
 cv_seeds: [0, 5, 10, 15, 20]
 enable_hyperparameter_tuning: true
 
-random_split_seeds: [0, 1, 2, 3, 4]
-random_split_train_size: 0.8
-
 tune_cv_folds: 3
 tune_n_iter: 20
 

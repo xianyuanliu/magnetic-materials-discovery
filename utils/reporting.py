@@ -33,7 +33,7 @@ def print_split_results(y_true, predictions: Mapping[str, np.ndarray]) -> None:
         print(f"R2:  {metrics['r2']:.4f}")
 
 
-def print_cv_results(
+def print_cross_validation_results(
     results: Mapping[str, Mapping[str, Sequence[float]]],
     title: str = "Cross-Validation Metrics (mean ± std):",
 ) -> None:
