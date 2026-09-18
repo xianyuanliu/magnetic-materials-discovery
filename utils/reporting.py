@@ -21,8 +21,8 @@ def format_mean_std(mean: float, std: float, decimals: int = 4) -> str:
     return f"{mean:.{decimals}f} ± {std:.{decimals}f}"
 
 
-def print_holdout_results(y_true, predictions: Mapping[str, np.ndarray]) -> None:
-    """Print the regression metrics for one holdout split, per model."""
+def print_split_results(y_true, predictions: Mapping[str, np.ndarray]) -> None:
+    """Print the regression metrics for one train/valid split, per model."""
     print("Regression Metrics:")
     for name, y_pred in predictions.items():
         metrics = compute_metrics(y_true, y_pred)
@@ -37,11 +37,11 @@ def print_cv_results(
     results: Mapping[str, Mapping[str, Sequence[float]]],
     title: str = "Cross-Validation Metrics (mean ± std):",
 ) -> None:
-    """Print mean ± std metrics across repeats, for CV folds or holdout splits."""
+    """Print mean ± std metrics across repeats, for cross-validation folds or random splits."""
     print(title)
 
     def _std(values: Sequence[float]) -> float:
-        # ddof=1 is undefined for a single repeat (one holdout split, say).
+        # ddof=1 is undefined for a single repeat (one random split, say).
         return float(np.std(values, ddof=1)) if len(values) > 1 else 0.0
 
     for name, scores in results.items():
@@ -213,7 +213,7 @@ def print_ood_tables(
     _print_frame("Table 5: Generalization gap (MSE), shift vs training-pool", generalization_gap)
 
 
-def print_uq_report(across_seeds: pd.DataFrame, alpha: float) -> None:
+def print_uncertainty_report(across_seeds: pd.DataFrame, alpha: float) -> None:
     """Print the headline calibration comparison without editorializing it."""
     nominal = 1.0 - alpha
     print(f"\nCalibration by split type and method (nominal coverage {nominal:.0%}, mean ± std over seeds)")

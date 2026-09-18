@@ -4,8 +4,8 @@ Unknown keys are rejected rather than ignored, types are coerced once, and the r
 dataclasses — so a typo in a config file is an error instead of a silently disabled setting.
 
 `RunConfig` covers settings shared across every mode; `KFoldConfig` and `TuningConfig` carry settings shared by more
-than one mode but not all of them; `HoldoutConfig`, `AblationConfig`, `OODConfig`, `UQConfig` and `PredictConfig` carry
-the settings specific to one evaluation mode.
+than one mode but not all of them; `RandomSplitConfig`, `AblationConfig`, `OODConfig`, `UncertaintyConfig` and
+`PredictConfig` carry the settings specific to one evaluation mode.
 """
 
 from dataclasses import dataclass, field
@@ -16,7 +16,7 @@ import yaml
 
 
 # Evaluation modes main.py can dispatch to.
-EVALUATION_MODES = ("predict", "holdout", "cross_validation", "ood", "uq")
+EVALUATION_MODES = ("predict", "random_split", "cross_validation", "ood", "uncertainty")
 
 # OOD scenario families; "all" selects every one of them.
 OOD_MODES = ("element", "period", "group", "cluster", "sparsex", "sparsey", "all")
@@ -76,12 +76,13 @@ class OODConfig:
 
 
 @dataclass(frozen=True)
-class UQConfig:
+class UncertaintyConfig:
     """Resolved uncertainty-quantification settings for one run.
 
     Attributes:
         model: Registry key of the model the intervals are built from. It must be in
-            pipeline.uq_pipeline.ENSEMBLE_STD_MODELS, checked at run time rather than assumed to be a Random Forest.
+            pipeline.uncertainty_pipeline.ENSEMBLE_STD_MODELS, checked at run time rather than assumed to be a
+            Random Forest.
         alpha: Nominal miscoverage of the reported intervals.
         calibration_fraction: Fraction of each training set withheld to calibrate the conformal intervals.
         seeds: Repeats — one seed moves coverage by more than the effects being compared.
@@ -91,7 +92,7 @@ class UQConfig:
     alpha: float = DEFAULT_ALPHA
     calibration_fraction: float = DEFAULT_CALIBRATION_FRACTION
     seeds: Tuple[int, ...] = (0,)
-    output_dir: str = "./results/uq"
+    output_dir: str = "./results/uncertainty"
 
 
 @dataclass(frozen=True)
@@ -119,7 +120,8 @@ class PredictConfig:
 class KFoldConfig:
     """K-fold splitter settings.
 
-    Shared by cross_validation and by the in-distribution K-fold reference that OOD and UQ score every split against.
+    Shared by cross_validation and by the in-distribution K-fold reference that the out-of-distribution and
+    uncertainty modes score every split against.
     """
 
     folds: int = 5
@@ -129,8 +131,8 @@ class KFoldConfig:
 
 
 @dataclass(frozen=True)
-class HoldoutConfig:
-    """Resolved settings for `evaluation_mode: holdout`."""
+class RandomSplitConfig:
+    """Resolved settings for `evaluation_mode: random_split`: one train/valid split drawn at random, once per seed."""
 
     seeds: Tuple[int, ...] = (0,)
     train_size: float = 0.8
@@ -151,7 +153,7 @@ class TuningConfig:
 
 @dataclass(frozen=True)
 class AblationConfig:
-    """Interpretability-figure settings, read only by the holdout pipeline."""
+    """Interpretability-figure settings, read only by the random-split pipeline."""
 
     enabled: bool = False
     interpret_model: Optional[str] = None
@@ -193,11 +195,11 @@ class RunConfig:
     print_results: bool = True
 
     kfold: KFoldConfig = field(default_factory=KFoldConfig)
-    holdout: HoldoutConfig = field(default_factory=HoldoutConfig)
+    random_split: RandomSplitConfig = field(default_factory=RandomSplitConfig)
     tuning: TuningConfig = field(default_factory=TuningConfig)
     ablation: AblationConfig = field(default_factory=AblationConfig)
     ood: OODConfig = field(default_factory=OODConfig)
-    uq: UQConfig = field(default_factory=UQConfig)
+    uncertainty: UncertaintyConfig = field(default_factory=UncertaintyConfig)
     predict: PredictConfig = field(default_factory=PredictConfig)
 
     @property
@@ -215,7 +217,7 @@ _TOP_LEVEL_KEYS = frozenset({
     "models", "compare_models", "interpret_model", "case_study_models",
     "enable_data_visualization", "enable_hyperparameter_tuning", "enable_ablation_study",
     "cv_folds", "cv_shuffle", "cv_random_state", "cv_seeds",
-    "holdout_seeds", "holdout_train_size",
+    "random_split_seeds", "random_split_train_size",
     "tune_cv_folds", "tune_n_iter", "random_state", "plots_output_dir",
     "results_output_dir", "save_results", "print_results",
 })
@@ -228,14 +230,17 @@ _OOD_KEYS = frozenset({
     "ood_size_matched_control", "ood_output_dir",
 })
 
-_UQ_KEYS = frozenset({"uq_model", "uq_alpha", "uq_calibration_fraction", "uq_seeds", "uq_output_dir"})
+_UNCERTAINTY_KEYS = frozenset({
+    "uncertainty_model", "uncertainty_alpha", "uncertainty_calibration_fraction",
+    "uncertainty_seeds", "uncertainty_output_dir",
+})
 
 _PREDICT_KEYS = frozenset({
     "predict_model", "predict_model_path", "predict_retrain",
     "predict_input_path", "predict_formulas", "predict_output_path",
 })
 
-KNOWN_KEYS = _TOP_LEVEL_KEYS | _OOD_KEYS | _UQ_KEYS | _PREDICT_KEYS
+KNOWN_KEYS = _TOP_LEVEL_KEYS | _OOD_KEYS | _UNCERTAINTY_KEYS | _PREDICT_KEYS
 
 
 def _as_tuple(value, cast=None) -> Optional[Tuple]:
@@ -303,19 +308,19 @@ def load_ood_config(raw: Mapping[str, Any], default_seed: int) -> OODConfig:
     )
 
 
-def _load_uq_config(raw: Mapping[str, Any], default_seed: int) -> UQConfig:
-    """Build a UQConfig from the raw mapping, filling in defaults."""
+def _load_uncertainty_config(raw: Mapping[str, Any], default_seed: int) -> UncertaintyConfig:
+    """Build a UncertaintyConfig from the raw mapping, filling in defaults."""
     seeds = (
-        _as_tuple(raw.get("uq_seeds"), int)
+        _as_tuple(raw.get("uncertainty_seeds"), int)
         or _as_tuple(raw.get("cv_seeds"), int)
         or (default_seed,)
     )
-    return UQConfig(
-        model=str(raw.get("uq_model", "rf")),
-        alpha=float(raw.get("uq_alpha", DEFAULT_ALPHA)),
-        calibration_fraction=float(raw.get("uq_calibration_fraction", DEFAULT_CALIBRATION_FRACTION)),
+    return UncertaintyConfig(
+        model=str(raw.get("uncertainty_model", "rf")),
+        alpha=float(raw.get("uncertainty_alpha", DEFAULT_ALPHA)),
+        calibration_fraction=float(raw.get("uncertainty_calibration_fraction", DEFAULT_CALIBRATION_FRACTION)),
         seeds=seeds,
-        output_dir=str(raw.get("uq_output_dir", "./results/uq")),
+        output_dir=str(raw.get("uncertainty_output_dir", "./results/uncertainty")),
     )
 
 
@@ -335,9 +340,9 @@ def _load_predict_config(raw: Mapping[str, Any], models: Sequence[str]) -> Predi
 def _validate(cfg: RunConfig) -> None:
     """Check cross-field constraints that a single key cannot express.
 
-    Checks only what a later failure would report badly: an unknown mode falls through main.py's dispatch to holdout,
-    and a `compare_models` list of the wrong length is read positionally. Bounds that scikit-learn or the loaders
-    already reject with a clear message are left to them.
+    Checks only what a later failure would report badly: an unknown mode falls through main.py's dispatch to
+    random_split, and a `compare_models` list of the wrong length is read positionally. Bounds that scikit-learn or
+    the loaders already reject with a clear message are left to them.
 
     Raises:
         ValueError: On an unsupported mode, a missing dataset path for the chosen mode, or a `compare_models` pair that
@@ -406,9 +411,9 @@ def parse_run_config(raw: Mapping[str, Any]) -> RunConfig:
             random_state=cv_random_state,
             seeds=_as_tuple(raw.get("cv_seeds"), int) or (cv_random_state,),
         ),
-        holdout=HoldoutConfig(
-            seeds=_as_tuple(raw.get("holdout_seeds"), int) or (cv_random_state,),
-            train_size=float(raw.get("holdout_train_size", 0.8)),
+        random_split=RandomSplitConfig(
+            seeds=_as_tuple(raw.get("random_split_seeds"), int) or (cv_random_state,),
+            train_size=float(raw.get("random_split_train_size", 0.8)),
         ),
         tuning=TuningConfig(
             enabled=bool(raw.get("enable_hyperparameter_tuning", False)),
@@ -416,7 +421,7 @@ def parse_run_config(raw: Mapping[str, Any]) -> RunConfig:
             n_iter=int(raw.get("tune_n_iter", DEFAULT_TUNE_N_ITER)),
         ),
         ood=load_ood_config(raw, default_seed=cv_random_state),
-        uq=_load_uq_config(raw, default_seed=cv_random_state),
+        uncertainty=_load_uncertainty_config(raw, default_seed=cv_random_state),
         predict=_load_predict_config(raw, models),
     )
 

@@ -1,11 +1,11 @@
 dataset: Novamag
-evaluation_mode: uq
+evaluation_mode: uncertainty
 dataset_path: data/novamag-magnetism.csv
 
 pt_path: data/Periodic-table/periodic_table.xlsx
 mm_path: data/Miedema-model/Miedema-model-reduced.xlsx
 
-uq_model: rf
+uncertainty_model: rf
 
 models:
   - rf
@@ -23,9 +23,9 @@ random_state: 0
 target_column: saturation magnetization
 formula_column: chemical formula
 
-uq_seeds: [0, 1, 2, 3, 4]
-uq_alpha: 0.05
-uq_calibration_fraction: 0.25
+uncertainty_seeds: [0, 1, 2, 3, 4]
+uncertainty_alpha: 0.05
+uncertainty_calibration_fraction: 0.25
 
 ood_mode: all
 ood_k: 10
@@ -40,7 +40,7 @@ ood_min_train: 50
 
 ood_size_matched_control: true
 
-uq_output_dir: ./results/novamag_uq
+uncertainty_output_dir: ./results/novamag_uncertainty
 
 feature_columns:
   - compoundradix

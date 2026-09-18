@@ -5,10 +5,10 @@ import argparse
 from config import load_run_config
 from pipeline.cross_validation_pipeline import run_cross_validation
 from pipeline.data_visualization import run_data_visualization
-from pipeline.holdout_pipeline import run_holdout
+from pipeline.random_split_pipeline import run_random_split
 from pipeline.inference_pipeline import run_predict
 from pipeline.ood_pipeline import run_ood_evaluation
-from pipeline.uq_pipeline import run_uq_evaluation
+from pipeline.uncertainty_pipeline import run_uncertainty_evaluation
 from predict.sklearn_models import MODEL_REGISTRY
 
 
@@ -20,7 +20,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    """Run one predict/holdout/cross_validation/ood/uq job, per the --config file."""
+    """Run one predict, random_split, cross_validation, ood or uncertainty job, per the --config file."""
     args = parse_args()
     cfg = load_run_config(args.config)
 
@@ -32,10 +32,10 @@ def main() -> None:
         run_cross_validation(cfg=cfg, registry=MODEL_REGISTRY)
     elif cfg.evaluation_mode == "ood":
         run_ood_evaluation(cfg=cfg, registry=MODEL_REGISTRY)
-    elif cfg.evaluation_mode == "uq":
-        run_uq_evaluation(cfg=cfg, registry=MODEL_REGISTRY)
+    elif cfg.evaluation_mode == "uncertainty":
+        run_uncertainty_evaluation(cfg=cfg, registry=MODEL_REGISTRY)
     else:
-        run_holdout(cfg=cfg, registry=MODEL_REGISTRY)
+        run_random_split(cfg=cfg, registry=MODEL_REGISTRY)
 
     if cfg.enable_data_visualization:
         run_data_visualization(cfg)

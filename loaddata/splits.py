@@ -9,7 +9,8 @@ Nothing here reads a file, resolves a config, or knows what a model is: the call
 the feature matrix, and decides which families to build.
 
 Two of the builders describe in-distribution references rather than shifts — build_kfold_splits and
-build_size_matched_split — so that an OOD score can be compared against a baseline produced by the identical
+build_size_matched_split — so that an out-of-distribution (OOD) score can be compared against a baseline produced by
+the identical
 evaluation code path.
 """
 
@@ -79,11 +80,11 @@ def build_kfold_splits(
     return splits
 
 
-def build_holdout_split(
+def build_random_split(
     n_samples: int,
     train_size: float = 0.8,
     seed: int = 0,
-    split_id: str = "holdout",
+    split_id: str = "random_split",
 ) -> Split:
     """One random train/valid split, expressed as a split so it shares the scoring path with K-fold and OOD."""
     # Only train_size is passed on: naming test_size as 1 - train_size too makes the pair sum above 1 for values

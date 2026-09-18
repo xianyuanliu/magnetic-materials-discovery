@@ -1,4 +1,4 @@
-"""Per-split scoring and table-building for OOD stress tests.
+"""Per-split scoring and table-building for out-of-distribution (OOD) stress tests.
 
 Given a set of (split_id, train_idx, test_idx) splits — built by loaddata/splits.py and orchestrated by
 pipeline/ood_pipeline.py — this runs K-fold on the TRAIN portion of each split and scores against the fixed,

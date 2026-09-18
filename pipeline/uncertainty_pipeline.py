@@ -10,7 +10,7 @@ error ratio against an OOD/ID uncertainty ratio — flips sign with the random s
 coverage and error/sigma against their nominal targets, with a spread across seeds, and leaves the reading to the
 reader.
 
-The model is chosen from ENSEMBLE_STD_MODELS rather than by hard-coding a Random Forest; see resolve_uq_model.
+The model is chosen from ENSEMBLE_STD_MODELS rather than by hard-coding a Random Forest; see resolve_uncertainty_model.
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ from predict.uncertainty import (
 )
 from utils.persistence import save_results, save_tables
 from utils.registry import ModelSpec
-from utils.reporting import print_uq_report
+from utils.reporting import print_uncertainty_report
 
 # Split families, as they appear in the `split_type` column.
 ID_KFOLD = "ID-kfold"
@@ -50,14 +50,14 @@ ID_RANDOM = "ID-random"
 # XGBoost fits one additive model, so its boosters carry no comparable spread.
 ENSEMBLE_STD_MODELS = frozenset({"rf"})
 
-# Calibration metrics, as named in evaluate/calibration.py. These replace the regression metrics: a UQ run
+# Calibration metrics, as named in evaluate/calibration.py. These replace the regression metrics: an uncertainty run
 # scores how well an interval is earned, not how close a point prediction is.
 UQ_METRICS = ("mae", "coverage", "coverage_error", "mean_width", "rms_z")
 
 TABLE_FILENAMES = (
-    "uq_table1_by_split.csv",
-    "uq_table2_pooled_by_seed.csv",
-    "uq_table3_across_seeds.csv",
+    "uncertainty_table1_by_split.csv",
+    "uncertainty_table2_pooled_by_seed.csv",
+    "uncertainty_table3_across_seeds.csv",
 )
 
 
@@ -160,8 +160,8 @@ def _collect_samples(
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
-def resolve_uq_model(registry: Mapping[str, ModelSpec], model_key: str) -> ModelSpec:
-    """Look up the UQ model and check it can actually supply a spread.
+def resolve_uncertainty_model(registry: Mapping[str, ModelSpec], model_key: str) -> ModelSpec:
+    """Look up the uncertainty model and check it can actually supply a spread.
 
     The estimators in predict/uncertainty.py read the per-member predictions of an ensemble, so the model has to be in
     ENSEMBLE_STD_MODELS.
@@ -170,33 +170,34 @@ def resolve_uq_model(registry: Mapping[str, ModelSpec], model_key: str) -> Model
         ValueError: If the key is unknown, or names a model with no ensemble spread to read.
     """
     if model_key not in registry:
-        raise ValueError(f"Unknown uq_model {model_key!r}. Available: {sorted(registry)}")
+        raise ValueError(f"Unknown uncertainty_model {model_key!r}. Available: {sorted(registry)}")
 
     spec = registry[model_key]
     if model_key not in ENSEMBLE_STD_MODELS:
         usable = sorted(ENSEMBLE_STD_MODELS & set(registry))
         raise ValueError(
-            f"uq_model {model_key!r} ({spec.name}) exposes no ensemble spread, which the "
+            f"uncertainty_model {model_key!r} ({spec.name}) exposes no ensemble spread, which the "
             f"uncertainty estimators need. Models that do: {usable}"
         )
     return spec
 
 
-def run_uq_evaluation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
-    """Run the UQ pipeline: score ID, OOD and control splits, then save the tables.
+def run_uncertainty_evaluation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
+    """Run the uncertainty pipeline: score the in-distribution, out-of-distribution and control splits, then save
+    the tables.
 
-    Called from main.py when evaluation_mode == 'uq'.
+    Called from main.py when evaluation_mode == 'uncertainty'.
 
     Args:
         cfg: The resolved run configuration.
-        registry: Registry to resolve `uq_model` against.
+        registry: Registry to resolve `uncertainty_model` against.
     """
-    uq_cfg = cfg.uq
+    uncertainty_cfg = cfg.uncertainty
     ood_cfg = cfg.ood
-    spec = resolve_uq_model(registry, uq_cfg.model)
-    alpha = uq_cfg.alpha
-    calibration_fraction = uq_cfg.calibration_fraction
-    seeds = list(uq_cfg.seeds)
+    spec = resolve_uncertainty_model(registry, uncertainty_cfg.model)
+    alpha = uncertainty_cfg.alpha
+    calibration_fraction = uncertainty_cfg.calibration_fraction
+    seeds = list(uncertainty_cfg.seeds)
 
     X, y, metadata = load_feature_table(
         cfg.dataset_path,
@@ -211,7 +212,7 @@ def run_uq_evaluation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> N
     ood_scenarios = build_scenarios(ood_cfg, X, y, elements_per_row, element_to_group, element_to_period)
 
     print(
-        f"\n[INFO] UQ run: {spec.name}, {len(ood_scenarios)} OOD scenario(s), "
+        f"\n[INFO] Uncertainty run: {spec.name}, {len(ood_scenarios)} OOD scenario(s), "
         f"{sum(len(s) for _, s in ood_scenarios)} split(s), {len(seeds)} seed(s), "
         f"{calibration_fraction:.0%} of each training set held out for conformal calibration."
     )
@@ -234,7 +235,7 @@ def run_uq_evaluation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> N
 
     frames = [f for f in per_seed_frames if not f.empty]
     if not frames:
-        warnings.warn("No UQ samples produced; nothing to report.")
+        warnings.warn("No uncertainty samples produced; nothing to report.")
         return
     samples = pd.concat(frames, ignore_index=True)
 
@@ -243,18 +244,18 @@ def run_uq_evaluation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> N
     across_seeds = summarize_across_seeds(pooled_by_seed, ("split_type", "method"))
 
     if cfg.print_results:
-        print_uq_report(across_seeds, alpha)
+        print_uncertainty_report(across_seeds, alpha)
 
     out_dir = save_tables(
         dict(zip(TABLE_FILENAMES, (by_split, pooled_by_seed, across_seeds))),
-        uq_cfg.output_dir,
+        uncertainty_cfg.output_dir,
         enabled=cfg.save_results,
     )
     if out_dir is not None and cfg.print_results:
-        print(f"\nSaved UQ tables to: {out_dir.resolve()}")
+        print(f"\nSaved uncertainty tables to: {out_dir.resolve()}")
 
-    # `model` carries the interval method here: the fitted model is fixed by uq_model, and what the run compares is
-    # how each method's intervals behave.
+    # `model` carries the interval method here: the fitted model is fixed by uncertainty_model, and what the run
+    # compares is how each method's intervals behave.
     _, directory = save_results(
         melt_to_results(
             by_split,
@@ -264,7 +265,7 @@ def run_uq_evaluation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> N
                 "seed": "seed", "model": "method",
             },
         ),
-        uq_cfg.output_dir,
+        uncertainty_cfg.output_dir,
         enabled=cfg.save_results,
     )
     if directory is not None and cfg.print_results:

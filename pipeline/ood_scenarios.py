@@ -1,9 +1,10 @@
-"""Config-driven setup for an OOD run: which scenarios to build, and the chemistry they are defined over.
+"""Config-driven setup for an out-of-distribution (OOD) run: which scenarios to build, and the chemistry they are
+defined over.
 
 `resolve_split_elements` turns a loaded feature table's metadata into the parsed elements and the group/period maps
 every chemistry-based family needs. `build_scenarios` then reads a resolved OODConfig and returns
-(scenario_name, splits) pairs, delegating the actual index arithmetic to loaddata/splits.py. Both are shared by the OOD
-and UQ pipelines so the two evaluate exactly the same scenarios.
+(scenario_name, splits) pairs, delegating the actual index arithmetic to loaddata/splits.py. Both are shared by the
+OOD and uncertainty pipelines so the two evaluate exactly the same scenarios.
 
 Which families *can* be built is a property of the data and lives in loaddata/splits.py; which ones this run wants is a
 config decision and lives here. That is the only reason this module imports `config` while the split builders do not.
@@ -83,9 +84,9 @@ def resolve_split_elements(
     """
     if formula_column not in metadata.columns:
         raise ValueError(
-            f"OOD and UQ splits hold out elements, periods and groups, so they need the {formula_column!r} column, "
-            f"but the feature table has none. Rebuild it with build_feature_tables.py, or point the run at a table "
-            f"that keeps the formula. Available metadata: {sorted(metadata.columns)}."
+            "Out-of-distribution and uncertainty splits hold out elements, periods and groups, so they need the "
+            f"{formula_column!r} column, but the feature table has none. Rebuild it with build_feature_tables.py, "
+            f"or point the run at a table that keeps the formula. Available metadata: {sorted(metadata.columns)}."
         )
     element_to_group, element_to_period = get_group_period_maps(load_periodic_table(pt_path))
     return get_elements_per_row(metadata[formula_column]), element_to_group, element_to_period

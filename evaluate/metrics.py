@@ -1,7 +1,8 @@
 """Regression metric primitives, and the long-form table every evaluation mode reports through.
 
-One row per (split, model, metric) keeps cross-validation, holdout and the OOD families in the same shape, so the
-mean/std, the significance tests and the figures are all derived from one table rather than re-implemented per mode.
+One row per (split, model, metric) keeps cross-validation, random splits and the out-of-distribution families in the
+same shape, so the mean/std, the significance tests and the figures are all derived from one table rather than
+re-implemented per mode.
 Formatting lives in reporting.py so this module stays free of display concerns.
 """
 

@@ -68,7 +68,7 @@ def run_cross_validation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -
         prefix=f"{cfg.prefix}_cv_",
         enabled=cfg.save_results,
     )
-    # Across every fold of every seed, so cross-validation and holdout close on the same statement.
+    # Across every fold of every seed, so cross-validation and random_split close on the same statement.
     if cfg.print_results and len(cfg.kfold.seeds) > 1:
         print_summary(summary, f"Cross-Validation Metrics across {len(cfg.kfold.seeds)} seed(s) (mean ± std):")
     if directory is not None and cfg.print_results:

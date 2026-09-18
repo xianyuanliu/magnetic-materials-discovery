@@ -25,8 +25,8 @@ cv_shuffle: true
 cv_random_state: 0
 cv_seeds: [0, 5]
 
-holdout_seeds: [0, 1, 2, 3, 4]
-holdout_train_size: 0.8
+random_split_seeds: [0, 1, 2, 3, 4]
+random_split_train_size: 0.8
 
 tune_cv_folds: 3
 tune_n_iter: 20

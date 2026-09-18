@@ -153,7 +153,7 @@ def scores_to_results(
         scores: What cross_validate_models returned for `splits`.
         splits: The same splits, read for their identifiers.
         scenario: Split family name carried into the table.
-        split_type: Shifted or in-distribution; plain K-fold and holdout are in-distribution.
+        split_type: Shifted or in-distribution; plain K-fold and random splits are in-distribution.
         seed: The seed that produced `splits`.
 
     Returns:
@@ -211,7 +211,7 @@ def compare_models_significance(
 
     Two things have to hold for the p-values to mean anything, and only one of them is checked here. Each observation
     must come from a different evaluation set — the caller is responsible for not passing in scores that share a test
-    set. The observations must also not share training data, which K-fold and repeated holdout both violate; pass
+    set. The observations must also not share training data, which K-fold and repeated random splits both violate; pass
     `test_train_ratio` so the t-test can correct for it.
 
     Args:
@@ -220,7 +220,7 @@ def compare_models_significance(
         metric: Which metric to compare; lower-is-better metrics only.
         min_pairs: Below this, p-values are withheld and `note` explains why; see MIN_PAIRS_FOR_TEST.
         test_train_ratio: n_test / n_train for one observation, or 0 when the observations share no training data.
-            1 / (K - 1) for K-fold, (1 - train_size) / train_size for repeated holdout.
+            1 / (K - 1) for K-fold, (1 - train_size) / train_size for repeated random splits.
 
     Returns:
         A SignificanceResult. `mean_difference` is always populated; the

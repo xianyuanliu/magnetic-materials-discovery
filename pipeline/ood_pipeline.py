@@ -1,4 +1,4 @@
-"""OOD evaluation orchestration: data loading, split selection, and reporting.
+"""Out-of-distribution (OOD) evaluation orchestration: data loading, split selection, and reporting.
 
 Reads the dataset CSV, asks pipeline/ood_scenarios.py which splits to build, builds the size-matched in-distribution
 controls, hands all of that to evaluate/ood_evaluation.py for scoring, and writes the result tables.

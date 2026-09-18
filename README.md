@@ -29,7 +29,7 @@ completely. Problems still surface: a skipped split or an unusable formula goes 
 `warnings.warn`, which that switch does not touch and a caller can filter or capture.
 
 - `main.py`: thin CLI entry point; parses `--config`, then dispatches to a predict,
-  holdout, cross-validation, OOD, or UQ run.
+  random-split, cross-validation, out-of-distribution, or uncertainty run.
 - `utils/`: infrastructure shared by more than one stage package, not itself a stage.
   - `registry.py`: `ModelSpec` (what a model declares about itself) and `resolve_models`
     (config keys to specs). A leaf, because `evaluate/` needs `ModelSpec` too and must
@@ -41,7 +41,7 @@ completely. Problems still surface: a skipped split or an unusable formula goes 
     through. `save_results` and `print_results` in the config turn saving and printing off
     independently, so a sweep can keep the tables and drop the console output.
 - `config.py`: the whole run config as frozen dataclasses (`RunConfig`, `KFoldConfig`,
-  `HoldoutConfig`, `TuningConfig`, `OODConfig`, `UQConfig`, `PredictConfig`). Unknown
+  `RandomSplitConfig`, `TuningConfig`, `OODConfig`, `UncertaintyConfig`, `PredictConfig`). Unknown
   keys are rejected rather than ignored, so a typo in a config file is an error instead
   of a silently disabled setting.
 - `build_feature_tables.py`: standalone entry point that builds the feature tables.
@@ -52,8 +52,8 @@ completely. Problems still surface: a skipped split or an unusable formula goes 
   - `materials_project.py`: reads a local MP CSV export and converts magnetization to tesla.
   - `tabular_access.py`: shared record standardization, periodic-table/Miedema spreadsheet readers,
     and feature-table loading with explicit model-feature selection.
-  - `splits.py`: every train/test split builder — plain K-fold, a single holdout, the size-matched
-    control, and the OOD families. A split is a property of the data, not of the metric computed on
+  - `splits.py`: every train/test split builder — plain K-fold, a single random split, the
+    size-matched control, and the out-of-distribution (OOD) families. A split is a property of the data, not of the metric computed on
     it, so the same held-out region applies to every modality a sample carries; WILDS and PyKale
     organize theirs the same way.
   Both dataset readers return formula and numeric target columns plus source IDs and metadata.
@@ -72,8 +72,8 @@ completely. Problems still surface: a skipped split or an unusable formula goes 
 - `predict/`: every model's bare constructor, tuner and trainer, one block each, combined
   into fittable `ModelSpec`s (`sklearn_models.py`, exposes `MODEL_REGISTRY`); and the predictive-
   uncertainty estimators with split-conformal calibration (`uncertainty.py`).
-- `pipeline/`: one orchestration module per evaluation mode — `holdout_pipeline.py`,
-  `cross_validation_pipeline.py`, `inference_pipeline.py`, `uq_pipeline.py`, `ood_pipeline.py`
+- `pipeline/`: one orchestration module per evaluation mode — `random_split_pipeline.py`,
+  `cross_validation_pipeline.py`, `inference_pipeline.py`, `uncertainty_pipeline.py`, `ood_pipeline.py`
   (with `ood_scenarios.py` turning the config into a list of scenarios), plus the optional dataset
   distribution plots (`data_visualization.py`). Nothing else lives here: helpers a mode needs but
   does not orchestrate belong in `utils/` or `evaluate/`.
@@ -112,11 +112,11 @@ python build_feature_tables.py
 ```bash
 python main.py --config configs/novamag.yaml
 ```
-   - `evaluation_mode` in the config selects `predict`, `holdout`, `cross_validation`,
-     `ood`, or `uq`; `enable_hyperparameter_tuning`, `enable_ablation_study`, and
+   - `evaluation_mode` in the config selects `predict`, `random_split`, `cross_validation`,
+     `ood`, or `uncertainty`; `enable_hyperparameter_tuning`, `enable_ablation_study`, and
      `enable_data_visualization` toggle the optional stages.
 5) Check outputs in the console (metrics), `plots/` (figures prefixed by the dataset
-   name), and `results/` (CSV tables from the `ood` and `uq` modes).
+   name), and `results/` (CSV tables from the `ood` and `uncertainty` modes).
 
 ## Dataset Preparation and Sample Definition
 
@@ -191,8 +191,8 @@ a text column reaches the scaler as a string. The fallback now rejects non-numer
 columns rather than passing them through, but naming the features is the reliable
 version and is what the shipped configs do.
 
-## Attributing an OOD Drop
-An OOD score on its own says a model got worse, not why. Holding out Fe on Novamag also
+## Attributing an Out-of-Distribution Drop
+An out-of-distribution (OOD) score on its own says a model got worse, not why. Holding out Fe on Novamag also
 takes 57% of the training data with it, and comparing against a cross-validation run
 from a different config adds a tuning and fold-count difference on top. So `ood` mode
 scores every split three ways and reports them side by side under a `split_type` column:
@@ -230,9 +230,9 @@ two-sided signed-rank test on n pairs cannot go below `2 / 2**n` — with three 
 floor is 0.25, which reads as "not significant" when it is really "this test cannot
 answer that".
 
-## Uncertainty (`evaluation_mode: uq`)
-Fits the model named by `uq_model` per split. That model must be in
-`pipeline.uq_pipeline.ENSEMBLE_STD_MODELS` — the estimators read the spread of an
+## Uncertainty Quantification (`evaluation_mode: uncertainty`)
+Fits the model named by `uncertainty_model` per split. That model must be in
+`pipeline.uncertainty_pipeline.ENSEMBLE_STD_MODELS` — the estimators read the spread of an
 ensemble's members, so the pipeline checks this rather than assuming a Random Forest.
 Fits it per split and attaches three intervals: `rf_std` (tree spread read
 as a Gaussian sigma), `conformal` (split conformal on absolute residuals, constant
@@ -243,7 +243,7 @@ should be judged against.
 
 Scoring is by empirical coverage of the interval and by `rms_z = rms(|error| / sigma)`,
 both compared against their nominal targets, pooled per sample and repeated over
-`uq_seeds`. Aggregation is per-sample throughout: averaging per-split errors while
+`uncertainty_seeds`. Aggregation is per-sample throughout: averaging per-split errors while
 pooling per-sample uncertainties makes the two sides of any error-vs-uncertainty ratio
 incommensurable once splits differ in size, which LOCO clusters always do.
 
@@ -254,9 +254,9 @@ Three independent sources of randomness, each with its own config key:
 | --- | --- |
 | `random_state` | model construction and hyperparameter sampling |
 | `cv_seeds` / `cv_random_state` | the K-fold split in `cross_validation` and `ood` modes |
-| `holdout_seeds` | the train/valid split in `holdout` mode |
+| `random_split_seeds` | the train/valid split in `random_split` mode |
 
-`holdout` mode repeats the split once per seed in `holdout_seeds` and reports mean ± std, because a
+`random_split` mode repeats the split once per seed in `random_split_seeds` and reports mean ± std, because a
 single 80/20 draw on a 460-sample dataset moves R² by more than the gaps between models. Ablation
 plots come from the first seed only, so figure filenames stay stable.
 
