@@ -7,17 +7,44 @@ can build on. The result tables are the same idea for the numbers — every figu
 derived from them, so a run that saves them can be re-analysed without being repeated.
 """
 
+import hashlib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
 import joblib
+import numpy as np
 import pandas as pd
 
 from evaluate.metrics import SUMMARY_GROUPS, summarize_scores
 
 # Bumped when the bundle layout changes in a way older readers cannot handle.
 BUNDLE_FORMAT_VERSION = 1
+
+# Key under which a bundle records the digest of the rows it was fitted on.
+TRAINING_FINGERPRINT = "training_fingerprint"
+
+
+def fingerprint_training_data(X: pd.DataFrame, y: pd.Series) -> str:
+    """Return a short, stable digest of the rows a model was fitted on.
+
+    Recorded when a bundle is built and checked when one is loaded. A model applied to a dataset it was not trained on
+    still returns plausible numbers, so nothing about the output says anything is wrong — this makes the mismatch
+    detectable instead. Covers the values, the feature names and their order, so a renamed or reordered feature counts
+    as a different training set too.
+
+    Args:
+        X: Feature matrix, in training column order.
+        y: Target.
+
+    Returns:
+        A 16-character hex digest.
+    """
+    digest = hashlib.sha256()
+    digest.update("\x00".join(str(column) for column in X.columns).encode("utf-8"))
+    digest.update(np.ascontiguousarray(X.to_numpy(dtype=float)).tobytes())
+    digest.update(np.ascontiguousarray(y.to_numpy(dtype=float)).tobytes())
+    return digest.hexdigest()[:16]
 
 
 @dataclass

@@ -8,12 +8,13 @@ Reads no file and takes no path: the caller supplies the training rows, the comp
 data, and decides where a bundle is loaded from or saved to.
 """
 
+import warnings
 from typing import List, Tuple
 
 import pandas as pd
 
 from prepdata.alloy_descriptors import add_engineered_features
-from utils.persistence import ModelBundle, align_features
+from utils.persistence import TRAINING_FINGERPRINT, ModelBundle, align_features, fingerprint_training_data
 from utils.registry import ModelSpec
 
 # Column the predicted value is written to.
@@ -54,8 +55,44 @@ def fit_bundle(
         target_column=target_column,
         dataset=dataset,
         n_train=len(X),
-        metadata={"model_random_state": model_random_state},
+        metadata={
+            "model_random_state": model_random_state,
+            TRAINING_FINGERPRINT: fingerprint_training_data(X, y),
+        },
     )
+
+
+def check_bundle_matches(bundle: ModelBundle, X: pd.DataFrame, y: pd.Series) -> None:
+    """Check that `bundle` was fitted on exactly these rows, and refuse it if not.
+
+    A saved model outlives the dataset it came from. When the dataset is then corrected — rows deduplicated, a
+    threshold changed, a feature rebuilt — the stale model keeps loading and keeps returning numbers that look
+    entirely reasonable. This is the only place that difference is visible, so it raises rather than warns.
+
+    Args:
+        bundle: The loaded bundle.
+        X: The feature matrix built from the dataset the bundle is about to be used alongside.
+        y: Its target.
+
+    Raises:
+        ValueError: If the bundle was fitted on different rows, different features, or a different feature order.
+    """
+    recorded = bundle.metadata.get(TRAINING_FINGERPRINT)
+    if recorded is None:
+        warnings.warn(
+            f"This bundle predates training fingerprints, so it cannot be checked against the current dataset. "
+            f"It reports {bundle.describe()}. Refit it with predict_retrain: true to record one."
+        )
+        return
+
+    current = fingerprint_training_data(X, y)
+    if recorded != current:
+        raise ValueError(
+            f"The saved model was fitted on different data than the dataset now configured: it recorded "
+            f"{recorded} over {bundle.n_train} row(s), the current table fingerprints as {current} over {len(X)} "
+            f"row(s). Predictions from it would look reasonable and be wrong. Set predict_retrain: true to refit, "
+            f"or point predict_model_path at the bundle that matches."
+        )
 
 
 def predict_formulas(

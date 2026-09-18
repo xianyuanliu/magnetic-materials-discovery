@@ -17,7 +17,7 @@ import pandas as pd
 
 from config import RunConfig
 from loaddata.tabular_access import load_element_properties, load_feature_table
-from pipeline.inference import fit_bundle, predict_formulas
+from pipeline.inference import check_bundle_matches, fit_bundle, predict_formulas
 from utils.persistence import ModelBundle, load_model_bundle, save_model_bundle, save_tables
 from utils.registry import ModelSpec, resolve_models
 from utils.reporting import print_predictions
@@ -55,21 +55,44 @@ def _read_formulas(cfg: RunConfig) -> pd.DataFrame:
     return formulas
 
 
-def _resolve_bundle(cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> ModelBundle:
-    """Load the saved bundle if there is one to load, otherwise fit and save."""
-    path = cfg.predict.model_path
-    if path and Path(path).exists() and not cfg.predict.retrain:
-        bundle = load_model_bundle(path)
-        print(f"Loaded model from {Path(path).resolve()}")
-        return bundle
-
-    (spec,) = resolve_models(registry, [cfg.predict.model])
+def _load_training_table(cfg: RunConfig):
+    """Build the feature table the config names, or None when it names no dataset at all."""
+    if not cfg.dataset_path or not Path(cfg.dataset_path).exists():
+        return None
     X, y, _ = load_feature_table(
         cfg.dataset_path,
         target_column=cfg.target_column,
         formula_column=cfg.formula_column,
         feature_columns=cfg.feature_columns,
     )
+    return X, y
+
+
+def _resolve_bundle(cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> ModelBundle:
+    """Load the saved bundle if there is one to load, otherwise fit and save.
+
+    A loaded bundle is checked against the configured dataset when that dataset is present, because a model that
+    outlived its training data keeps predicting and stops being right. A bundle shipped without the dataset is used
+    as-is: there is nothing to check it against.
+    """
+    path = cfg.predict.model_path
+    if path and Path(path).exists() and not cfg.predict.retrain:
+        bundle = load_model_bundle(path)
+        print(f"Loaded model from {Path(path).resolve()}")
+        training = _load_training_table(cfg)
+        if training is not None:
+            check_bundle_matches(bundle, *training)
+        return bundle
+
+    (spec,) = resolve_models(registry, [cfg.predict.model])
+    training = _load_training_table(cfg)
+    if training is None:
+        raise ValueError(
+            f"Fitting a model needs training data, but dataset_path is {cfg.dataset_path!r} and no such file exists. "
+            f"Point predict_model_path at a saved bundle to skip fitting, or set dataset_path."
+        )
+
+    X, y = training
     print(f"Fitting {spec.name} on all {len(X)} row(s) of {cfg.dataset_path}")
     bundle = fit_bundle(
         X, y, spec,
