@@ -8,7 +8,7 @@ import pandas as pd
 from config import RunConfig
 from evaluate.metrics import METRICS, build_result_rows, compute_metrics
 from interpret.case_studies import plot_case_studies
-from interpret.model_weights import plot_permutation_importance, plot_shap_summary
+from interpret.model_explanations import plot_model_explanations
 from loaddata.splits import build_holdout_split
 from loaddata.tabular_access import load_element_properties, load_feature_table
 from utils.persistence import save_results
@@ -41,32 +41,31 @@ def _run_ablation(
     y_valid,
     plots_dir: Path,
 ) -> None:
-    """Produce the interpretability figures for one set of fitted models.
+    """Resolve which fitted models the config asks to explain, and hand them to `interpret/`.
 
-    Which model to explain and which to compare come from the config (`interpret_model`, `case_study_models`).
+    Only the resolution is here: turning `interpret_model` and `case_study_models` into fitted estimators, and failing
+    loudly when they name a model this run never trained. The explanations themselves are config-free.
     """
-    pt, mm = load_element_properties(cfg.pt_path, cfg.mm_path)
-
-    if cfg.ablation.interpret_model:
-        (spec,) = resolve_models(registry, [cfg.ablation.interpret_model])
-        if spec.key not in trained:
-            raise ValueError(f"interpret_model {spec.key!r} is not in this run's models: {list(trained)}")
-        model = trained[spec.key]
-        plot_permutation_importance(
-            model, X_valid, y_valid,
-            title=f"{spec.name} Permutation Importance ({cfg.prefix})",
-            save_path=plots_dir / f"{cfg.prefix}_perm_importance_{spec.key}.png",
-        )
-        plot_shap_summary(model, X_train, X_valid, save_path=plots_dir / f"{cfg.prefix}_shap_summary_{spec.key}.png")
-
-    if cfg.ablation.case_study_models:
-        specs = resolve_models(registry, cfg.ablation.case_study_models)
+    def _resolve(keys: Sequence[str]) -> Sequence[ModelSpec]:
+        specs = resolve_models(registry, keys)
         missing = [spec.key for spec in specs if spec.key not in trained]
         if missing:
-            raise ValueError(f"case_study_models names {missing}, which this run did not train: {list(trained)}")
+            raise ValueError(f"{missing} named for interpretation, but this run trained {list(trained)}")
+        return specs
+
+    if cfg.ablation.interpret_model:
+        (spec,) = _resolve([cfg.ablation.interpret_model])
+        plot_model_explanations(
+            trained[spec.key], X_train, X_valid, y_valid,
+            name=spec.name, slug=spec.key, save_dir=plots_dir, prefix=f"{cfg.prefix}_",
+            random_state=cfg.model_random_state,
+        )
+
+    if cfg.ablation.case_study_models:
+        pt, mm = load_element_properties(cfg.pt_path, cfg.mm_path)
         plot_case_studies(
             feature_columns,
-            {spec.name: trained[spec.key] for spec in specs},
+            {spec.name: trained[spec.key] for spec in _resolve(cfg.ablation.case_study_models)},
             pt,
             mm,
             target_label=cfg.target_column,

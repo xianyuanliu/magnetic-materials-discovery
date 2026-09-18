@@ -88,7 +88,7 @@ completely. Problems still surface: a skipped split or an unusable formula goes 
   the caller passes `(split_id, train_idx, test_idx)` tuples, so swapping in a grouped or
   shifted split changes a line in `pipeline/` and nothing in `evaluate/`.
 - `interpret/`: dataset distribution plots (`visualize.py`), permutation importance +
-  SHAP (`model_weights.py`), and FeAl/FeCo/FeCr literature case studies
+  SHAP (`model_explanations.py`), and FeAl/FeCo/FeCr literature case studies
   (`case_studies.py` + `case_study_references.py`).
 - `configs/`: YAML run configs (one per dataset/mode).
 - `data/`: expected inputs (`mp-data.csv`, `Novamag_Data_Files/`,
