@@ -18,6 +18,7 @@ import matplotlib  # noqa: E402
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
+import numpy as np  # noqa: E402
 import shap  # noqa: E402
 
 from sklearn.inspection import permutation_importance  # noqa: E402
@@ -53,12 +54,28 @@ def plot_permutation_importance(
         plt.show()
 
 
-def plot_shap_summary(model, X_train, X_valid, save_path: Optional[str] = None):
-    """Generate SHAP summary plots."""
+def plot_shap_summary(model, X_train, X_valid, save_path: Optional[str] = None, random_state: int = 0):
+    """Plot the SHAP summary: per-feature attributions for every validation row.
+
+    Args:
+        model: A fitted estimator.
+        X_train: Rows the model was fitted on, used as the background distribution.
+        X_valid: Rows the attributions are computed for.
+        save_path: Where the figure goes; shown instead when None.
+        random_state: Seeds the beeswarm jitter, so the same values give the same figure.
+    """
     explainer = shap.Explainer(model, X_train)
     shap_values = explainer(X_valid, check_additivity=False)
 
-    shap.summary_plot(shap_values, X_valid, feature_names=X_valid.columns, show=False)
+    # The beeswarm scatters overlapping points through numpy's global RNG and takes no seed of its own, so the same
+    # attributions plotted twice give two different figures. Seed it here and hand the global state back, so the
+    # figure is reproducible without the rest of the run inheriting a reset RNG.
+    entropy = np.random.get_state()
+    np.random.seed(random_state)
+    try:
+        shap.summary_plot(shap_values, X_valid, feature_names=X_valid.columns, show=False)
+    finally:
+        np.random.set_state(entropy)
 
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches="tight")
@@ -103,4 +120,7 @@ def plot_model_explanations(
         save_path=save_dir / f"{prefix}perm_importance_{slug}.png",
         random_state=random_state,
     )
-    plot_shap_summary(model, X_train, X_valid, save_path=save_dir / f"{prefix}shap_summary_{slug}.png")
+    plot_shap_summary(
+        model, X_train, X_valid,
+        save_path=save_dir / f"{prefix}shap_summary_{slug}.png", random_state=random_state,
+    )
