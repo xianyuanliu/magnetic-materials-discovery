@@ -6,7 +6,7 @@ re-implemented per mode.
 Formatting lives in reporting.py so this module stays free of display concerns.
 """
 
-from typing import Dict, Sequence
+from typing import Dict, List, Sequence
 
 import numpy as np
 import pandas as pd
@@ -126,6 +126,29 @@ def build_result_rows(
             for split_id, value in zip(split_ids, values):
                 rows.append((scenario, split_type, split_id, seed, model, metric, float(value)))
     return pd.DataFrame(rows, columns=list(RESULT_COLUMNS))
+
+
+def results_to_scores(results: pd.DataFrame) -> Dict[str, Dict[str, List[float]]]:
+    """Re-express long-form rows as {model: {metric: [one value per split]}} — the inverse of build_result_rows.
+
+    Row order is preserved, and that is what makes two models' lists paired: the i-th value of each comes from the same
+    split. Pass rows that line up — one scenario, and one seed where the splits are per-seed — or the pairing is
+    meaningless. This is the shape the paired significance tests take, so a comparison can be recomputed from a saved
+    result table without re-running anything.
+
+    Args:
+        results: Rows shaped like RESULT_COLUMNS.
+
+    Returns:
+        {model name: {metric: [value per row, in table order]}}.
+    """
+    return {
+        model: {
+            metric: [float(value) for value in per_metric["value"]]
+            for metric, per_metric in per_model.groupby("metric", sort=False)
+        }
+        for model, per_model in results.groupby("model", sort=False)
+    }
 
 
 def summarize_scores(results: pd.DataFrame, by: Sequence[str] = SUMMARY_GROUPS) -> pd.DataFrame:

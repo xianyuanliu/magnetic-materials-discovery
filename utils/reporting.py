@@ -48,16 +48,17 @@ def format_mean_std(mean: float, std: float, decimals: int = 4) -> str:
     return f"{mean:.{decimals}f} ± {std:.{decimals}f}"
 
 
-def print_split_results(y_true, predictions: Mapping[str, np.ndarray]) -> None:
-    """Print the regression metrics for one train/valid split, per model."""
-    print("Regression Metrics:")
+def format_split_results(y_true, predictions: Mapping[str, np.ndarray]) -> str:
+    """Render the regression metrics for one train/valid split, per model."""
+    lines = ["Regression Metrics:"]
     for name, y_pred in predictions.items():
         metrics = compute_metrics(y_true, y_pred)
-        print(f"\n{name}:")
-        print(f"MSE: {metrics['mse']:.4f}")
-        print(f"MAE: {metrics['mae']:.4f}")
-        print(f"MRE: {metrics['mre']:.6f}")
-        print(f"R2:  {metrics['r2']:.4f}")
+        lines.append(f"\n{name}:")
+        lines.append(f"MSE: {metrics['mse']:.4f}")
+        lines.append(f"MAE: {metrics['mae']:.4f}")
+        lines.append(f"MRE: {metrics['mre']:.6f}")
+        lines.append(f"R2:  {metrics['r2']:.4f}")
+    return "\n".join(lines) + "\n"
 
 
 def format_cross_validation_results(

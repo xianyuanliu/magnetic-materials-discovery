@@ -1,23 +1,21 @@
-"""Random-split orchestration: a train/valid split drawn at random, scored once per seed, plus ablation."""
+"""Config adapter for `evaluation_mode: random_split`, including the interpretability figures it can ask for."""
 
 from pathlib import Path
-from typing import Dict, Mapping, Sequence
-
-import pandas as pd
+from typing import Mapping, Sequence
 
 from config import RunConfig
-from evaluate.cross_validation import fit_models
-from evaluate.metrics import METRICS, build_result_rows, compute_metrics
+from evaluate.metrics import results_to_scores
 from interpret.case_studies import plot_case_studies
 from interpret.model_explanations import plot_model_explanations
 from loaddata.splits import build_random_split
 from loaddata.tabular_access import load_element_properties, load_feature_table
+from pipeline.random_split import run_random_split
 from utils.persistence import save_results
 from utils.registry import ModelSpec, resolve_models
-from utils.reporting import format_comparisons, print_split_results, print_summary
+from utils.reporting import SILENT, Logger, format_comparisons, print_summary
 
 
-def _run_ablation(
+def _plot_ablation(
     cfg: RunConfig,
     registry: Mapping[str, ModelSpec],
     trained: Mapping[str, object],
@@ -25,7 +23,6 @@ def _run_ablation(
     X_train,
     X_valid,
     y_valid,
-    plots_dir: Path,
 ) -> None:
     """Resolve which fitted models the config asks to explain, and hand them to `interpret/`.
 
@@ -38,6 +35,9 @@ def _run_ablation(
         if missing:
             raise ValueError(f"{missing} named for interpretation, but this run trained {list(trained)}")
         return specs
+
+    plots_dir = Path(cfg.plots_output_dir)
+    plots_dir.mkdir(parents=True, exist_ok=True)
 
     if cfg.ablation.interpret_model:
         (spec,) = _resolve([cfg.ablation.interpret_model])
@@ -59,61 +59,37 @@ def _run_ablation(
         )
 
 
-def run_random_split(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
-    """Repeat a train/validate split once per seed in random_split_seeds; report mean ± std.
+def run(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
+    """Load what the config names, repeat the split once per seed, then save, print and explain what it asks for.
 
-    random_split_seeds seeds the split only, kept separate from random_state (model
-    construction and tuning). Ablation plots use the first seed's models only.
+    `random_split_seeds` seeds the split only, kept separate from `random_state` (model construction and tuning).
+    Ablation figures come from the first seed's models, so they stay put when a seed is added.
+
+    Args:
+        cfg: The resolved run configuration.
+        registry: Registry to resolve `models`, `compare_models` and the ablation model names against.
     """
     specs = resolve_models(registry, cfg.models)
-    plots_dir = Path(cfg.plots_output_dir)
-    plots_dir.mkdir(parents=True, exist_ok=True)
     X, y, _ = load_feature_table(
         cfg.dataset_path,
         target_column=cfg.target_column,
         formula_column=cfg.formula_column,
         feature_columns=cfg.feature_columns,
     )
-    feature_columns = list(X.columns)
 
-    scores = {spec.name: {metric: [] for metric in METRICS} for spec in specs}
-    collected = []
-    first_split_models: Dict[str, object] = {}
-
-    for run_i, seed in enumerate(cfg.random_split.seeds, start=1):
-        if cfg.print_results:
-            print(f"\n=== Random Split Run {run_i}/{len(cfg.random_split.seeds)} (split seed={seed}) ===")
-
-        _, train_idx, valid_idx = build_random_split(len(X), cfg.random_split.train_size, int(seed))
-        X_train, X_valid = X.iloc[train_idx], X.iloc[valid_idx]
-        y_train, y_valid = y.iloc[train_idx], y.iloc[valid_idx]
-
-        trained = fit_models(
-            X_train, y_train, specs,
-            hyperparameter_tuning=cfg.tuning.enabled,
-            model_random_state=cfg.model_random_state,
-            tune_cv_folds=cfg.tuning.cv_folds,
-            tune_n_iter=cfg.tuning.n_iter,
-        )
-        predictions = {spec.name: trained[spec.key].predict(X_valid) for spec in specs}
-
-        if cfg.print_results:
-            print_split_results(y_valid, predictions)
-
-        per_seed = {name: compute_metrics(y_valid, y_pred) for name, y_pred in predictions.items()}
-        for name, metrics in per_seed.items():
-            for metric, value in metrics.items():
-                scores[name][metric].append(value)
-        collected.append(build_result_rows(
-            {name: {m: [v] for m, v in metrics.items()} for name, metrics in per_seed.items()},
-            scenario="random_split", split_type="ID", split_ids=[f"seed{seed}"], seed=int(seed),
-        ))
-
-        if not first_split_models:
-            first_split_models = trained
+    results, first_split_models = run_random_split(
+        X, y, specs,
+        seeds=cfg.random_split.seeds,
+        train_size=cfg.random_split.train_size,
+        hyperparameter_tuning=cfg.tuning.enabled,
+        tune_cv_folds=cfg.tuning.cv_folds,
+        tune_n_iter=cfg.tuning.n_iter,
+        model_random_state=cfg.model_random_state,
+        logger=Logger() if cfg.print_results else SILENT,
+    )
 
     summary, directory = save_results(
-        pd.concat(collected, ignore_index=True),
+        results,
         cfg.results_output_dir,
         prefix=f"{cfg.prefix}_random_split_",
         enabled=cfg.save_results,
@@ -127,14 +103,16 @@ def run_random_split(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> No
             # One observation per seed, each a fresh split of the same rows, so the training sets overlap.
             name_a, name_b = (spec.name for spec in resolve_models(registry, cfg.compare_models))
             print(format_comparisons(
-                scores, name_a, name_b,
+                results_to_scores(results), name_a, name_b,
                 test_train_ratio=(1.0 - cfg.random_split.train_size) / cfg.random_split.train_size,
             ), end="")
 
     if not cfg.ablation.enabled:
         return
 
+    # The same split the models came from, rebuilt rather than carried: build_random_split is pure and seeded.
     _, train_idx, valid_idx = build_random_split(len(X), cfg.random_split.train_size, int(cfg.random_split.seeds[0]))
-    X_train, X_valid = X.iloc[train_idx], X.iloc[valid_idx]
-    y_train, y_valid = y.iloc[train_idx], y.iloc[valid_idx]
-    _run_ablation(cfg, registry, first_split_models, feature_columns, X_train, X_valid, y_valid, plots_dir)
+    _plot_ablation(
+        cfg, registry, first_split_models, list(X.columns),
+        X.iloc[train_idx], X.iloc[valid_idx], y.iloc[valid_idx],
+    )

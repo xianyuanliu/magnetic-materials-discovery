@@ -3,9 +3,8 @@
 import argparse
 
 from config import load_run_config
-from examples import cross_validation
+from examples import cross_validation, random_split
 from pipeline.data_visualization import run_data_visualization
-from pipeline.random_split_pipeline import run_random_split
 from pipeline.inference_pipeline import run_predict
 from pipeline.ood_pipeline import run_ood_evaluation
 from pipeline.uncertainty_pipeline import run_uncertainty_evaluation
@@ -35,7 +34,7 @@ def main() -> None:
     elif cfg.evaluation_mode == "uncertainty":
         run_uncertainty_evaluation(cfg=cfg, registry=MODEL_REGISTRY)
     else:
-        run_random_split(cfg=cfg, registry=MODEL_REGISTRY)
+        random_split.run(cfg=cfg, registry=MODEL_REGISTRY)
 
     if cfg.enable_data_visualization:
         run_data_visualization(cfg)

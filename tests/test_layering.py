@@ -25,7 +25,6 @@ CONFIG_READERS = ("main.py", "config.py")
 
 # Runners that still live under pipeline/ and still read a config. Shrinks to nothing as each mode is converted.
 RUNNERS_STILL_READING_CONFIG = (
-    "pipeline/random_split_pipeline.py",
     "pipeline/ood_pipeline.py",
     "pipeline/ood_scenarios.py",
     "pipeline/uncertainty_pipeline.py",
