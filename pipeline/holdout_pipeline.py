@@ -57,7 +57,7 @@ def _run_ablation(
         (spec,) = _resolve([cfg.ablation.interpret_model])
         plot_model_explanations(
             trained[spec.key], X_train, X_valid, y_valid,
-            name=spec.name, slug=spec.key, save_dir=plots_dir, prefix=f"{cfg.prefix}_",
+            name=spec.name, save_dir=plots_dir, prefix=f"{cfg.prefix}_",
             random_state=cfg.model_random_state,
         )
 

@@ -74,7 +74,6 @@ def plot_model_explanations(
     y_valid,
     *,
     name: str,
-    slug: str,
     save_dir: Path,
     prefix: str = "",
     random_state: int = 0,
@@ -88,14 +87,15 @@ def plot_model_explanations(
         model: A fitted estimator with `predict`.
         X_train: Rows the model was fitted on, used as the SHAP background distribution.
         X_valid, y_valid: Held-out rows the explanations are computed over.
-        name: Display name, used in the permutation importance title.
-        slug: Short identifier used in the filenames, so a figure keeps the same name as the model's config key.
+        name: Display name, used in the title and, lowercased, in the filenames. Figures are output, so they carry
+            the same name the result tables do rather than the short key a config is written with.
         save_dir: Directory the figures are written to; created if missing.
         prefix: Prepended to both filenames, so several runs can share a directory.
         random_state: Seed for the permutation shuffles.
     """
     save_dir = Path(save_dir)
     save_dir.mkdir(parents=True, exist_ok=True)
+    slug = name.lower().replace(" ", "_")
 
     plot_permutation_importance(
         model, X_valid, y_valid,
