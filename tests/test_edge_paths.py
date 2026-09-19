@@ -12,7 +12,12 @@ import numpy as np
 import pandas as pd
 
 from loaddata.tabular_access import resolve_feature_columns
-from prepdata.alloy_descriptors import get_weighted_electronegativity, get_weighted_group, get_weighted_melting_point, get_weighted_mixing_enthalpy
+from prepdata.alloy_descriptors import (
+    get_weighted_electronegativity,
+    get_weighted_group,
+    get_weighted_melting_point,
+    get_weighted_mixing_enthalpy,
+)
 from prepdata.composition import get_composition_key, get_stoich_array
 from prepdata.feature_table import build_feature_table
 

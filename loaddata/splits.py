@@ -270,7 +270,7 @@ def build_kmeans_cluster_splits(
 # ============================================================
 
 
-def build_sparsex_splits(
+def build_feature_sparsity_splits(
     X: pd.DataFrame,
     fractions: Sequence[float] = (0.1, 0.2),
     n_neighbors: int = 5,
@@ -329,7 +329,7 @@ def build_sparsex_splits(
 # ============================================================
 
 
-def build_sparsey_splits(
+def build_target_sparsity_splits(
     y: pd.Series,
     fractions: Sequence[float] = (0.1, 0.2),
     center: str = "median",

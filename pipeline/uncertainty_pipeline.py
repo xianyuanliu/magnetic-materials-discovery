@@ -24,7 +24,7 @@ import pandas as pd
 
 from config import RunConfig
 from evaluate.calibration import summarize_across_seeds, summarize_calibration
-from evaluate.metrics import melt_to_results
+from evaluate.metrics import wide_table_to_results
 from loaddata.tabular_access import load_feature_table
 from pipeline.ood_scenarios import build_scenarios, resolve_split_elements
 from loaddata.splits import Split, build_kfold_splits, build_size_matched_split
@@ -257,7 +257,7 @@ def run_uncertainty_evaluation(*, cfg: RunConfig, registry: Mapping[str, ModelSp
     # `model` carries the interval method here: the fitted model is fixed by uncertainty_model, and what the run
     # compares is how each method's intervals behave.
     _, directory = save_results(
-        melt_to_results(
+        wide_table_to_results(
             by_split,
             {metric: metric for metric in UQ_METRICS},
             identifiers={

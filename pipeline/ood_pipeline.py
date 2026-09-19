@@ -18,10 +18,10 @@ from typing import Dict, List, Mapping, Sequence, Tuple
 import pandas as pd
 
 from config import RunConfig
-from evaluate.metrics import METRICS, melt_to_results
+from evaluate.metrics import METRICS, wide_table_to_results
 from evaluate.ood_evaluation import (
     OOD,
-    evaluate_splits_kfold_train_fixed_test,
+    score_splits_with_inner_kfold,
     summarize_generalization_gap,
     summarize_model_comparison,
     summarize_runs_across_splits,
@@ -43,7 +43,7 @@ TABLE_FILENAMES = (
 )
 
 
-def build_controls(splits: Sequence[Split], n_samples: int, seed: int, scenario: str) -> Dict[str, Split]:
+def build_size_matched_controls(splits: Sequence[Split], n_samples: int, seed: int, scenario: str) -> Dict[str, Split]:
     """One same-size random split per OOD split, keyed by the parent's split_id.
 
     Returns:
@@ -80,7 +80,7 @@ def _run_scenario(
     frames: Tuple[List, List] = ([], [])
     for seed in seeds:
         controls = (
-            build_controls(splits, n_samples, int(seed), scenario)
+            build_size_matched_controls(splits, n_samples, int(seed), scenario)
             if size_matched_control else None
         )
         tables = evaluate(splits, scenario=scenario, seed=int(seed), controls=controls)
@@ -135,7 +135,7 @@ def run_ood_evaluation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> 
     collected: Tuple[List, List] = ([], [])
     for scenario, splits in scenarios:
         evaluate = partial(
-            evaluate_splits_kfold_train_fixed_test,
+            score_splits_with_inner_kfold,
             X_full, y_full, specs=specs,
             inner_splitter=lambda n_train, seed: build_kfold_splits(
                 n_train, cfg.kfold.folds, cfg.kfold.shuffle, seed
@@ -178,7 +178,7 @@ def run_ood_evaluation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> 
     # The unified table reports one observation per split, matching table 2's *_mean columns: the inner folds all score
     # the same held-out rows, so their spread belongs in *_std rather than as separate observations.
     _, directory = save_results(
-        melt_to_results(
+        wide_table_to_results(
             metrics_by_model,
             {f"{metric.upper()}_mean": metric for metric in METRICS},
             identifiers={

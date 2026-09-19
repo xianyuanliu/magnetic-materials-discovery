@@ -54,7 +54,7 @@ RESULT_COLUMNS = ("scenario", "split_type", "split_id", "seed", "model", "metric
 SUMMARY_GROUPS = ("scenario", "split_type", "model", "metric")
 
 
-def melt_to_results(
+def wide_table_to_results(
     table: pd.DataFrame,
     value_columns: Dict[str, str],
     *,

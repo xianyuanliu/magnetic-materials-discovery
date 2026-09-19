@@ -48,8 +48,8 @@ def _empty_scores(specs: Sequence[ModelSpec]) -> Dict[str, Dict[str, List[float]
     return {spec.name: {metric: [] for metric in METRICS} for spec in specs}
 
 
-def heldout_target(split_id: str) -> str:
-    """Extract the held-out target from a split id, or "" when there isn't one.
+def heldout_label(split_id: str) -> str:
+    """Extract what a split holds out from its id, or "" when the split holds out no named thing.
 
     Membership splits are named `E=Fe`, `P=4`, `G=8`, `C=3`; the sparsity families are named `SparseX_top10pct` and
     hold out a *fraction*, not a target, so they have no label to extract.
@@ -137,7 +137,7 @@ def _metric_rows(scenario, split_id, seed, split_type, scores: _FoldScores) -> L
     return rows
 
 
-def evaluate_splits_kfold_train_fixed_test(
+def score_splits_with_inner_kfold(
     X: pd.DataFrame,
     y: pd.Series,
     splits: Sequence[Split],
@@ -204,7 +204,7 @@ def evaluate_splits_kfold_train_fixed_test(
 
         summary_rows.append(dict(
             scenario=scenario, split_id=split_id,
-            heldout_target=heldout_target(split_id),
+            heldout_target=heldout_label(split_id),
             n_train=len(train_idx), n_test=len(test_idx), seed=seed,
         ))
 

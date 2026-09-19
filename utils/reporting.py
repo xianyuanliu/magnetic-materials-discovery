@@ -113,7 +113,7 @@ def print_compound_counts(counts: pd.Series) -> None:
     """Print how many compounds have each number of distinct elements.
 
     Args:
-        counts: Counts indexed by radix, from interpret.visualize.count_compounds_by_radix.
+        counts: Counts indexed by radix, from interpret.dataset_distributions.count_compounds_by_radix.
     """
     for radix, count in counts.items():
         name = RADIX_NAMES.get(int(radix), f"{int(radix)}-component")

@@ -34,7 +34,8 @@ completely. Problems still surface: a skipped split or an unusable formula goes 
   - `registry.py`: `ModelSpec` (what a model declares about itself) and `resolve_models`
     (config keys to specs). A leaf, because `evaluate/` needs `ModelSpec` too and must
     not import `pipeline/` to get it.
-  - `reporting.py`: every `print_*` and display formatter in the codebase.
+  - `reporting.py`: every display formatter in the codebase. A `format_*` returns the text and lets
+    the caller place it; a `print_*` writes it; `Logger` is the sink a pipeline writes progress to.
   - `persistence.py`: what a run leaves behind — `ModelBundle` (a fitted model plus the feature
     columns, in training order, that it must be given) with `save_model_bundle` /
     `load_model_bundle`, and `save_results` / `save_tables`, which every mode writes its numbers
@@ -72,11 +73,17 @@ completely. Problems still surface: a skipped split or an unusable formula goes 
 - `predict/`: every model's bare constructor, tuner and trainer, one block each, combined
   into fittable `ModelSpec`s (`sklearn_models.py`, exposes `MODEL_REGISTRY`); and the predictive-
   uncertainty estimators with split-conformal calibration (`uncertainty.py`).
-- `pipeline/`: one orchestration module per evaluation mode — `random_split_pipeline.py`,
-  `cross_validation_pipeline.py`, `inference_pipeline.py`, `uncertainty_pipeline.py`, `ood_pipeline.py`
-  (with `ood_scenarios.py` turning the config into a list of scenarios), plus the optional dataset
-  distribution plots (`data_visualization.py`). Nothing else lives here: helpers a mode needs but
-  does not orchestrate belong in `utils/` or `evaluate/`.
+- `pipeline/`: one module per evaluation mode, each taking explicit arguments rather than a config —
+  `cross_validation.py`, `random_split.py`, `prediction.py`, `uncertainty_pipeline.py`,
+  `ood_pipeline.py` (with `ood_scenarios.py` turning the config into a list of scenarios). These read
+  no file and print nothing on their own: they take a feature matrix, a target and resolved model
+  specifications, and return the long-form result rows. Progress goes to a `Logger` the caller
+  supplies, defaulting to one that discards it, so the same function serves a CLI run and a notebook.
+- `examples/`: one worked example of the library — alloy saturation magnetization from a composition.
+  `runner.py` is the only module in the repo that reads a run config: it resolves what the config
+  names, calls `pipeline/`, and decides what to save and print. `case_study_references.py` holds this
+  study's literature measurements. A second dataset or modality becomes a sibling package with its own
+  runner, leaving everything below untouched.
   Every evaluation mode has the same shape: resolve the models, load the feature table, build
   splits from `loaddata/splits.py`, score them, then write one `results.csv` of raw per-split
   numbers and one `summary.csv` of means and standard deviations. Only the split family and the tables
@@ -87,13 +94,18 @@ completely. Problems still surface: a skipped split or an unusable formula goes 
   calibration metrics (`calibration.py`). `KFold` and `train_test_split` appear nowhere here;
   the caller passes `(split_id, train_idx, test_idx)` tuples, so swapping in a grouped or
   shifted split changes a line in `pipeline/` and nothing in `evaluate/`.
-- `interpret/`: dataset distribution plots (`visualize.py`), permutation importance +
-  SHAP (`model_explanations.py`), and FeAl/FeCo/FeCr literature case studies
-  (`case_studies.py` + `case_study_references.py`).
+- `interpret/`: figures. Two modules carry no domain assumptions and import nothing from this repo —
+  permutation importance + SHAP (`model_explanations.py`) and predictions against measurements
+  (`reference_comparison.py`); both work on any tabular model and dataset. Two need the chemistry:
+  distributions of a target within element-containing subsets (`dataset_distributions.py`) and
+  sweeping a model along an alloy series (`case_studies.py`). Which series to sweep, and what was
+  measured for it, belongs to the study and lives in `examples/`.
 - `configs/`: YAML run configs (one per dataset/mode).
 - `data/`: expected inputs (`mp-data.csv`, `Novamag_Data_Files/`,
   `Periodic-table/periodic_table.xlsx`, `Miedema-model/Miedema-model-reduced.xlsx`).
 - `plots/`: generated figures (permutation importance, SHAP, case studies, distributions).
+- `models/`: saved `ModelBundle` files. A bundle records a fingerprint of the rows it was fitted on, and
+  `predict` mode refuses one that no longer matches the configured dataset.
 
 ## Quick Start
 1) Install deps (Python 3.9+ recommended):

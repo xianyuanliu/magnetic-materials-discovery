@@ -26,7 +26,7 @@ from examples.case_study_references import CASE_STUDIES
 from interpret.case_studies import build_series_panels
 from interpret.reference_comparison import plot_predictions_against_measurements
 from interpret.model_explanations import plot_model_explanations
-from interpret.visualize import (
+from interpret.dataset_distributions import (
     count_compounds_by_radix,
     plot_target_distribution_by_element,
     plot_target_violin_by_element,
@@ -34,7 +34,7 @@ from interpret.visualize import (
 from loaddata.splits import build_random_split
 from loaddata.tabular_access import load_element_properties, load_feature_table
 from pipeline.cross_validation import run_cross_validation as cross_validate
-from pipeline.inference import check_bundle_matches, fit_bundle, predict_formulas
+from pipeline.prediction import check_bundle_matches, fit_bundle, predict_formulas
 from pipeline.random_split import run_random_split as evaluate_random_split
 from utils.persistence import ModelBundle, load_model_bundle, save_model_bundle, save_results, save_tables
 from utils.registry import ModelSpec, resolve_models, resolve_trained_models

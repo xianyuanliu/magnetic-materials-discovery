@@ -10,7 +10,7 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from pipeline.inference import check_bundle_matches
+from pipeline.prediction import check_bundle_matches
 from utils.persistence import TRAINING_FINGERPRINT, ModelBundle, fingerprint_training_data
 
 
