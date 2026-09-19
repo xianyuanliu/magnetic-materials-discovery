@@ -3,7 +3,7 @@
 import argparse
 
 from config import load_run_config
-from examples import cross_validation, data_visualization, inference, random_split
+from examples import runner
 from pipeline.ood_pipeline import run_ood_evaluation
 from pipeline.uncertainty_pipeline import run_uncertainty_evaluation
 from predict.sklearn_models import MODEL_REGISTRY
@@ -22,20 +22,20 @@ def main() -> None:
     cfg = load_run_config(args.config)
 
     if cfg.evaluation_mode == "predict":
-        inference.run(cfg=cfg, registry=MODEL_REGISTRY)
+        runner.run_predict(cfg=cfg, registry=MODEL_REGISTRY)
         return
 
     if cfg.evaluation_mode == "cross_validation":
-        cross_validation.run(cfg=cfg, registry=MODEL_REGISTRY)
+        runner.run_cross_validation(cfg=cfg, registry=MODEL_REGISTRY)
     elif cfg.evaluation_mode == "ood":
         run_ood_evaluation(cfg=cfg, registry=MODEL_REGISTRY)
     elif cfg.evaluation_mode == "uncertainty":
         run_uncertainty_evaluation(cfg=cfg, registry=MODEL_REGISTRY)
     else:
-        random_split.run(cfg=cfg, registry=MODEL_REGISTRY)
+        runner.run_random_split(cfg=cfg, registry=MODEL_REGISTRY)
 
     if cfg.enable_data_visualization:
-        data_visualization.run(cfg=cfg)
+        runner.run_data_visualization(cfg=cfg)
 
 
 if __name__ == "__main__":

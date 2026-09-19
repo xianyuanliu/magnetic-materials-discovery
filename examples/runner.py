@@ -1,0 +1,344 @@
+"""The one module that reads a run config: it turns config values into the arguments `pipeline/` takes.
+
+Everything below this file works without a YAML schema — the stage packages take explicit arguments, and so do the
+`pipeline/` functions, which return their numbers rather than printing or saving them. What is left is here: reading
+the files a config names, resolving model keys against the registry, choosing where output goes, and deciding what
+gets printed.
+
+Keeping it in one module is the point. "Which code depends on the config format" has a one-file answer, and adding a
+mode means adding a function here rather than another file whose name shadows one in `pipeline/`. A second dataset or
+a second modality becomes a sibling of this example, with its own runner, the way PyKale gives every example its own.
+
+Each `run_*` here corresponds to one `evaluation_mode`, plus `run_data_visualization` for the optional plots any mode
+can enable.
+"""
+
+import warnings
+from pathlib import Path
+from typing import Mapping, Optional, Sequence, Tuple
+
+import pandas as pd
+
+from config import RunConfig
+from evaluate.metrics import results_to_scores
+from interpret.case_studies import plot_case_studies
+from interpret.model_explanations import plot_model_explanations
+from interpret.visualize import count_compounds_by_radix, plot_ms_distribution_by_tm, plot_violin_ms_by_tm
+from loaddata.splits import build_random_split
+from loaddata.tabular_access import load_element_properties, load_feature_table
+from pipeline.cross_validation import run_cross_validation as cross_validate
+from pipeline.inference import check_bundle_matches, fit_bundle, predict_formulas
+from pipeline.random_split import run_random_split as evaluate_random_split
+from utils.persistence import ModelBundle, load_model_bundle, save_model_bundle, save_results, save_tables
+from utils.registry import ModelSpec, resolve_models, resolve_trained_models
+from utils.reporting import (
+    SILENT,
+    Logger,
+    format_comparisons,
+    print_compound_counts,
+    print_predictions,
+    print_summary,
+)
+
+
+def _load_features(cfg: RunConfig) -> Tuple[pd.DataFrame, pd.Series]:
+    """Build the feature matrix and target from the dataset the config names."""
+    X, y, _ = load_feature_table(
+        cfg.dataset_path,
+        target_column=cfg.target_column,
+        formula_column=cfg.formula_column,
+        feature_columns=cfg.feature_columns,
+    )
+    return X, y
+
+
+def _logger(cfg: RunConfig) -> Logger:
+    """The sink a pipeline writes progress to: stdout when the run prints, discarded when it does not."""
+    return Logger() if cfg.print_results else SILENT
+
+
+def _compared_names(cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> Optional[Tuple[str, str]]:
+    """Resolve `compare_models` into the two display names the significance tests use, or None."""
+    if cfg.compare_models is None:
+        return None
+    name_a, name_b = (spec.name for spec in resolve_models(registry, cfg.compare_models))
+    return name_a, name_b
+
+
+def run_cross_validation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
+    """Load what the config names, run repeated K-fold, then save and print what it asks for.
+
+    Args:
+        cfg: The resolved run configuration.
+        registry: Registry to resolve `models` and `compare_models` against.
+    """
+    specs = resolve_models(registry, cfg.models)
+    X, y = _load_features(cfg)
+
+    # Resolved once: the pair is the same for every seed.
+    compared = _compared_names(cfg, registry)
+
+    results = cross_validate(
+        X, y, specs,
+        folds=cfg.kfold.folds,
+        shuffle=cfg.kfold.shuffle,
+        seeds=cfg.kfold.seeds,
+        hyperparameter_tuning=cfg.tuning.enabled,
+        tune_cv_folds=cfg.tuning.cv_folds,
+        tune_n_iter=cfg.tuning.n_iter,
+        model_random_state=cfg.model_random_state,
+        compare=compared,
+        logger=_logger(cfg),
+    )
+
+    summary, directory = save_results(
+        results,
+        cfg.results_output_dir,
+        prefix=f"{cfg.prefix}_cv_",
+        enabled=cfg.save_results,
+    )
+    # Across every fold of every seed, so cross-validation and random_split close on the same statement.
+    if cfg.print_results and len(cfg.kfold.seeds) > 1:
+        print_summary(summary, f"Cross-Validation Metrics across {len(cfg.kfold.seeds)} seed(s) (mean ± std):")
+    if directory is not None and cfg.print_results:
+        print(f"\nSaved cross-validation results to: {directory.resolve()}")
+
+
+def _plot_ablation(
+    cfg: RunConfig,
+    registry: Mapping[str, ModelSpec],
+    trained: Mapping[str, object],
+    feature_columns: Sequence[str],
+    X_train,
+    X_valid,
+    y_valid,
+) -> None:
+    """Turn the figure settings into calls on `interpret/`.
+
+    Config unpacking only: which fitted models the config names, where the figures go, and which reference files the
+    case studies need. Both figures are config-free functions that take explicit arguments.
+    """
+    plots_dir = Path(cfg.plots_output_dir)
+    plots_dir.mkdir(parents=True, exist_ok=True)
+
+    if cfg.ablation.interpret_model:
+        (spec,) = resolve_trained_models(registry, trained, [cfg.ablation.interpret_model])
+        plot_model_explanations(
+            trained[spec.key], X_train, X_valid, y_valid,
+            name=spec.name, save_dir=plots_dir, prefix=f"{cfg.prefix}_",
+            random_state=cfg.model_random_state,
+        )
+
+    if cfg.ablation.case_study_models:
+        specs = resolve_trained_models(registry, trained, cfg.ablation.case_study_models)
+        pt, mm = load_element_properties(cfg.pt_path, cfg.mm_path)
+        plot_case_studies(
+            feature_columns,
+            {spec.name: trained[spec.key] for spec in specs},
+            pt,
+            mm,
+            target_label=cfg.target_column,
+            save_path=plots_dir / f"{cfg.prefix}_case_studies.png",
+        )
+
+
+def run_random_split(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
+    """Load what the config names, repeat the split once per seed, then save, print and explain what it asks for.
+
+    `random_split_seeds` seeds the split only, kept separate from `random_state` (model construction and tuning).
+    Ablation figures come from the first seed's models, so they stay put when a seed is added.
+
+    Args:
+        cfg: The resolved run configuration.
+        registry: Registry to resolve `models`, `compare_models` and the ablation model names against.
+    """
+    specs = resolve_models(registry, cfg.models)
+    X, y = _load_features(cfg)
+
+    results, first_split_models = evaluate_random_split(
+        X, y, specs,
+        seeds=cfg.random_split.seeds,
+        train_size=cfg.random_split.train_size,
+        hyperparameter_tuning=cfg.tuning.enabled,
+        tune_cv_folds=cfg.tuning.cv_folds,
+        tune_n_iter=cfg.tuning.n_iter,
+        model_random_state=cfg.model_random_state,
+        logger=_logger(cfg),
+    )
+
+    summary, directory = save_results(
+        results,
+        cfg.results_output_dir,
+        prefix=f"{cfg.prefix}_random_split_",
+        enabled=cfg.save_results,
+    )
+    if directory is not None and cfg.print_results:
+        print(f"\nSaved random-split results to: {directory.resolve()}")
+
+    if cfg.print_results and len(cfg.random_split.seeds) > 1:
+        print_summary(summary, f"Random-Split Metrics across {len(cfg.random_split.seeds)} seed(s) (mean ± std):")
+        compared = _compared_names(cfg, registry)
+        if compared is not None:
+            # One observation per seed, each a fresh split of the same rows, so the training sets overlap.
+            print(format_comparisons(
+                results_to_scores(results), *compared,
+                test_train_ratio=(1.0 - cfg.random_split.train_size) / cfg.random_split.train_size,
+            ), end="")
+
+    if not cfg.ablation.enabled:
+        return
+
+    # The same split the models came from, rebuilt rather than carried: build_random_split is pure and seeded.
+    _, train_idx, valid_idx = build_random_split(len(X), cfg.random_split.train_size, int(cfg.random_split.seeds[0]))
+    _plot_ablation(
+        cfg, registry, first_split_models, list(X.columns),
+        X.iloc[train_idx], X.iloc[valid_idx], y.iloc[valid_idx],
+    )
+
+
+def _read_formulas(cfg: RunConfig) -> pd.DataFrame:
+    """Collect the compositions to predict, from a CSV or from the config.
+
+    Returns:
+        A single-column frame of formulas.
+
+    Raises:
+        ValueError: If neither source is configured, if the CSV lacks the formula column, or if no usable formula is
+            left.
+    """
+    if cfg.predict.input_path:
+        data = pd.read_csv(cfg.predict.input_path)
+        if cfg.formula_column not in data.columns:
+            raise ValueError(
+                f"{cfg.predict.input_path} has no {cfg.formula_column!r} column. "
+                f"Found: {sorted(data.columns)}"
+            )
+        formulas = data[[cfg.formula_column]].copy()
+    elif cfg.predict.formulas:
+        formulas = pd.DataFrame({cfg.formula_column: list(cfg.predict.formulas)})
+    else:
+        raise ValueError(
+            "predict mode needs compositions: set 'predict_input_path' to a CSV "
+            "or 'predict_formulas' to a list in the config."
+        )
+
+    formulas = formulas.dropna(subset=[cfg.formula_column]).reset_index(drop=True)
+    if formulas.empty:
+        raise ValueError("No usable chemical formulas to predict.")
+    return formulas
+
+
+def _load_training_table(cfg: RunConfig):
+    """Build the feature table the config names, or None when it names no dataset at all."""
+    if not cfg.dataset_path or not Path(cfg.dataset_path).exists():
+        return None
+    return _load_features(cfg)
+
+
+def _resolve_bundle(cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> ModelBundle:
+    """Load the saved bundle if there is one to load, otherwise fit and save.
+
+    A loaded bundle is checked against the configured dataset when that dataset is present, because a model that
+    outlived its training data keeps predicting and stops being right. A bundle shipped without the dataset is used
+    as-is: there is nothing to check it against.
+    """
+    path = cfg.predict.model_path
+    if path and Path(path).exists() and not cfg.predict.retrain:
+        bundle = load_model_bundle(path)
+        print(f"Loaded model from {Path(path).resolve()}")
+        training = _load_training_table(cfg)
+        if training is not None:
+            check_bundle_matches(bundle, *training)
+        return bundle
+
+    (spec,) = resolve_models(registry, [cfg.predict.model])
+    training = _load_training_table(cfg)
+    if training is None:
+        raise ValueError(
+            f"Fitting a model needs training data, but dataset_path is {cfg.dataset_path!r} and no such file exists. "
+            f"Point predict_model_path at a saved bundle to skip fitting, or set dataset_path."
+        )
+
+    X, y = training
+    print(f"Fitting {spec.name} on all {len(X)} row(s) of {cfg.dataset_path}")
+    bundle = fit_bundle(
+        X, y, spec,
+        target_column=cfg.target_column,
+        dataset=cfg.dataset,
+        model_random_state=cfg.model_random_state,
+    )
+
+    if path:
+        print(f"Saved model to {save_model_bundle(path, bundle)}")
+    else:
+        print("[INFO] No 'predict_model_path' set, so this model is not saved and " "the next run will refit it.")
+    return bundle
+
+
+def run_predict(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> pd.DataFrame:
+    """Resolve a model, score the configured compositions, and save the output.
+
+    Args:
+        cfg: The resolved run configuration.
+        registry: Registry to resolve `predict_model` against.
+
+    Returns:
+        The prediction table, one row per successfully featurized composition.
+    """
+    bundle = _resolve_bundle(cfg, registry)
+    print(f"Model: {bundle.describe()}")
+
+    formulas = _read_formulas(cfg)
+    pt, mm = load_element_properties(cfg.pt_path, cfg.mm_path)
+    predictions, skipped = predict_formulas(bundle, formulas, pt, mm, formula_column=cfg.formula_column)
+
+    if skipped:
+        warnings.warn(f"Could not featurize {len(skipped)} formula(s): {skipped}")
+
+    print(f"\nPredicted {bundle.target_column} for {len(predictions)} composition(s):")
+    if cfg.print_results:
+        print_predictions(predictions)
+
+    if cfg.predict.output_path and cfg.save_results:
+        destination = Path(cfg.predict.output_path)
+        save_tables({destination.name: predictions}, str(destination.parent))
+        print(f"\nSaved predictions to: {destination.resolve()}")
+
+    return predictions
+
+
+def run_data_visualization(*, cfg: RunConfig) -> None:
+    """Plot the target's distribution across the transition-metal subsets.
+
+    Args:
+        cfg: The resolved run configuration; `dataset_path` must be set, and `plots_output_dir` names where the
+            figures go.
+
+    Raises:
+        ValueError: If the config names no `dataset_path`, which OOD configs do not because they name a train and a
+            test file instead.
+    """
+    if not cfg.dataset_path:
+        raise ValueError(
+            "enable_data_visualization needs dataset_path, but this config sets none. OOD configs name "
+            "train_dataset_path and test_dataset_path instead; point dataset_path at the table you want plotted."
+        )
+
+    plots_dir = Path(cfg.plots_output_dir)
+    plots_dir.mkdir(parents=True, exist_ok=True)
+
+    _, y, metadata = load_feature_table(
+        cfg.dataset_path,
+        target_column=cfg.target_column,
+        formula_column=cfg.formula_column,
+        feature_columns=cfg.feature_columns,
+    )
+    data = metadata.assign(**{cfg.target_column: y})
+
+    plot_ms_distribution_by_tm(data, save_path=plots_dir / f"{cfg.prefix}_ms_distribution_by_tm.png")
+    plot_violin_ms_by_tm(
+        data,
+        title=f"{cfg.prefix.upper()} Violin Plot",
+        save_path=plots_dir / f"{cfg.prefix}_violin_ms_by_tm.png",
+    )
+    print_compound_counts(count_compounds_by_radix(data))
