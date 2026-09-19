@@ -17,13 +17,18 @@ import warnings
 from pathlib import Path
 from typing import Mapping, Optional, Sequence, Tuple
 
+import numpy as np
 import pandas as pd
 
 from config import RunConfig
 from evaluate.metrics import results_to_scores
 from interpret.case_studies import plot_case_studies
 from interpret.model_explanations import plot_model_explanations
-from interpret.visualize import count_compounds_by_radix, plot_ms_distribution_by_tm, plot_violin_ms_by_tm
+from interpret.visualize import (
+    count_compounds_by_radix,
+    plot_target_distribution_by_element,
+    plot_target_violin_by_element,
+)
 from loaddata.splits import build_random_split
 from loaddata.tabular_access import load_element_properties, load_feature_table
 from pipeline.cross_validation import run_cross_validation as cross_validate
@@ -39,6 +44,14 @@ from utils.reporting import (
     print_predictions,
     print_summary,
 )
+
+
+# The transition metals this dataset is organized around: the distribution plots draw one subset per element, and
+# these four are the ones whose presence moves the saturation magnetization.
+DISTRIBUTION_ELEMENTS = ("Fe", "Co", "Cr", "Mn")
+
+# Bin edges for the distribution plot, covering the saturation magnetization range in tesla.
+DISTRIBUTION_BINS = np.arange(0.0, 2.6, 0.2)
 
 
 def _load_features(cfg: RunConfig) -> Tuple[pd.DataFrame, pd.Series]:
@@ -335,10 +348,21 @@ def run_data_visualization(*, cfg: RunConfig) -> None:
     )
     data = metadata.assign(**{cfg.target_column: y})
 
-    plot_ms_distribution_by_tm(data, save_path=plots_dir / f"{cfg.prefix}_ms_distribution_by_tm.png")
-    plot_violin_ms_by_tm(
+    plot_target_distribution_by_element(
         data,
+        target_column=cfg.target_column,
+        elements=DISTRIBUTION_ELEMENTS,
+        formula_column=cfg.formula_column,
+        bins=DISTRIBUTION_BINS,
+        save_path=plots_dir / f"{cfg.prefix}_ms_distribution_by_tm.png",
+    )
+    plot_target_violin_by_element(
+        data,
+        target_column=cfg.target_column,
+        elements=DISTRIBUTION_ELEMENTS,
+        formula_column=cfg.formula_column,
+        target_label="Saturation Magnetization (T)",
         title=f"{cfg.prefix.upper()} Violin Plot",
         save_path=plots_dir / f"{cfg.prefix}_violin_ms_by_tm.png",
     )
-    print_compound_counts(count_compounds_by_radix(data))
+    print_compound_counts(count_compounds_by_radix(data, formula_column=cfg.formula_column))
