@@ -27,7 +27,7 @@ from prepdata.composition import (
 ENGINEERED_FEATURE_COLUMNS: Tuple[str, ...] = (
     "compoundradix",
     "stoicentw",
-    "Zw",
+    "atomicweightw",
     "periodw",
     "groupw",
     "meltingTw",
@@ -156,12 +156,10 @@ def add_engineered_features(
     data = raw_data.copy()
     stoich_array = get_stoich_array(data, pt, formula_column=formula_column)
 
-    # The column names are the ones the published feature tables already use, so they stay as they are. "Zw" is the
-    # one that misleads: Z normally means atomic number, but this column holds the weighted atomic *weight*, and the
-    # periodic table file carries both.
+    # Each column is the element-weighted mean of the named property, over the composition's atomic fractions.
     data["compoundradix"] = get_compound_radix(data, formula_column=formula_column)
     data["stoicentw"] = get_mixing_entropy(stoich_array)
-    data["Zw"] = get_weighted_atomic_weight(pt, stoich_array)
+    data["atomicweightw"] = get_weighted_atomic_weight(pt, stoich_array)
     data["periodw"] = get_weighted_period(pt, stoich_array)
     data["groupw"] = get_weighted_group(pt, stoich_array)
     data["meltingTw"] = get_weighted_melting_point(pt, stoich_array)

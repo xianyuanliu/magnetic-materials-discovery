@@ -1,4 +1,4 @@
-chemical formula,saturation magnetization,compoundradix,stoicentw,Zw,periodw,groupw,meltingTw,miedemaH,valencew,electronegw,n_records,sample_id
+chemical formula,saturation magnetization,compoundradix,stoicentw,atomicweightw,periodw,groupw,meltingTw,miedemaH,valencew,electronegw,n_records,sample_id
 AgCrTi,0.677771,3,1.0986122886681098,69.24382666666666,4.333333333333333,6.999999999999999,1785.31,8.0,4.666666666666666,1.71,1,TUDA/Tetragonally_distortion_cubic/Ti4Cr4Ag4_#119_205.json
 AgMn3N,1.80766,3,0.9502705392332346,57.33787058,3.8,9.4,1171.016,-65.92,6.0,1.9240000000000002,1,TUDA/Tetragonally_distortion_cubic/Mn3Ag1N1_#123_11.json
 AlCo2Cr,0.7509859999999999,3,1.0397207708399179,49.2110218425,3.75,9.25,1662.3675,-14.0,4.75,1.7575,1,TUDA/Tetragonally_distortion_cubic/Al4Cr4Co8_#139_180.json

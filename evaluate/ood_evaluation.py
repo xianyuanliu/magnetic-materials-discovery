@@ -204,7 +204,7 @@ def score_splits_with_inner_kfold(
 
         summary_rows.append(dict(
             scenario=scenario, split_id=split_id,
-            heldout_target=heldout_label(split_id),
+            heldout_label=heldout_label(split_id),
             n_train=len(train_idx), n_test=len(test_idx), seed=seed,
         ))
 

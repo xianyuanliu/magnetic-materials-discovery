@@ -117,12 +117,13 @@ class FeatureColumnSelectionTests(unittest.TestCase):
         # row_index and note stand for columns this project has never seen, which the fallback cannot recognize.
         self.data = pd.DataFrame({
             "chemical formula": ["FeNi"], "saturation magnetization": [1.5],
-            "Zw": [57.3], "row_index": [7], "note": ["measured twice"],
+            "atomicweightw": [57.3], "row_index": [7], "note": ["measured twice"],
         })
 
     def test_named_columns_are_used_in_the_given_order(self):
         self.assertEqual(
-            resolve_feature_columns(self.data, "saturation magnetization", feature_columns=["Zw"]), ["Zw"]
+            resolve_feature_columns(self.data, "saturation magnetization", feature_columns=["atomicweightw"]),
+            ["atomicweightw"],
         )
 
     def test_fallback_rejects_a_non_numeric_column_instead_of_passing_it_through(self):
@@ -134,14 +135,14 @@ class FeatureColumnSelectionTests(unittest.TestCase):
         """row_index becomes a model input, which is why naming the features explicitly is the documented default."""
         numeric = self.data.drop(columns=["note"])
         self.assertEqual(
-            resolve_feature_columns(numeric, "saturation magnetization"), ["Zw", "row_index"]
+            resolve_feature_columns(numeric, "saturation magnetization"), ["atomicweightw", "row_index"]
         )
 
     def test_fallback_skips_the_provenance_columns(self):
         """sample_id and n_records are carried for traceability; promoting them would leak row provenance."""
         data = self.data.drop(columns=["note"]).assign(sample_id=["a/b.json"], n_records=[3], source=["novamag"])
         self.assertEqual(
-            resolve_feature_columns(data, "saturation magnetization"), ["Zw", "row_index"]
+            resolve_feature_columns(data, "saturation magnetization"), ["atomicweightw", "row_index"]
         )
 
     def test_unknown_named_column_is_rejected(self):

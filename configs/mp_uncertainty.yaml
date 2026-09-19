@@ -45,7 +45,7 @@ uncertainty_output_dir: ./results/mp_uncertainty
 feature_columns:
   - compoundradix
   - stoicentw
-  - Zw
+  - atomicweightw
   - periodw
   - groupw
   - meltingTw

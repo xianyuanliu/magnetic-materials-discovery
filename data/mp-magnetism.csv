@@ -1,4 +1,4 @@
-chemical formula,saturation magnetization,compoundradix,stoicentw,Zw,periodw,groupw,meltingTw,miedemaH,valencew,electronegw,n_records,sample_id
+chemical formula,saturation magnetization,compoundradix,stoicentw,atomicweightw,periodw,groupw,meltingTw,miedemaH,valencew,electronegw,n_records,sample_id
 Ag3Cr,0.703812452343594,2,0.5623351446188083,93.900205,4.75,9.75,1471.1975,20.25,4.5,1.8625,1,mp-1183721
 Ag3Fe,0.5360643706235135,2,0.5623351446188083,94.86246499999999,4.75,10.25,1378.9475,21.0,4.5,1.905,2,
 Ag3Re,0.3511668815685693,2,0.5623351446188083,127.45293999999998,5.25,10.0,1790.9475,28.5,4.75,1.9224999999999999,1,mp-1186896

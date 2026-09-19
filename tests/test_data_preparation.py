@@ -75,7 +75,7 @@ class DataPreparationTests(unittest.TestCase):
         assert len(table) == 2
         # Aggregating first would give 0.8 for FeNi, whereas the selected magnetic subset gives 2.0.
         assert table.loc["FeNi", "saturation magnetization"] == 2.0
-        self.assertAlmostEqual(table.loc["FeNi", "Zw"], (55.845 + 58.6934) / 2)
+        self.assertAlmostEqual(table.loc["FeNi", "atomicweightw"], (55.845 + 58.6934) / 2)
         assert table.loc["FeNi", "miedemaH"] == -2.0
         assert list(table.columns) == [
             "saturation magnetization", *ENGINEERED_FEATURE_COLUMNS, "n_records", "sample_id",

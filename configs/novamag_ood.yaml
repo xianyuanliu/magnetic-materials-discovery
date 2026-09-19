@@ -49,7 +49,7 @@ ood_output_dir: ./results/novamag_ood
 feature_columns:
   - compoundradix
   - stoicentw
-  - Zw
+  - atomicweightw
   - periodw
   - groupw
   - meltingTw

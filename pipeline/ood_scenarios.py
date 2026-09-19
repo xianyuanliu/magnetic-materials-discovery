@@ -27,8 +27,8 @@ from loaddata.splits import (
     build_kmeans_cluster_splits,
     build_loeo_splits,
     build_period_splits,
-    build_feature_sparsity_splits,
-    build_target_sparsity_splits,
+    build_sparsex_splits,
+    build_sparsey_splits,
 )
 from prepdata.composition import get_elements_per_row, get_group_period_maps
 
@@ -157,15 +157,13 @@ def build_scenarios(
     if selected("sparsex"):
         scenarios.append((
             "SparseX",
-            build_feature_sparsity_splits(
-                X, fractions=ood_cfg.fractions, n_neighbors=ood_cfg.sparsex_neighbors, **sizes,
-            ),
+            build_sparsex_splits(X, fractions=ood_cfg.fractions, n_neighbors=ood_cfg.sparsex_neighbors, **sizes),
         ))
 
     if selected("sparsey"):
         scenarios.append((
             "SparseY",
-            build_target_sparsity_splits(y, fractions=ood_cfg.fractions, center=ood_cfg.sparsey_center, **sizes),
+            build_sparsey_splits(y, fractions=ood_cfg.fractions, center=ood_cfg.sparsey_center, **sizes),
         ))
 
     return [(name, _capped(splits, max_splits)) for name, splits in scenarios if splits]

@@ -266,21 +266,25 @@ def build_kmeans_cluster_splits(
     return splits
 
 
-# ============================================================ SparseX OOD — Feature-space sparsity
+# ================================================ SparseX OOD — sparse in X, the feature matrix
 # ============================================================
 
 
-def build_feature_sparsity_splits(
+def build_sparsex_splits(
     X: pd.DataFrame,
     fractions: Sequence[float] = (0.1, 0.2),
     n_neighbors: int = 5,
     min_train: int = 1,
     min_test: int = 1,
 ) -> List[Split]:
-    """OOD splits based on feature-space sparsity: hold out the most isolated samples.
+    """Sparse-in-X splits: hold out the samples that sit in the emptiest regions of feature space.
 
-    "Isolated" = largest mean distance to its `n_neighbors` nearest neighbors in X.
-    One split is built per fraction in `fractions`.
+    The X is the feature matrix, as everywhere in scikit-learn, so "SparseX" reads as sparse in the inputs — the
+    counterpart of build_sparsey_splits, which is sparse in the target. A model is asked to predict compositions
+    unlike anything it was trained on, without any chemical rule deciding what "unlike" means.
+
+    "Isolated" = largest mean distance to its `n_neighbors` nearest neighbors in X, after standardizing the columns
+    so no feature dominates the distance through its units. One split is built per fraction in `fractions`.
     """
     if n_neighbors < 1:
         raise ValueError("n_neighbors must be >= 1")
@@ -325,18 +329,22 @@ def build_feature_sparsity_splits(
     return splits
 
 
-# ============================================================ SparseY OOD — Target-space sparsity
+# ================================================ SparseY OOD — sparse in y, the target
 # ============================================================
 
 
-def build_target_sparsity_splits(
+def build_sparsey_splits(
     y: pd.Series,
     fractions: Sequence[float] = (0.1, 0.2),
     center: str = "median",
     min_train: int = 1,
     min_test: int = 1,
 ) -> List[Split]:
-    """OOD splits based on target-space sparsity: hold out the most extreme y values.
+    """Sparse-in-y splits: hold out the samples whose target values are the rarest.
+
+    The y is the target, as everywhere in scikit-learn, so "SparseY" reads as sparse in the output — the counterpart
+    of build_sparsex_splits, which is sparse in the features. A model is asked to predict magnitudes it has barely
+    seen, which is what extrapolating to a better material actually requires.
 
     "Extreme" = farthest from `center` ("median" or "mean"). One split is built per fraction in `fractions`.
     """

@@ -20,7 +20,7 @@ cv_random_state: 0
 feature_columns:
   - compoundradix
   - stoicentw
-  - Zw
+  - atomicweightw
   - periodw
   - groupw
   - meltingTw
