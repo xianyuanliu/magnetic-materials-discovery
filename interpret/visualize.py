@@ -50,15 +50,17 @@ def plot_target_distribution_by_element(
         target_column: Column holding the value being plotted.
         elements: Elements to draw a separate subset for.
         formula_column: Column holding the chemical formula.
-        bins: Bin edges for the subsets, as seaborn takes them; "auto" lets it choose.
+        bins: Bin edges, shared by every series, as seaborn takes them; "auto" lets it choose one set
+            from the whole dataset.
         save_path: If set, save the figure here instead of showing it.
     """
     subsets = _subsets_by_element(data, elements, formula_column)
 
     plt.figure(figsize=(8, 6))
-    sns.histplot(x=data[target_column], kde=True, label="all")
-    for element, subset in subsets.items():
-        sns.histplot(x=subset[target_column], kde=True, bins=bins, label=element)
+    # Every series shares one set of bin edges. With different edges the bars have different widths, and the counts
+    # stop being comparable across the series — which is the only thing this figure is for.
+    for label, values in [("all", data[target_column])] + [(e, s[target_column]) for e, s in subsets.items()]:
+        sns.histplot(x=values, kde=True, bins=bins, label=label)
 
     plt.xlabel(target_column)
     plt.ylabel("Count")
