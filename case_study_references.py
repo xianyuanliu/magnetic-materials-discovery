@@ -7,7 +7,7 @@ sits beside the runner that uses it rather than in `interpret/`.
 
 from typing import Tuple
 
-from interpret.case_studies import AlloySeries
+from interpret.alloy_series import AlloySeries
 
 FEAL_FORMULAS = [
     "Fe98Al2", "Fe96Al4", "Fe94Al6", "Fe93Al7", "Fe90Al10",

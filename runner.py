@@ -22,7 +22,7 @@ import pandas as pd
 from config import RunConfig
 from evaluate.metrics import METRICS, results_to_scores, wide_table_to_results
 from case_study_references import CASE_STUDIES
-from interpret.case_studies import build_series_panels
+from interpret.alloy_series import build_series_panels
 from interpret.reference_comparison import plot_predictions_against_measurements
 from interpret.model_explanations import plot_model_explanations
 from interpret.dataset_distributions import (

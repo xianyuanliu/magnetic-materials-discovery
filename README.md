@@ -53,7 +53,7 @@ predict/             each model's constructor, tuner and trainer as a ModelSpec,
                      conformal uncertainty estimators
 evaluate/            scores splits it is handed; metrics, paired significance, calibration
 interpret/           figures. model_explanations and reference_comparison work on any
-                     tabular model; dataset_distributions and case_studies need the chemistry
+                     tabular model; dataset_distributions and alloy_series need the chemistry
 utils/               ModelSpec registry, saving/loading, console formatting
 ```
 
