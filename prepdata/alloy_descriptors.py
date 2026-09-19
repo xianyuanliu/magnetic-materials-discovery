@@ -50,32 +50,32 @@ def _numeric_property(pt, column):
     return pd.to_numeric(values.astype(str).str.extract(r"(-?\d*\.?\d+)")[0], errors="coerce")
 
 
-def get_electronegw(pt, stoich_array):
+def get_weighted_electronegativity(pt, stoich_array):
     """Calculate element-weighted electronegativity."""
     return get_weighted_property(_numeric_property(pt, "electronegativity"), stoich_array)
 
 
-def get_zw(pt, stoich_array):
+def get_weighted_atomic_weight(pt, stoich_array):
     """Calculate element-weighted atomic weight."""
     return get_weighted_property(pt["atomic_weight"], stoich_array)
 
 
-def get_periodw(pt, stoich_array):
+def get_weighted_period(pt, stoich_array):
     """Calculate element-weighted period number."""
     return get_weighted_property(pt["period"], stoich_array)
 
 
-def get_melting_tw(pt, stoich_array):
+def get_weighted_melting_point(pt, stoich_array):
     """Calculate element-weighted melting temperature."""
     return get_weighted_property(_numeric_property(pt, "melting_point"), stoich_array)
 
 
-def get_valencew(pt, stoich_array):
+def get_weighted_valence(pt, stoich_array):
     """Calculate element-weighted valence electron number."""
     return get_weighted_property(pt["valence"], stoich_array)
 
 
-def get_groupw(pt, stoich_array):
+def get_weighted_group(pt, stoich_array):
     """Calculate element-weighted group number.
 
     Not a plain get_weighted_property: elements with no group number (the f-block, as the spreadsheet spells it) are
@@ -83,12 +83,12 @@ def get_groupw(pt, stoich_array):
     """
     group_block = pt["group_block"].str.extract(r"(\d+)")[0]
     group_block = group_block.astype(float)
-    groupw = pd.Series(index=stoich_array.index, dtype=float)
+    weighted_group = pd.Series(index=stoich_array.index, dtype=float)
     for i, compound in stoich_array.iterrows():
         fraction = get_atomic_fraction(compound)
 
         if fraction.empty:
-            groupw.loc[i] = np.nan
+            weighted_group.loc[i] = np.nan
             continue
 
         valid_labels = [
@@ -96,24 +96,24 @@ def get_groupw(pt, stoich_array):
             if el in group_block.index and not pd.isna(group_block.loc[el])
         ]
         if not valid_labels:
-            groupw.loc[i] = np.nan
+            weighted_group.loc[i] = np.nan
             continue
 
         af_sub = fraction.loc[valid_labels]
         af_sub = af_sub / af_sub.sum()
 
-        groupw.loc[i] = np.dot(af_sub, group_block.loc[valid_labels])
-    return groupw
+        weighted_group.loc[i] = np.dot(af_sub, group_block.loc[valid_labels])
+    return weighted_group
 
 
-def get_miedemaw(mm, stoich_array):
+def get_weighted_mixing_enthalpy(mm, stoich_array):
     """Calculate weighted Miedema enthalpy of formation (pairwise sum over elements)."""
-    miedemaw = pd.Series(index=stoich_array.index, dtype=float)
+    weighted_enthalpy = pd.Series(index=stoich_array.index, dtype=float)
     for i, compound in stoich_array.iterrows():
         fraction = get_atomic_fraction(compound)
 
         if fraction.empty:
-            miedemaw.loc[i] = np.nan
+            weighted_enthalpy.loc[i] = np.nan
             continue
 
         H = 0
@@ -124,8 +124,8 @@ def get_miedemaw(mm, stoich_array):
             except KeyError:
                 valid = False
                 break
-        miedemaw.loc[i] = H if valid else np.nan
-    return miedemaw
+        weighted_enthalpy.loc[i] = H if valid else np.nan
+    return weighted_enthalpy
 
 
 def add_engineered_features(
@@ -156,14 +156,17 @@ def add_engineered_features(
     data = raw_data.copy()
     stoich_array = get_stoich_array(data, pt, formula_column=formula_column)
 
+    # The column names are the ones the published feature tables already use, so they stay as they are. "Zw" is the
+    # one that misleads: Z normally means atomic number, but this column holds the weighted atomic *weight*, and the
+    # periodic table file carries both.
     data["compoundradix"] = get_compound_radix(data, formula_column=formula_column)
-    data["stoicentw"] = get_mixing_entropy(stoich_array)          # mixing entropy
-    data["Zw"] = get_zw(pt, stoich_array)                     # atomic weight
-    data["periodw"] = get_periodw(pt, stoich_array)           # period
-    data["groupw"] = get_groupw(pt, stoich_array)             # group
-    data["meltingTw"] = get_melting_tw(pt, stoich_array)      # melting point
-    data["miedemaH"] = get_miedemaw(mm, stoich_array)         # Miedema enthalpy
-    data["valencew"] = get_valencew(pt, stoich_array)         # valence
-    data["electronegw"] = get_electronegw(pt, stoich_array)   # electronegativity
+    data["stoicentw"] = get_mixing_entropy(stoich_array)
+    data["Zw"] = get_weighted_atomic_weight(pt, stoich_array)
+    data["periodw"] = get_weighted_period(pt, stoich_array)
+    data["groupw"] = get_weighted_group(pt, stoich_array)
+    data["meltingTw"] = get_weighted_melting_point(pt, stoich_array)
+    data["miedemaH"] = get_weighted_mixing_enthalpy(mm, stoich_array)
+    data["valencew"] = get_weighted_valence(pt, stoich_array)
+    data["electronegw"] = get_weighted_electronegativity(pt, stoich_array)
 
     return data

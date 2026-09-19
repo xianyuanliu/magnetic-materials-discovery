@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 
 from loaddata.tabular_access import resolve_feature_columns
-from prepdata.alloy_descriptors import get_electronegw, get_groupw, get_melting_tw, get_miedemaw
+from prepdata.alloy_descriptors import get_weighted_electronegativity, get_weighted_group, get_weighted_melting_point, get_weighted_mixing_enthalpy
 from prepdata.composition import get_composition_key, get_stoich_array
 from prepdata.feature_table import build_feature_table
 
@@ -28,7 +28,7 @@ def periodic_table_with_f_block():
 
 
 class RenormalizedDescriptorTests(unittest.TestCase):
-    """get_groupw is the one descriptor that drops elements and renormalizes, so its weights need pinning."""
+    """get_weighted_group is the one descriptor that drops elements and renormalizes, so its weights need pinning."""
 
     def setUp(self):
         self.pt = periodic_table_with_f_block()
@@ -36,13 +36,13 @@ class RenormalizedDescriptorTests(unittest.TestCase):
     def test_f_block_is_dropped_and_the_rest_renormalized(self):
         """Nd has no group number: Fe3Nd1 must weigh Fe alone, not dilute it toward zero."""
         stoich = get_stoich_array(pd.DataFrame({"chemical formula": ["Fe3Nd", "Fe3Ni"]}), self.pt)
-        groupw = get_groupw(self.pt, stoich)
+        groupw = get_weighted_group(self.pt, stoich)
         self.assertEqual(groupw.iloc[0], 8.0)
         self.assertEqual(groupw.iloc[1], 0.75 * 8 + 0.25 * 10)
 
     def test_composition_of_only_ungrouped_elements_is_nan(self):
         stoich = get_stoich_array(pd.DataFrame({"chemical formula": ["Nd"]}), self.pt)
-        self.assertTrue(np.isnan(get_groupw(self.pt, stoich).iloc[0]))
+        self.assertTrue(np.isnan(get_weighted_group(self.pt, stoich).iloc[0]))
 
 
 class MissingReferenceDataTests(unittest.TestCase):
@@ -52,7 +52,7 @@ class MissingReferenceDataTests(unittest.TestCase):
         pt = periodic_table_with_f_block()
         mm = pd.DataFrame([[0.0, -2.0], [-2.0, 0.0]], index=["Fe", "Ni"], columns=["Fe", "Ni"])
         stoich = get_stoich_array(pd.DataFrame({"chemical formula": ["FeNi", "FeNd"]}), pt)
-        miedemaw = get_miedemaw(mm, stoich)
+        miedemaw = get_weighted_mixing_enthalpy(mm, stoich)
         self.assertEqual(miedemaw.iloc[0], 4 * 0.5 * 0.5 * -2.0)
         self.assertTrue(np.isnan(miedemaw.iloc[1]), "a missing pair must not fall back to 0.0")
 
@@ -81,28 +81,28 @@ class AnnotatedPropertyColumnTests(unittest.TestCase):
         pt = periodic_table_with_f_block()
         pt.loc["Nd", "melting_point"] = "912\u00b13 K (639\u00b13 \u00b0C, 1182\u00b15 \u00b0F)"
         stoich = get_stoich_array(pd.DataFrame({"chemical formula": ["NdFe"]}), pt)
-        self.assertEqual(get_melting_tw(pt, stoich).iloc[0], 0.5 * 912 + 0.5 * 1811)
+        self.assertEqual(get_weighted_melting_point(pt, stoich).iloc[0], 0.5 * 912 + 0.5 * 1811)
 
     def test_property_without_a_number_becomes_nan(self):
         """"Pauling scale: no data" must not silently weigh as zero."""
         pt = periodic_table_with_f_block()
         pt.loc["Nd", "electronegativity"] = "Pauling scale: no data"
         stoich = get_stoich_array(pd.DataFrame({"chemical formula": ["NdFe"]}), pt)
-        self.assertTrue(np.isnan(get_electronegw(pt, stoich).iloc[0]))
+        self.assertTrue(np.isnan(get_weighted_electronegativity(pt, stoich).iloc[0]))
 
     def test_already_numeric_column_is_accepted(self):
         """A caller supplying a plain numeric periodic table should not need the sheet's prose format."""
         pt = periodic_table_with_f_block()
         pt["electronegativity"] = [1.83, 1.91, 1.14]
         stoich = get_stoich_array(pd.DataFrame({"chemical formula": ["FeNi"]}), pt)
-        self.assertEqual(get_electronegw(pt, stoich).iloc[0], 0.5 * 1.83 + 0.5 * 1.91)
+        self.assertEqual(get_weighted_electronegativity(pt, stoich).iloc[0], 0.5 * 1.83 + 0.5 * 1.91)
 
     def test_numeric_column_is_not_routed_through_text_extraction(self):
         """str(1e-07) is "1e-07", whose leading number is 1.0 — seven orders of magnitude wrong."""
         pt = periodic_table_with_f_block()
         pt["melting_point"] = [1e-7, 3e-7, 1.0]
         stoich = get_stoich_array(pd.DataFrame({"chemical formula": ["FeNi"]}), pt)
-        self.assertEqual(get_melting_tw(pt, stoich).iloc[0], 0.5 * 1e-7 + 0.5 * 3e-7)
+        self.assertEqual(get_weighted_melting_point(pt, stoich).iloc[0], 0.5 * 1e-7 + 0.5 * 3e-7)
 
 
 class FeatureColumnSelectionTests(unittest.TestCase):
