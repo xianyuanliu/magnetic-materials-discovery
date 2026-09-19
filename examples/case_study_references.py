@@ -1,8 +1,13 @@
-"""Reference formulas and literature saturation-magnetization data.
+"""The alloy series this study sweeps its models along, with the measurements they are compared against.
 
-Used by interpret/case_studies.py to sanity-check trained models against
-experimentally measured saturation magnetization for the FeAl/FeCo/FeCr binary systems.
+Experimental saturation magnetization for the FeAl, FeCo and FeCr binary systems, keyed by the alloying element's
+atomic fraction as it was actually measured. This is one study's reference data, not library content, which is why it
+sits beside the runner that uses it rather than in `interpret/`.
 """
+
+from typing import Tuple
+
+from interpret.case_studies import AlloySeries
 
 FEAL_FORMULAS = [
     "Fe98Al2", "Fe96Al4", "Fe94Al6", "Fe93Al7", "Fe90Al10",
@@ -39,3 +44,11 @@ FECR_LITERATURE_MS = {
     0.08: 1.92, 0.09: 1.89, 0.10: 1.86, 0.11: 1.83, 0.13: 1.78,
     0.15: 1.73, 0.17: 1.66, 0.20: 1.60,
 }
+
+
+# The series plotted by the case-study figure. Adding one here adds a panel.
+CASE_STUDIES: Tuple[AlloySeries, ...] = (
+    AlloySeries("FeAl", "Al", FEAL_FORMULAS, FEAL_LITERATURE_MS),
+    AlloySeries("FeCo", "Co", FECO_FORMULAS, FECO_LITERATURE_MS),
+    AlloySeries("FeCr", "Cr", FECR_FORMULAS, FECR_LITERATURE_MS),
+)

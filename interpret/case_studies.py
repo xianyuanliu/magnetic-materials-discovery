@@ -1,68 +1,42 @@
-"""Binary-alloy case studies: model predictions vs. literature measurements.
+"""Sweeping a model along an alloy series, so its predictions can be read against measured values.
 
-The comparison is over whatever models the caller passes in, keyed by name, so adding or dropping a model is a config
-change rather than an edit here.
+Given formulas spanning a binary series, this featurizes them with the same code the models were trained with,
+predicts along the series, and hands back panels for interpret/reference_comparison.py to draw. Sharing
+`add_engineered_features` with training is the point: a case study that featurized differently would be comparing the
+model against a version of itself it has never seen.
+
+No series is defined here. Which alloys are worth sweeping, and what has been measured for them, belongs to whatever
+study is asking — this module only knows how to turn such a series into predictions.
 """
 
 from typing import Any, Dict, List, Mapping, NamedTuple, Sequence, Tuple
 
-import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
 
-from utils.persistence import align_features
+from interpret.reference_comparison import ComparisonPanel, panel_from_series
 from prepdata.alloy_descriptors import add_engineered_features
 from prepdata.composition import get_atomic_fraction_array, get_stoich_array
-from interpret.case_study_references import (
-    FEAL_FORMULAS,
-    FEAL_LITERATURE_MS,
-    FECO_FORMULAS,
-    FECO_LITERATURE_MS,
-    FECR_FORMULAS,
-    FECR_LITERATURE_MS,
-)
+from utils.persistence import align_features
 
 
-class CaseStudy(NamedTuple):
-    """One alloy series to compare against literature.
+class AlloySeries(NamedTuple):
+    """One binary series to sweep a model along, and what has been measured for it.
 
     Attributes:
         title: Display name, e.g. "FeCo".
         element: Alloying element whose atomic fraction is the x axis.
         formulas: Chemical formulas spanning the series.
-        literature_ms: Measured saturation magnetization, keyed by the alloying element's atomic fraction.
+        measurements: Measured target values, keyed by the alloying element's atomic fraction. These come from
+            experiment, so their fractions are whatever was actually made and need not match `formulas`.
     """
 
     title: str
     element: str
     formulas: List[str]
-    literature_ms: Dict[float, float]
+    measurements: Dict[float, float]
 
 
-# The series plotted by plot_case_studies. Adding one here adds a panel.
-CASE_STUDIES: Tuple[CaseStudy, ...] = (
-    CaseStudy("FeAl", "Al", FEAL_FORMULAS, FEAL_LITERATURE_MS),
-    CaseStudy("FeCo", "Co", FECO_FORMULAS, FECO_LITERATURE_MS),
-    CaseStudy("FeCr", "Cr", FECR_FORMULAS, FECR_LITERATURE_MS),
-)
-
-
-class CaseStudyResult(NamedTuple):
-    """Model predictions and literature values for one binary-alloy case study.
-
-    Attributes:
-        atomic_fraction: Per-element atomic fractions, one row per formula.
-        predictions: Predicted target per model name, in the order the models were passed in.
-        literature: Measured saturation magnetization, indexed by the alloying element's atomic fraction.
-    """
-
-    atomic_fraction: pd.DataFrame
-    predictions: Dict[str, np.ndarray]
-    literature: pd.Series
-
-
-def build_case_features(
+def build_series_features(
     formulas: Sequence[str],
     periodic_table: pd.DataFrame,
     miedema_weight: pd.DataFrame,
@@ -70,8 +44,8 @@ def build_case_features(
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """Build the feature matrix for a list of chemical formulas.
 
-    Shares prepdata.alloy_descriptors.add_engineered_features with training, so the
-    case-study features cannot drift from the ones the models were fitted on.
+    Shares prepdata.alloy_descriptors.add_engineered_features with training, so these features cannot drift from the
+    ones the models were fitted on.
 
     Args:
         formulas: Chemical formulas to featurize.
@@ -89,85 +63,53 @@ def build_case_features(
     return features, stoich
 
 
-def run_case(
-    case: CaseStudy,
+def build_series_panel(
+    series: AlloySeries,
     feature_columns: Sequence[str],
     models: Mapping[str, Any],
     periodic_table: pd.DataFrame,
     miedema_weight: pd.DataFrame,
-) -> CaseStudyResult:
-    """Generate predictions and literature references for one case study.
+) -> ComparisonPanel:
+    """Sweep every model along `series` and pair the result with its measurements.
 
     Args:
-        case: The alloy series to evaluate.
+        series: The alloy series to evaluate.
         feature_columns: Feature columns the models were trained on, in order.
         models: Fitted models keyed by display name.
         periodic_table: Periodic table data, indexed by element symbol.
         miedema_weight: Symmetrized Miedema mixing-enthalpy matrix.
 
     Returns:
-        A CaseStudyResult holding the atomic fractions, one prediction array per model, and the literature series.
+        A panel ready for interpret.reference_comparison.plot_predictions_against_measurements.
     """
-    features, stoich_array = build_case_features(case.formulas, periodic_table, miedema_weight)
-    X = align_features(features, feature_columns, source=f"the {case.title} case study")
+    features, stoich_array = build_series_features(series.formulas, periodic_table, miedema_weight)
+    X = align_features(features, feature_columns, source=f"the {series.title} case study")
+    atomic_fraction = get_atomic_fraction_array(stoich_array)
 
-    return CaseStudyResult(
-        atomic_fraction=get_atomic_fraction_array(stoich_array),
+    return panel_from_series(
+        title=f"{series.title} Case Study",
+        x_label=f"{series.element} content [atomic fraction]",
+        x=atomic_fraction[series.element],
         predictions={name: model.predict(X) for name, model in models.items()},
-        literature=pd.Series(case.literature_ms),
+        measurements=series.measurements,
     )
 
 
-def _plot_one_case(ax, result: CaseStudyResult, case: CaseStudy, target_label: str) -> None:
-    """Plot one case study's predictions and literature scatter onto `ax`.
-
-    The legend is built from `result.predictions` rather than hard-coded, so it
-    stays correct whichever models were compared.
-    """
-    for y_pred in result.predictions.values():
-        sns.scatterplot(x=result.atomic_fraction[case.element], y=y_pred, ax=ax)
-    sns.scatterplot(x=result.literature.index, y=result.literature.values, ax=ax)
-
-    ax.set_title(f"{case.title} Case Study", fontsize=16)
-    ax.set_xlabel(f"{case.element} content [atomic fraction]", fontsize=16)
-    ax.set_ylabel(target_label, fontsize=16)
-    legend = ax.legend([*result.predictions, "literature"], loc="upper right", fontsize=12)
-    legend.get_frame().set_facecolor("white")
-
-
-def plot_case_studies(
+def build_series_panels(
+    all_series: Sequence[AlloySeries],
     feature_columns: Sequence[str],
     models: Mapping[str, Any],
     periodic_table: pd.DataFrame,
     miedema_weight: pd.DataFrame,
-    cases: Sequence[CaseStudy] = CASE_STUDIES,
-    target_label: str = "Saturation Magnetization [T]",
-    save_path=None,
-) -> None:
-    """Plot every case study side by side, one panel each.
+) -> List[ComparisonPanel]:
+    """Build one panel per series, in the order given.
 
-    Args:
-        feature_columns: Feature columns the models were trained on, in order.
-        models: Fitted models keyed by display name; every one is plotted.
-        periodic_table: Periodic table data, indexed by element symbol.
-        miedema_weight: Symmetrized Miedema mixing-enthalpy matrix.
-        cases: Which alloy series to plot.
-        target_label: Y-axis label for the predicted property.
-        save_path: If set, save the figure here instead of showing it.
+    Raises:
+        ValueError: If no model is given, since every panel would then be empty.
     """
     if not models:
-        raise ValueError("plot_case_studies needs at least one fitted model.")
-
-    fig, axes = plt.subplots(1, len(cases), figsize=(6.7 * len(cases), 4), squeeze=False)
-
-    for ax, case in zip(axes[0], cases):
-        result = run_case(case, feature_columns, models, periodic_table, miedema_weight)
-        _plot_one_case(ax, result, case, target_label)
-
-    fig.tight_layout()
-
-    if save_path:
-        fig.savefig(save_path, dpi=300)
-        plt.close(fig)
-    else:
-        plt.show()
+        raise ValueError("A case study needs at least one fitted model.")
+    return [
+        build_series_panel(series, feature_columns, models, periodic_table, miedema_weight)
+        for series in all_series
+    ]

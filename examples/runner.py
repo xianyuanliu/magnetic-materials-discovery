@@ -22,7 +22,9 @@ import pandas as pd
 
 from config import RunConfig
 from evaluate.metrics import results_to_scores
-from interpret.case_studies import plot_case_studies
+from examples.case_study_references import CASE_STUDIES
+from interpret.case_studies import build_series_panels
+from interpret.reference_comparison import plot_predictions_against_measurements
 from interpret.model_explanations import plot_model_explanations
 from interpret.visualize import (
     count_compounds_by_radix,
@@ -145,12 +147,16 @@ def _plot_interpretation(
     if cfg.interpret.case_study_models:
         specs = resolve_trained_models(registry, trained, cfg.interpret.case_study_models)
         pt, mm = load_element_properties(cfg.pt_path, cfg.mm_path)
-        plot_case_studies(
+        panels = build_series_panels(
+            CASE_STUDIES,
             feature_columns,
             {spec.name: trained[spec.key] for spec in specs},
             pt,
             mm,
-            target_label=cfg.target_column,
+        )
+        plot_predictions_against_measurements(
+            panels,
+            y_label=cfg.target_column,
             save_path=plots_dir / f"{cfg.prefix}_case_studies.png",
         )
 
