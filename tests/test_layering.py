@@ -4,8 +4,8 @@ The library is meant to be importable from a notebook or another project that ha
 schema. Nothing enforces that at run time — a single `from config import ...` in `evaluate/` would work fine and
 quietly tie the scoring code to one CLI's config file. This test is the enforcement.
 
-`RUNNERS_STILL_READING_CONFIG` is the list of modules not yet converted. Converting one means moving its config
-handling into `examples/` and deleting its line here, so the remaining work is visible rather than remembered.
+`CONFIG_READERS` lists every file allowed to read a config. Everything else — including every `pipeline/` module —
+takes explicit arguments, so it can be called with three of them from a notebook.
 
 The same rule is what PyKale, WILDS and detectron2 follow: config-driven code lives in the runner layer, and the
 library below it takes explicit arguments.
@@ -20,15 +20,13 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # Directories that hold neither library nor runner code.
 IGNORED_DIRECTORIES = ("temp", "results", "figures", "data", "plots", "tests", ".git")
 
-# The runner layer, which exists to read a config.
-CONFIG_READERS = ("main.py", "config.py")
+# The runner layer, which exists to read a config: the CLI, the schema itself, the module that adapts a parsed config
+# into pipeline arguments, and the reference data that module passes through.
+CONFIG_READERS = ("main.py", "config.py", "runner.py", "case_study_references.py")
 
-# Runners that still live under pipeline/ and still read a config. Shrinks to nothing as each mode is converted.
-RUNNERS_STILL_READING_CONFIG = (
-    "pipeline/ood_pipeline.py",
-    "pipeline/ood_scenarios.py",
-    "pipeline/uncertainty_pipeline.py",
-)
+# Modules exempted from the rule while a conversion is in progress. Empty means every library module obeys it; a name
+# added here is a promise to remove it, not a permanent licence.
+RUNNERS_STILL_READING_CONFIG = ()
 
 
 def imported_module_names(path: Path):
@@ -46,7 +44,7 @@ def library_modules():
     allowed = set(CONFIG_READERS) | set(RUNNERS_STILL_READING_CONFIG)
     for path in sorted(REPO_ROOT.rglob("*.py")):
         relative = path.relative_to(REPO_ROOT)
-        if relative.parts[0] in IGNORED_DIRECTORIES or relative.parts[0] == "examples":
+        if relative.parts[0] in IGNORED_DIRECTORIES:
             continue
         if relative.as_posix() in allowed:
             continue
@@ -65,10 +63,17 @@ class ConfigBoundaryTests(unittest.TestCase):
         ]
         self.assertEqual(offenders, [], "library modules must take explicit arguments, not a RunConfig")
 
-    def test_the_listed_runners_still_exist(self):
-        """Guards the exemptions: a renamed or deleted runner must be removed from the list, not left stale."""
+    def test_the_listed_exemptions_still_exist(self):
+        """Guards the exemptions: a renamed or deleted module must be removed from the list, not left stale."""
         for relative in RUNNERS_STILL_READING_CONFIG:
             self.assertTrue((REPO_ROOT / relative).is_file(), f"{relative} is listed as exempt but does not exist")
+
+    def test_every_pipeline_module_is_covered(self):
+        """`pipeline/` is the layer most at risk of drifting back: it is the one that used to read the config."""
+        checked = {relative.as_posix() for relative, _ in library_modules()}
+        modules = {path.relative_to(REPO_ROOT).as_posix() for path in (REPO_ROOT / "pipeline").glob("*.py")}
+        self.assertEqual(modules - checked, set(), "a pipeline module is exempt from the config boundary")
+        self.assertGreater(len(modules), 1)
 
     def test_something_is_actually_being_checked(self):
         """Guards the test itself: a bad filter would make the check above pass by scanning nothing."""

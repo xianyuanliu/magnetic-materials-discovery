@@ -3,9 +3,7 @@
 import argparse
 
 from config import load_run_config
-from examples import runner
-from pipeline.ood_pipeline import run_ood_evaluation
-from pipeline.uncertainty_pipeline import run_uncertainty_evaluation
+import runner
 from predict.sklearn_models import MODEL_REGISTRY
 
 
@@ -28,9 +26,9 @@ def main() -> None:
     if cfg.evaluation_mode == "cross_validation":
         runner.run_cross_validation(cfg=cfg, registry=MODEL_REGISTRY)
     elif cfg.evaluation_mode == "ood":
-        run_ood_evaluation(cfg=cfg, registry=MODEL_REGISTRY)
+        runner.run_ood(cfg=cfg, registry=MODEL_REGISTRY)
     elif cfg.evaluation_mode == "uncertainty":
-        run_uncertainty_evaluation(cfg=cfg, registry=MODEL_REGISTRY)
+        runner.run_uncertainty(cfg=cfg, registry=MODEL_REGISTRY)
     else:
         runner.run_random_split(cfg=cfg, registry=MODEL_REGISTRY)
 

@@ -1,32 +1,29 @@
-"""Uncertainty-quantification orchestration: is the model's confidence earned?
+"""Uncertainty quantification: is the model's confidence earned?
 
-For every split — an in-distribution K-fold reference, each OOD scenario from pipeline/ood_scenarios.py, and a same-size
-random control per OOD split — this fits one model, attaches three kinds of interval (see predict/uncertainty.py), and
-records one row per predicted sample. Calibration is then computed by pooling those samples, so error and uncertainty
-are always aggregated the same way.
+For every split — an in-distribution K-fold reference, each shifted scenario, and a same-size random control per
+shifted split — this fits one model, attaches three kinds of interval (see predict/uncertainty.py), and records one
+row per predicted sample. Calibration is then computed by pooling those samples, so error and uncertainty are always
+aggregated the same way.
 
-What it deliberately does not do is score the "confidence-error paradox". The usual test for it — comparing an OOD/ID
-error ratio against an OOD/ID uncertainty ratio — flips sign with the random seed on this data, so this pipeline reports
-coverage and error/sigma against their nominal targets, with a spread across seeds, and leaves the reading to the
-reader.
+What it deliberately does not do is score the "confidence-error paradox". The usual test for it — comparing a
+shifted/in-distribution error ratio against the same ratio of uncertainties — flips sign with the random seed on this
+data, so this module reports coverage and error/sigma against their nominal targets, with a spread across seeds, and
+leaves the reading to the reader.
 
-The model is chosen from ENSEMBLE_STD_MODELS rather than by hard-coding a Random Forest; see resolve_uncertainty_model.
+The model is chosen from ENSEMBLE_STD_MODELS rather than by hard-coding a Random Forest; see
+resolve_uncertainty_model. Reads no file and takes no path: the caller brings the data and the scenarios.
 """
 
 from __future__ import annotations
 
 import warnings
 import zlib
-from typing import List, Mapping, Optional, Sequence, Tuple
+from typing import List, Mapping, NamedTuple, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
 
-from config import RunConfig
 from evaluate.calibration import summarize_across_seeds, summarize_calibration
-from evaluate.metrics import wide_table_to_results
-from loaddata.tabular_access import load_feature_table
-from pipeline.ood_scenarios import build_scenarios, resolve_split_elements
 from loaddata.splits import Split, build_kfold_splits, build_size_matched_split
 from predict.uncertainty import (
     CONFORMAL,
@@ -36,9 +33,8 @@ from predict.uncertainty import (
     gaussian_half_width,
     rf_tree_std,
 )
-from utils.persistence import save_results, save_tables
 from utils.registry import ModelSpec
-from utils.reporting import print_uncertainty_report
+from utils.reporting import SILENT, Logger
 
 # Split families, as they appear in the `split_type` column.
 ID_KFOLD = "ID-kfold"
@@ -52,13 +48,7 @@ ENSEMBLE_STD_MODELS = frozenset({"rf"})
 
 # Calibration metrics, as named in evaluate/calibration.py. These replace the regression metrics: an uncertainty run
 # scores how well an interval is earned, not how close a point prediction is.
-UQ_METRICS = ("mae", "coverage", "coverage_error", "mean_width", "rms_z")
-
-TABLE_FILENAMES = (
-    "uncertainty_table1_by_split.csv",
-    "uncertainty_table2_pooled_by_seed.csv",
-    "uncertainty_table3_across_seeds.csv",
-)
+UNCERTAINTY_METRICS = ("mae", "coverage", "coverage_error", "mean_width", "rms_z")
 
 
 def _fit_and_predict(
@@ -182,91 +172,88 @@ def resolve_uncertainty_model(registry: Mapping[str, ModelSpec], model_key: str)
     return spec
 
 
-def run_uncertainty_evaluation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
-    """Run the uncertainty pipeline: score the in-distribution, out-of-distribution and control splits, then save
-    the tables.
+class UncertaintyTables(NamedTuple):
+    """The three tables an uncertainty run produces.
 
-    Called from main.py when evaluation_mode == 'uncertainty'.
+    Attributes:
+        by_split: Calibration per split, per interval method — the finest grain anything is reported at.
+        pooled_by_seed: The same samples pooled over splits, one row per seed, split type and method.
+        across_seeds: `pooled_by_seed` averaged over seeds, with the spread that says whether a gap survives reseeding.
+    """
+
+    by_split: pd.DataFrame
+    pooled_by_seed: pd.DataFrame
+    across_seeds: pd.DataFrame
+
+
+def run_uncertainty_evaluation(
+    X: pd.DataFrame,
+    y: pd.Series,
+    spec: ModelSpec,
+    scenarios: Sequence[Tuple[str, List[Split]]],
+    *,
+    seeds: Sequence[int] = (0,),
+    alpha: float = 0.05,
+    calibration_fraction: float = 0.25,
+    inner_folds: int = 5,
+    inner_shuffle: bool = True,
+    size_matched_control: bool = True,
+    model_random_state: int = 0,
+    logger: Logger = SILENT,
+) -> Optional[UncertaintyTables]:
+    """Score how well `spec`'s intervals hold up, in distribution and under every scenario given.
+
+    Each split withholds `calibration_fraction` of its own training rows to calibrate the conformal intervals, so no
+    interval is calibrated on rows it will be scored against.
 
     Args:
-        cfg: The resolved run configuration.
-        registry: Registry to resolve `uncertainty_model` against.
+        X: Feature matrix covering every split's indices.
+        y: Target.
+        spec: The model to fit; it must expose an ensemble spread, which `resolve_uncertainty_model` checks.
+        scenarios: (scenario_name, splits) pairs, typically from `pipeline.ood.build_scenarios`.
+        seeds: One repeat per seed; a single seed moves coverage by more than the effects being compared.
+        alpha: Nominal miscoverage, so 0.05 asks for 95% intervals.
+        calibration_fraction: Fraction of each training set withheld to calibrate the conformal intervals.
+        inner_folds, inner_shuffle: The in-distribution K-fold reference every scenario is read against.
+        size_matched_control: Also score a random split of the same two sizes per shifted split.
+        model_random_state: Seed for model construction.
+        logger: Where progress goes while the run is still going.
+
+    Returns:
+        The three tables, or None when no split left enough rows to both fit and calibrate.
     """
-    uncertainty_cfg = cfg.uncertainty
-    ood_cfg = cfg.ood
-    spec = resolve_uncertainty_model(registry, uncertainty_cfg.model)
-    alpha = uncertainty_cfg.alpha
-    calibration_fraction = uncertainty_cfg.calibration_fraction
-    seeds = list(uncertainty_cfg.seeds)
-
-    X, y, metadata = load_feature_table(
-        cfg.dataset_path,
-        target_column=cfg.target_column,
-        formula_column=cfg.formula_column,
-        feature_columns=cfg.feature_columns,
-    )
-    elements_per_row, element_to_group, element_to_period = resolve_split_elements(
-        metadata, cfg.formula_column, cfg.pt_path
-    )
-
-    ood_scenarios = build_scenarios(ood_cfg, X, y, elements_per_row, element_to_group, element_to_period)
-
-    print(
-        f"\n[INFO] Uncertainty run: {spec.name}, {len(ood_scenarios)} OOD scenario(s), "
-        f"{sum(len(s) for _, s in ood_scenarios)} split(s), {len(seeds)} seed(s), "
-        f"{calibration_fraction:.0%} of each training set held out for conformal calibration."
+    logger.write(
+        f"\n[INFO] Uncertainty run: {spec.name}, {len(scenarios)} OOD scenario(s), "
+        f"{sum(len(s) for _, s in scenarios)} split(s), {len(seeds)} seed(s), "
+        f"{calibration_fraction:.0%} of each training set held out for conformal calibration.\n"
     )
 
     per_seed_frames = []
     for seed in seeds:
         scenario_splits: List[Tuple[str, str, List[Split]]] = [
-            (ID_KFOLD, ID_KFOLD, build_kfold_splits(len(X), cfg.kfold.folds, cfg.kfold.shuffle, seed))
+            (ID_KFOLD, ID_KFOLD, build_kfold_splits(len(X), inner_folds, inner_shuffle, seed))
         ]
-        for scenario, splits in ood_scenarios:
+        for scenario, splits in scenarios:
             scenario_splits.append((OOD, scenario, splits))
-            if ood_cfg.size_matched_control:
+            if size_matched_control:
                 scenario_splits.append((ID_RANDOM, scenario, _controls_for(splits, len(X), seed, scenario)))
 
         per_seed_frames.append(_collect_samples(
             X, y, scenario_splits, spec.train,
             seed=seed, calibration_fraction=calibration_fraction,
-            alpha=alpha, model_random_state=cfg.model_random_state,
+            alpha=alpha, model_random_state=model_random_state,
         ))
 
-    frames = [f for f in per_seed_frames if not f.empty]
+    frames = [frame for frame in per_seed_frames if not frame.empty]
     if not frames:
         warnings.warn("No uncertainty samples produced; nothing to report.")
-        return
+        return None
     samples = pd.concat(frames, ignore_index=True)
 
     by_split = summarize_calibration(samples, ("seed", "split_type", "scenario", "split_id", "method"), alpha)
     pooled_by_seed = summarize_calibration(samples, ("seed", "split_type", "method"), alpha)
-    across_seeds = summarize_across_seeds(pooled_by_seed, ("split_type", "method"))
-
-    if cfg.print_results:
-        print_uncertainty_report(across_seeds, alpha)
-
-    out_dir = save_tables(
-        dict(zip(TABLE_FILENAMES, (by_split, pooled_by_seed, across_seeds))),
-        uncertainty_cfg.output_dir,
-        enabled=cfg.save_results,
+    return UncertaintyTables(
+        by_split=by_split,
+        pooled_by_seed=pooled_by_seed,
+        across_seeds=summarize_across_seeds(pooled_by_seed, ("split_type", "method")),
     )
-    if out_dir is not None and cfg.print_results:
-        print(f"\nSaved uncertainty tables to: {out_dir.resolve()}")
-
-    # `model` carries the interval method here: the fitted model is fixed by uncertainty_model, and what the run
-    # compares is how each method's intervals behave.
-    _, directory = save_results(
-        wide_table_to_results(
-            by_split,
-            {metric: metric for metric in UQ_METRICS},
-            identifiers={
-                "scenario": "scenario", "split_type": "split_type", "split_id": "split_id",
-                "seed": "seed", "model": "method",
-            },
-        ),
-        uncertainty_cfg.output_dir,
-        enabled=cfg.save_results,
-    )
-    if directory is not None and cfg.print_results:
-        print(f"Saved the unified result table to: {directory.resolve()}")
