@@ -4,7 +4,7 @@ Unknown keys are rejected rather than ignored, types are coerced once, and the r
 dataclasses — so a typo in a config file is an error instead of a silently disabled setting.
 
 `RunConfig` covers settings shared across every mode; `KFoldConfig` and `TuningConfig` carry settings shared by more
-than one mode but not all of them; `RandomSplitConfig`, `AblationConfig`, `OODConfig`, `UncertaintyConfig` and
+than one mode but not all of them; `RandomSplitConfig`, `InterpretConfig`, `OODConfig`, `UncertaintyConfig` and
 `PredictConfig` carry the settings specific to one evaluation mode.
 """
 
@@ -152,11 +152,18 @@ class TuningConfig:
 
 
 @dataclass(frozen=True)
-class AblationConfig:
-    """Interpretability-figure settings, read only by the random-split pipeline."""
+class InterpretConfig:
+    """Which fitted models a run explains, and how.
+
+    Attributes:
+        enabled: Produce the figures at all.
+        explain_models: Models to write permutation-importance and SHAP figures for. Both methods only call `predict`,
+            so any number of models can be explained side by side.
+        case_study_models: Models to plot against the literature measurements in interpret/case_study_references.py.
+    """
 
     enabled: bool = False
-    interpret_model: Optional[str] = None
+    explain_models: Tuple[str, ...] = ()
     case_study_models: Tuple[str, ...] = ()
 
 
@@ -197,7 +204,7 @@ class RunConfig:
     kfold: KFoldConfig = field(default_factory=KFoldConfig)
     random_split: RandomSplitConfig = field(default_factory=RandomSplitConfig)
     tuning: TuningConfig = field(default_factory=TuningConfig)
-    ablation: AblationConfig = field(default_factory=AblationConfig)
+    interpret: InterpretConfig = field(default_factory=InterpretConfig)
     ood: OODConfig = field(default_factory=OODConfig)
     uncertainty: UncertaintyConfig = field(default_factory=UncertaintyConfig)
     predict: PredictConfig = field(default_factory=PredictConfig)
@@ -214,8 +221,8 @@ _TOP_LEVEL_KEYS = frozenset({
     "dataset", "evaluation_mode", "pt_path", "mm_path",
     "target_column", "formula_column", "feature_columns",
     "dataset_path", "train_dataset_path", "test_dataset_path",
-    "models", "compare_models", "interpret_model", "case_study_models",
-    "enable_data_visualization", "enable_hyperparameter_tuning", "enable_ablation_study",
+    "models", "compare_models", "explain_models", "case_study_models",
+    "enable_data_visualization", "enable_hyperparameter_tuning", "enable_interpretation",
     "cv_folds", "cv_shuffle", "cv_random_state", "cv_seeds",
     "random_split_seeds", "random_split_train_size",
     "tune_cv_folds", "tune_n_iter", "random_state", "plots_output_dir",
@@ -400,9 +407,9 @@ def parse_run_config(raw: Mapping[str, Any]) -> RunConfig:
         results_output_dir=str(raw.get("results_output_dir", "./results")),
         save_results=bool(raw.get("save_results", True)),
         print_results=bool(raw.get("print_results", True)),
-        ablation=AblationConfig(
-            enabled=bool(raw.get("enable_ablation_study", False)),
-            interpret_model=raw.get("interpret_model"),
+        interpret=InterpretConfig(
+            enabled=bool(raw.get("enable_interpretation", False)),
+            explain_models=_as_tuple(raw.get("explain_models", []), str) or (),
             case_study_models=_as_tuple(raw.get("case_study_models", []), str) or (),
         ),
         kfold=KFoldConfig(

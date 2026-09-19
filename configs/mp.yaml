@@ -16,7 +16,7 @@ models:
 
 enable_data_visualization: true
 enable_hyperparameter_tuning: true
-enable_ablation_study: true
+enable_interpretation: true
 
 evaluation_mode: cross_validation
 
@@ -43,5 +43,5 @@ feature_columns:
 
 compare_models: [rf, xgb]
 
-interpret_model: rf
+explain_models: [rf]
 case_study_models: [rf, xgb, ridge]

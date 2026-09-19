@@ -113,7 +113,7 @@ python build_feature_tables.py
 python main.py --config configs/novamag.yaml
 ```
    - `evaluation_mode` in the config selects `predict`, `random_split`, `cross_validation`,
-     `ood`, or `uncertainty`; `enable_hyperparameter_tuning`, `enable_ablation_study`, and
+     `ood`, or `uncertainty`; `enable_hyperparameter_tuning`, `enable_interpretation`, and
      `enable_data_visualization` toggle the optional stages.
 5) Check outputs in the console (metrics), `plots/` (figures prefixed by the dataset
    name), and `results/` (CSV tables from the `ood` and `uncertainty` modes).
@@ -257,7 +257,7 @@ Three independent sources of randomness, each with its own config key:
 | `random_split_seeds` | the train/valid split in `random_split` mode |
 
 `random_split` mode repeats the split once per seed in `random_split_seeds` and reports mean ± std, because a
-single 80/20 draw on a 460-sample dataset moves R² by more than the gaps between models. Ablation
+single 80/20 draw on a 460-sample dataset moves R² by more than the gaps between models. Explanation
 plots come from the first seed only, so figure filenames stay stable.
 
 When `enable_hyperparameter_tuning` is on, the search re-runs inside every outer fold (proper nested

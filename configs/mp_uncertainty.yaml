@@ -12,7 +12,7 @@ models:
 
 enable_data_visualization: false
 enable_hyperparameter_tuning: false
-enable_ablation_study: false
+enable_interpretation: false
 
 cv_folds: 10
 cv_shuffle: true

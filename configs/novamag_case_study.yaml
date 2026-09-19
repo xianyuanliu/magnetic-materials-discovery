@@ -11,7 +11,7 @@ models:
 
 enable_data_visualization: false
 enable_hyperparameter_tuning: false
-enable_ablation_study: true
+enable_interpretation: true
 
 cv_folds: 5
 cv_shuffle: true
@@ -28,5 +28,5 @@ feature_columns:
   - valencew
   - electronegw
 
-interpret_model: rf
+explain_models: [rf]
 case_study_models: [rf, xgb, ridge]

@@ -7,7 +7,7 @@ costs, SHAP attributes each prediction across the features that produced it — 
 
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Any, Mapping, Optional
 
 # Must be set before `import shap` pulls in cv2: cv2 bundles its own Qt platform plugin, which collides with the system
 # one and aborts the process (SIGABRT) as soon as a subprocess is forked for hyperparameter tuning. This process never
@@ -54,6 +54,22 @@ def plot_permutation_importance(
         plt.show()
 
 
+def _build_explainer(model, X_train):
+    """Pick a SHAP explainer for `model`, and the call options that explainer accepts.
+
+    shap dispatches on the estimator type and has no rule for a `Pipeline`, which is how every scaled model in
+    `predict/` is built. Such a model's `predict` is always explainable, at the cost of falling back to the
+    model-agnostic explainer — which in turn rejects `check_additivity`, a tree-explainer option.
+
+    Returns:
+        (explainer, kwargs to pass when calling it).
+    """
+    try:
+        return shap.Explainer(model, X_train), {"check_additivity": False}
+    except TypeError:
+        return shap.Explainer(model.predict, X_train), {}
+
+
 def plot_shap_summary(model, X_train, X_valid, save_path: Optional[str] = None, random_state: int = 0):
     """Plot the SHAP summary: per-feature attributions for every validation row.
 
@@ -64,8 +80,8 @@ def plot_shap_summary(model, X_train, X_valid, save_path: Optional[str] = None, 
         save_path: Where the figure goes; shown instead when None.
         random_state: Seeds the beeswarm jitter, so the same values give the same figure.
     """
-    explainer = shap.Explainer(model, X_train)
-    shap_values = explainer(X_valid, check_additivity=False)
+    explainer, options = _build_explainer(model, X_train)
+    shap_values = explainer(X_valid, **options)
 
     # The beeswarm scatters overlapping points at random, so the same attributions plotted twice give two different
     # figures unless it is seeded. `rng` takes the seed without touching numpy's global state.
@@ -82,33 +98,50 @@ def plot_shap_summary(model, X_train, X_valid, save_path: Optional[str] = None, 
 
 
 def plot_model_explanations(
-    model,
+    models: Mapping[str, Any],
     X_train,
     X_valid,
     y_valid,
     *,
-    name: str,
     save_dir: Path,
     prefix: str = "",
     random_state: int = 0,
 ) -> None:
-    """Produce the standard explanation set for one fitted model.
+    """Produce the standard explanation set for every fitted model given.
 
     Permutation importance and SHAP answer different questions — which features the model relies on for its score, and
     how each feature moves an individual prediction — so a model is worth looking at through both.
 
+    Nothing here is specific to any dataset or any estimator family: both methods only call `predict`. Any run that
+    holds a fitted model and the rows it was scored on can call this, which is why it takes data and a directory
+    rather than a configuration.
+
     Args:
-        model: A fitted estimator with `predict`.
-        X_train: Rows the model was fitted on, used as the SHAP background distribution.
+        models: Fitted estimators keyed by display name. The name goes in the figure title and, lowercased, in the
+            filenames — figures are output, so they carry the same name the result tables do rather than the short
+            key a config is written with.
+        X_train: Rows the models were fitted on, used as the SHAP background distribution.
         X_valid, y_valid: Held-out rows the explanations are computed over.
-        name: Display name, used in the title and, lowercased, in the filenames. Figures are output, so they carry
-            the same name the result tables do rather than the short key a config is written with.
         save_dir: Directory the figures are written to; created if missing.
-        prefix: Prepended to both filenames, so several runs can share a directory.
-        random_state: Seed for the permutation shuffles.
+        prefix: Prepended to every filename, so several runs can share a directory.
+        random_state: Seed for the permutation shuffles and the SHAP beeswarm.
+
+    Raises:
+        ValueError: If no model is given, since the call would then silently write nothing.
     """
+    if not models:
+        raise ValueError("plot_model_explanations needs at least one fitted model.")
+
     save_dir = Path(save_dir)
     save_dir.mkdir(parents=True, exist_ok=True)
+
+    for name, model in models.items():
+        _plot_one_model(model, X_train, X_valid, y_valid, name=name, save_dir=save_dir,
+                        prefix=prefix, random_state=random_state)
+
+
+def _plot_one_model(model, X_train, X_valid, y_valid, *, name, save_dir, prefix, random_state) -> None:
+    """Write both figures for a single model."""
     slug = name.lower().replace(" ", "_")
 
     plot_permutation_importance(

@@ -104,7 +104,7 @@ def run_cross_validation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -
         print(f"\nSaved cross-validation results to: {directory.resolve()}")
 
 
-def _plot_ablation(
+def _plot_interpretation(
     cfg: RunConfig,
     registry: Mapping[str, ModelSpec],
     trained: Mapping[str, object],
@@ -121,16 +121,16 @@ def _plot_ablation(
     plots_dir = Path(cfg.plots_output_dir)
     plots_dir.mkdir(parents=True, exist_ok=True)
 
-    if cfg.ablation.interpret_model:
-        (spec,) = resolve_trained_models(registry, trained, [cfg.ablation.interpret_model])
+    if cfg.interpret.explain_models:
+        specs = resolve_trained_models(registry, trained, cfg.interpret.explain_models)
         plot_model_explanations(
-            trained[spec.key], X_train, X_valid, y_valid,
-            name=spec.name, save_dir=plots_dir, prefix=f"{cfg.prefix}_",
-            random_state=cfg.model_random_state,
+            {spec.name: trained[spec.key] for spec in specs},
+            X_train, X_valid, y_valid,
+            save_dir=plots_dir, prefix=f"{cfg.prefix}_", random_state=cfg.model_random_state,
         )
 
-    if cfg.ablation.case_study_models:
-        specs = resolve_trained_models(registry, trained, cfg.ablation.case_study_models)
+    if cfg.interpret.case_study_models:
+        specs = resolve_trained_models(registry, trained, cfg.interpret.case_study_models)
         pt, mm = load_element_properties(cfg.pt_path, cfg.mm_path)
         plot_case_studies(
             feature_columns,
@@ -146,11 +146,11 @@ def run_random_split(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> No
     """Load what the config names, repeat the split once per seed, then save, print and explain what it asks for.
 
     `random_split_seeds` seeds the split only, kept separate from `random_state` (model construction and tuning).
-    Ablation figures come from the first seed's models, so they stay put when a seed is added.
+    Explanation figures come from the first seed's models, so they stay put when a seed is added.
 
     Args:
         cfg: The resolved run configuration.
-        registry: Registry to resolve `models`, `compare_models` and the ablation model names against.
+        registry: Registry to resolve `models`, `compare_models` and the interpretation model names against.
     """
     specs = resolve_models(registry, cfg.models)
     X, y = _load_features(cfg)
@@ -185,12 +185,12 @@ def run_random_split(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> No
                 test_train_ratio=(1.0 - cfg.random_split.train_size) / cfg.random_split.train_size,
             ), end="")
 
-    if not cfg.ablation.enabled:
+    if not cfg.interpret.enabled:
         return
 
     # The same split the models came from, rebuilt rather than carried: build_random_split is pure and seeded.
     _, train_idx, valid_idx = build_random_split(len(X), cfg.random_split.train_size, int(cfg.random_split.seeds[0]))
-    _plot_ablation(
+    _plot_interpretation(
         cfg, registry, first_split_models, list(X.columns),
         X.iloc[train_idx], X.iloc[valid_idx], y.iloc[valid_idx],
     )
