@@ -11,7 +11,7 @@ from loaddata.splits import build_random_split
 from loaddata.tabular_access import load_element_properties, load_feature_table
 from pipeline.random_split import run_random_split
 from utils.persistence import save_results
-from utils.registry import ModelSpec, resolve_models
+from utils.registry import ModelSpec, resolve_models, resolve_trained_models
 from utils.reporting import SILENT, Logger, format_comparisons, print_summary
 
 
@@ -24,23 +24,16 @@ def _plot_ablation(
     X_valid,
     y_valid,
 ) -> None:
-    """Resolve which fitted models the config asks to explain, and hand them to `interpret/`.
+    """Turn the figure settings into calls on `interpret/`.
 
-    Only the resolution is here: turning `interpret_model` and `case_study_models` into fitted estimators, and failing
-    loudly when they name a model this run never trained. The explanations themselves are config-free.
+    Config unpacking only: which fitted models the config names, where the figures go, and which reference files the
+    case studies need. Both figures are config-free functions that take explicit arguments.
     """
-    def _resolve(keys: Sequence[str]) -> Sequence[ModelSpec]:
-        specs = resolve_models(registry, keys)
-        missing = [spec.key for spec in specs if spec.key not in trained]
-        if missing:
-            raise ValueError(f"{missing} named for interpretation, but this run trained {list(trained)}")
-        return specs
-
     plots_dir = Path(cfg.plots_output_dir)
     plots_dir.mkdir(parents=True, exist_ok=True)
 
     if cfg.ablation.interpret_model:
-        (spec,) = _resolve([cfg.ablation.interpret_model])
+        (spec,) = resolve_trained_models(registry, trained, [cfg.ablation.interpret_model])
         plot_model_explanations(
             trained[spec.key], X_train, X_valid, y_valid,
             name=spec.name, save_dir=plots_dir, prefix=f"{cfg.prefix}_",
@@ -48,10 +41,11 @@ def _plot_ablation(
         )
 
     if cfg.ablation.case_study_models:
+        specs = resolve_trained_models(registry, trained, cfg.ablation.case_study_models)
         pt, mm = load_element_properties(cfg.pt_path, cfg.mm_path)
         plot_case_studies(
             feature_columns,
-            {spec.name: trained[spec.key] for spec in _resolve(cfg.ablation.case_study_models)},
+            {spec.name: trained[spec.key] for spec in specs},
             pt,
             mm,
             target_label=cfg.target_column,
