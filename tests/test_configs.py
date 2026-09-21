@@ -50,7 +50,7 @@ class ShippedConfigTests(unittest.TestCase):
     def test_the_dataset_file_carries_the_per_dataset_keys(self):
         novamag, mp = composed("dataset=novamag", "mode=ood"), composed("dataset=mp", "mode=ood")
         self.assertNotEqual(novamag.dataset_path, mp.dataset_path)
-        self.assertNotEqual(novamag.ood.output_dir, mp.ood.output_dir)
+        self.assertNotEqual(novamag.output_dir, mp.output_dir)
 
 
 class BrokenConfigTests(unittest.TestCase):

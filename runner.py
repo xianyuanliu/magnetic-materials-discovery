@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 
 from config import RunConfig
-from evaluate.metrics import METRICS, best_model, results_to_scores, wide_table_to_results
+from evaluate.metrics import best_model, results_to_scores, wide_table_to_results
 from case_study_references import CASE_STUDIES
 from interpret.alloy_series import build_series_panels
 from interpret.reference_comparison import plot_predictions_against_measurements
@@ -33,6 +33,7 @@ from interpret.dataset_distributions import (
 from loaddata.splits import build_random_split
 from loaddata.tabular_access import load_element_properties, load_feature_table, load_periodic_table
 from pipeline.cross_validation import run_cross_validation as cross_validate
+from evaluate.ood_summaries import OOD, summarize_generalization_gap, summarize_model_comparison
 from pipeline.ood import build_scenarios, resolve_split_elements, run_ood_evaluation
 from pipeline.uncertainty import (
     UNCERTAINTY_METRICS,
@@ -131,12 +132,7 @@ def run_cross_validation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -
         logger=_logger(cfg),
     )
 
-    summary, directory = save_results(
-        results,
-        cfg.results_output_dir,
-        prefix=f"{cfg.prefix}_cv_",
-        enabled=cfg.save_results,
-    )
+    summary, directory = save_results(results, cfg.output_dir, enabled=cfg.save_results)
     # Across every fold of every seed, so cross-validation and random_split close on the same statement.
     if cfg.print_results and len(cfg.kfold.seeds) > 1:
         print_summary(summary, f"Cross-Validation Metrics across {len(cfg.kfold.seeds)} seed(s) (mean ± std):")
@@ -212,12 +208,7 @@ def run_random_split(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> No
         logger=_logger(cfg),
     )
 
-    summary, directory = save_results(
-        results,
-        cfg.results_output_dir,
-        prefix=f"{cfg.prefix}_random_split_",
-        enabled=cfg.save_results,
-    )
+    summary, directory = save_results(results, cfg.output_dir, enabled=cfg.save_results)
     if directory is not None and cfg.print_results:
         print(f"\nSaved random-split results to: {directory.resolve()}")
 
@@ -351,10 +342,9 @@ def run_predict(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> pd.Data
     if cfg.print_results:
         print_predictions(predictions)
 
-    if cfg.predict.output_path and cfg.save_results:
-        destination = Path(cfg.predict.output_path)
-        save_tables({destination.name: predictions}, str(destination.parent))
-        print(f"\nSaved predictions to: {destination.resolve()}")
+    directory = save_tables({"predictions.csv": predictions}, cfg.output_dir, enabled=cfg.save_results)
+    if directory is not None:
+        print(f"\nSaved predictions to: {(directory / 'predictions.csv').resolve()}")
 
     return predictions
 
@@ -396,16 +386,6 @@ def run_data_visualization(*, cfg: RunConfig) -> None:
     print_compound_counts(count_compounds_by_radix(data, formula_column=cfg.formula_column))
 
 
-# Result tables, in the order print_ood_tables takes them, paired with the file each is written to.
-OOD_TABLE_FILENAMES = (
-    "table1_splits_summary.csv",
-    "table2_metrics_by_model.csv",
-    "table3_model_comparison_significance.csv",
-    "table4_combined_comparison.csv",
-    "table5_generalization_gap.csv",
-)
-
-
 def _ood_scenarios(cfg: RunConfig, X, y, metadata):
     """Turn the config's OOD settings into the scenarios it selects."""
     elements_per_row, element_to_group, element_to_period = resolve_split_elements(
@@ -445,7 +425,7 @@ def run_ood(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
         feature_columns=cfg.feature_columns,
     )
 
-    tables = run_ood_evaluation(
+    splits, results = run_ood_evaluation(
         X, y, specs, _ood_scenarios(cfg, X, y, metadata),
         seeds=cfg.ood.seeds,
         inner_folds=cfg.kfold.folds,
@@ -455,40 +435,26 @@ def run_ood(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
         tune_cv_folds=cfg.tuning.cv_folds,
         tune_n_iter=cfg.tuning.n_iter,
         model_random_state=cfg.model_random_state,
-        compare=_compared_names(cfg, registry),
         logger=_logger(cfg),
     )
 
-    if cfg.print_results:
-        print_ood_tables(*tables)
+    summary, directory = save_results(results, cfg.output_dir, enabled=cfg.save_results)
 
-    out_dir = save_tables(dict(zip(OOD_TABLE_FILENAMES, tables)), cfg.ood.output_dir, enabled=cfg.save_results)
-    if out_dir is not None and cfg.print_results:
-        print(f"\nSaved OOD tables to: {out_dir.resolve()}")
-
-    # The unified table reports one observation per split, matching table 2's *_mean columns: the inner folds all score
-    # the same held-out rows, so their spread belongs in *_std rather than as separate observations.
-    _, directory = save_results(
-        wide_table_to_results(
-            tables.metrics_by_model,
-            {f"{metric.upper()}_mean": metric for metric in METRICS},
-            identifiers={
-                "scenario": "scenario", "split_type": "split_type", "split_id": "split_id",
-                "seed": "seed", "model": "model",
-            },
-        ),
-        cfg.ood.output_dir,
+    compared = _compared_names(cfg, registry)
+    significance = (
+        summarize_model_comparison(results, *compared, split_type=OOD) if compared is not None else pd.DataFrame()
+    )
+    generalization_gap = summarize_generalization_gap(summary)
+    save_tables(
+        {"splits.csv": splits, "significance.csv": significance, "generalization_gap.csv": generalization_gap},
+        cfg.output_dir,
         enabled=cfg.save_results,
     )
-    if directory is not None and cfg.print_results:
-        print(f"Saved the unified result table to: {directory.resolve()}")
 
-
-UNCERTAINTY_TABLE_FILENAMES = (
-    "uncertainty_table1_by_split.csv",
-    "uncertainty_table2_pooled_by_seed.csv",
-    "uncertainty_table3_across_seeds.csv",
-)
+    if cfg.print_results:
+        print_ood_tables(splits, summary, significance, generalization_gap)
+        if directory is not None:
+            print(f"\nSaved OOD results to: {directory.resolve()}")
 
 
 def run_uncertainty(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
@@ -520,30 +486,24 @@ def run_uncertainty(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> Non
     if tables is None:
         return
 
+    # `model` carries the interval method here: the fitted model is fixed by uncertainty.model, and what the run
+    # compares is how each method's intervals behave.
+    results = wide_table_to_results(
+        tables.by_split,
+        {metric: metric for metric in UNCERTAINTY_METRICS},
+        identifiers={
+            "scenario": "scenario", "split_type": "split_type", "split_id": "split_id",
+            "seed": "seed", "model": "method",
+        },
+    )
+    _, directory = save_results(results, cfg.output_dir, enabled=cfg.save_results)
+    save_tables(
+        {"pooled_by_seed.csv": tables.pooled_by_seed, "across_seeds.csv": tables.across_seeds},
+        cfg.output_dir,
+        enabled=cfg.save_results,
+    )
+
     if cfg.print_results:
         print_uncertainty_report(tables.across_seeds, cfg.uncertainty.alpha)
-
-    out_dir = save_tables(
-        dict(zip(UNCERTAINTY_TABLE_FILENAMES, tables)),
-        cfg.uncertainty.output_dir,
-        enabled=cfg.save_results,
-    )
-    if out_dir is not None and cfg.print_results:
-        print(f"\nSaved uncertainty tables to: {out_dir.resolve()}")
-
-    # `model` carries the interval method here: the fitted model is fixed by uncertainty_model, and what the run
-    # compares is how each method's intervals behave.
-    _, directory = save_results(
-        wide_table_to_results(
-            tables.by_split,
-            {metric: metric for metric in UNCERTAINTY_METRICS},
-            identifiers={
-                "scenario": "scenario", "split_type": "split_type", "split_id": "split_id",
-                "seed": "seed", "model": "method",
-            },
-        ),
-        cfg.uncertainty.output_dir,
-        enabled=cfg.save_results,
-    )
-    if directory is not None and cfg.print_results:
-        print(f"Saved the unified result table to: {directory.resolve()}")
+        if directory is not None:
+            print(f"\nSaved uncertainty results to: {directory.resolve()}")

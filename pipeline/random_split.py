@@ -12,7 +12,7 @@ from typing import Dict, Sequence, Tuple
 
 import pandas as pd
 
-from evaluate.cross_validation import fit_models
+from predict.fitting import fit_models
 from evaluate.metrics import build_result_rows, compute_metrics
 from loaddata.splits import build_random_split
 from utils.registry import ModelSpec

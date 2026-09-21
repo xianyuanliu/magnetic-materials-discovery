@@ -75,10 +75,19 @@ class ConfigBoundaryTests(unittest.TestCase):
         self.assertEqual(modules - checked, set(), "a pipeline module is exempt from the config boundary")
         self.assertGreater(len(modules), 1)
 
+    def test_evaluate_never_fits_a_model(self):
+        """`evaluate/` measures; fitting is `predict/` and `pipeline/`. A `.train(` here would put it back."""
+        offenders = []
+        for path in sorted((REPO_ROOT / "evaluate").glob("*.py")):
+            for marker in (".fit(", ".train(", ".tune(", "fit_models"):
+                if marker in path.read_text(encoding="utf-8"):
+                    offenders.append(f"{path.name} contains {marker!r}")
+        self.assertEqual(offenders, [])
+
     def test_something_is_actually_being_checked(self):
         """Guards the test itself: a bad filter would make the check above pass by scanning nothing."""
         checked = {relative.as_posix() for relative, _ in library_modules()}
-        self.assertIn("evaluate/cross_validation.py", checked)
+        self.assertIn("evaluate/significance.py", checked)
         self.assertIn("pipeline/cross_validation.py", checked)
         self.assertGreater(len(checked), 20)
 

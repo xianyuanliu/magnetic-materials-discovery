@@ -73,7 +73,6 @@ class OODConfig:
     period_strict: bool = False
     group_strict: bool = False
     size_matched_control: bool = True
-    output_dir: str = "./results/ood"
 
 
 @dataclass
@@ -90,7 +89,6 @@ class UncertaintyConfig:
     alpha: float = 0.05
     calibration_fraction: float = 0.25
     seeds: Tuple[int, ...] = (0,)
-    output_dir: str = "./results/uncertainty"
 
 
 @dataclass
@@ -108,7 +106,6 @@ class PredictConfig:
     retrain: bool = False
     input_path: Optional[str] = None
     formulas: Tuple[str, ...] = ()
-    output_path: Optional[str] = None
 
 
 @dataclass
@@ -139,7 +136,7 @@ class RunConfig:
     enable_data_visualization: bool = False
     model_random_state: int = 0
     plots_output_dir: str = "./plots"
-    results_output_dir: str = "./results"
+    output_dir: str = "./results"
     save_results: bool = True
     print_results: bool = True
 

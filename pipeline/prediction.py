@@ -13,7 +13,7 @@ from typing import List, Tuple
 
 import pandas as pd
 
-from evaluate.cross_validation import fit_models
+from predict.fitting import fit_models
 from prepdata.alloy_descriptors import add_engineered_features
 from utils.persistence import TRAINING_FINGERPRINT, ModelBundle, align_features, fingerprint_training_data
 from utils.registry import ModelSpec

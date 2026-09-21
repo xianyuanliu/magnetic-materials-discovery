@@ -13,13 +13,9 @@ formula_column: chemical formula
 model_random_state: 0
 compare_models: [rf, xgb]
 
-ood:
-  output_dir: results/${dataset}_ood
-uncertainty:
-  output_dir: results/${dataset}_uncertainty
+output_dir: results/${dataset}_${evaluation_mode}
 predict:
   model_path: models/${dataset}.joblib
-  output_path: results/${dataset}_predictions.csv
 
 feature_columns:
   - compoundradix

@@ -19,7 +19,10 @@ python main.py dataset=novamag mode=cross_validation
 ```
 
 `build_feature_tables.py` writes `data/novamag-magnetism.csv` (327 compositions) and
-`data/mp-magnetism.csv` (2051). Results go to the console, `plots/` and `results/`.
+`data/mp-magnetism.csv` (2051). Every run writes `results/<dataset>_<mode>/results.csv`, one
+row per (scenario, split_type, split_id, seed, model, metric), and `summary.csv`, its mean and
+standard deviation per (scenario, split_type, model, metric). The columns are the same in every
+mode; `ood` and `uncertainty` add a few tables of their own beside them, and figures go to `plots/`.
 
 ## Running
 
@@ -55,13 +58,14 @@ runner.py            the only module that reads a config: it turns config values
                      arguments pipeline/ takes, then saves and prints what the config asks for
 case_study_references.py   this study's literature measurements, passed to the case-study figure
 pipeline/            one module per mode, config-free: cross_validation, random_split,
-                     prediction, ood, uncertainty. They return numbers; progress goes to a
-                     Logger the caller supplies, silent by default
+                     prediction, ood, uncertainty. Each fits models over splits and returns the
+                     result rows; progress goes to a Logger the caller supplies, silent by default
 loaddata/            dataset readers, reference tables, and every train/test split builder
 prepdata/            composition parsing and the nine descriptors; no file I/O, no paths
-predict/             each model's constructor, tuner and trainer as a ModelSpec, plus the
-                     conformal uncertainty estimators
-evaluate/            scores splits it is handed; metrics, paired significance, calibration
+predict/             each model's constructor, tuner and trainer as a ModelSpec; fit_models,
+                     the one place a model is fitted; the conformal uncertainty estimators
+evaluate/            measures, never fits: metrics, paired significance, calibration, and the
+                     OOD summaries derived from the result table
 interpret/           figures. model_explanations and reference_comparison work on any
                      tabular model; dataset_distributions and alloy_series need the chemistry
 utils/               ModelSpec registry, saving/loading, console formatting

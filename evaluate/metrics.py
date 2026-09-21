@@ -10,6 +10,8 @@ from typing import Dict, List, Sequence
 
 import numpy as np
 import pandas as pd
+
+from loaddata.splits import Split
 from sklearn.metrics import (
     mean_absolute_error,
     mean_absolute_percentage_error,
@@ -48,6 +50,9 @@ def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
 # One observation per row: the identifying columns, then the metric and its value. `scenario` names the split family
 # ("cross_validation", "LOEO"), `split_type` separates a shifted test set from its in-distribution references, and
 # `split_id` identifies the individual split within the family.
+# Per-model, per-metric scores: {model name: {metric: [one score per split]}}.
+FoldScores = Dict[str, Dict[str, List[float]]]
+
 RESULT_COLUMNS = ("scenario", "split_type", "split_id", "seed", "model", "metric", "value")
 
 # What a summary is grouped by unless the caller says otherwise: one row per model and metric within a family.
@@ -162,6 +167,35 @@ def best_model(summary: pd.DataFrame, metric: str = "mse") -> str:
         raise ValueError(f"No {metric!r} rows in the summary; metrics present: {sorted(summary['metric'].unique())}")
     ranked = rows.sort_values("mean", ascending=metric not in HIGHER_IS_BETTER)
     return str(ranked.iloc[0]["model"])
+
+
+def scores_to_results(
+    scores: FoldScores,
+    splits: Sequence[Split],
+    *,
+    scenario: str,
+    split_type: str = "ID",
+    seed: int = 0,
+) -> pd.DataFrame:
+    """Re-express per-split scores as the long-form table every mode reports through.
+
+    Args:
+        scores: What cross_validate_models returned for `splits`.
+        splits: The same splits, read for their identifiers.
+        scenario: Split family name carried into the table.
+        split_type: Shifted or in-distribution; plain K-fold and random splits are in-distribution.
+        seed: The seed that produced `splits`.
+
+    Returns:
+        A frame shaped like evaluate.metrics.RESULT_COLUMNS.
+    """
+    return build_result_rows(
+        scores,
+        scenario=scenario,
+        split_type=split_type,
+        split_ids=[split_id for split_id, _, _ in splits],
+        seed=seed,
+    )
 
 
 def summarize_scores(results: pd.DataFrame, by: Sequence[str] = SUMMARY_GROUPS) -> pd.DataFrame:

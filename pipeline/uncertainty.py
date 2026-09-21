@@ -48,7 +48,7 @@ ENSEMBLE_STD_MODELS = frozenset({"rf"})
 
 # Calibration metrics, as named in evaluate/calibration.py. These replace the regression metrics: an uncertainty run
 # scores how well an interval is earned, not how close a point prediction is.
-UNCERTAINTY_METRICS = ("mae", "coverage", "coverage_error", "mean_width", "rms_z")
+UNCERTAINTY_METRICS = ("mae", "rmse", "mean_sigma", "coverage", "coverage_error", "mean_width", "mean_abs_z", "rms_z")
 
 
 def _fit_and_predict(

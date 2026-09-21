@@ -16,7 +16,7 @@ from typing import Mapping, Optional, Sequence
 import numpy as np
 import pandas as pd
 
-from evaluate.cross_validation import SignificanceResult, compare_models_significance
+from evaluate.significance import SignificanceResult, compare_models_significance
 from evaluate.metrics import COMPARABLE_METRICS, METRICS, METRIC_DECIMALS, compute_metrics
 
 
@@ -229,22 +229,21 @@ def _print_frame(title: str, df: pd.DataFrame, note: Optional[str] = None) -> No
 
 
 def print_ood_tables(
-    splits_summary: pd.DataFrame,
-    metrics_by_model: pd.DataFrame,
-    comparison_significance: pd.DataFrame,
-    combined_comparison: pd.DataFrame,
+    splits: pd.DataFrame,
+    summary: pd.DataFrame,
+    significance: pd.DataFrame,
     generalization_gap: pd.DataFrame,
 ) -> None:
-    """Print the OOD result tables."""
-    _print_frame("Table 1: Scenario summary", splits_summary)
-    _print_frame("Table 2: Metrics by model", format_metric_table(metrics_by_model))
+    """Print the OOD result tables; the summary is pivoted wide for the console only."""
+    _print_frame("Splits", splits)
+    wide = summary.pivot_table(index=["scenario", "split_type", "model"], columns="metric", values="mean")
+    _print_frame("Summary (mean over splits and seeds)", wide.reset_index())
     _print_frame(
-        "Table 3: Model comparison significance",
-        comparison_significance,
+        "Model comparison significance",
+        significance,
         note="paired across OOD splits — one observation per split, not per inner fold",
     )
-    _print_frame("Table 4: Combined comparison", format_metric_table(combined_comparison))
-    _print_frame("Table 5: Generalization gap (MSE), shift vs training-pool", generalization_gap)
+    _print_frame("Generalization gap (MSE), shift vs training-pool", generalization_gap)
 
 
 def print_uncertainty_report(across_seeds: pd.DataFrame, alpha: float) -> None:

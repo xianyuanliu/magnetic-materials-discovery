@@ -188,7 +188,6 @@ def save_results(
     results: pd.DataFrame,
     output_dir: Optional[str],
     *,
-    prefix: str = "",
     by: Sequence[str] = SUMMARY_GROUPS,
     enabled: bool = True,
 ) -> Tuple[pd.DataFrame, Optional[Path]]:
@@ -197,7 +196,6 @@ def save_results(
     Args:
         results: Rows shaped like evaluate.metrics.RESULT_COLUMNS.
         output_dir: Directory to write into; saving is skipped when it is empty.
-        prefix: Prepended to both filenames, so several runs can share a directory.
         by: Identifying columns the summary groups on.
         enabled: False computes the summary but writes nothing, for a caller that only wants the numbers.
 
@@ -211,6 +209,6 @@ def save_results(
 
     directory = Path(output_dir)
     directory.mkdir(parents=True, exist_ok=True)
-    results.to_csv(directory / f"{prefix}{RESULTS_FILENAME}", index=False)
-    summary.to_csv(directory / f"{prefix}{SUMMARY_FILENAME}", index=False)
+    results.to_csv(directory / RESULTS_FILENAME, index=False)
+    summary.to_csv(directory / SUMMARY_FILENAME, index=False)
     return summary, directory

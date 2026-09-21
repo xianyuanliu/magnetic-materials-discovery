@@ -16,17 +16,14 @@ from __future__ import annotations
 import warnings
 import zlib
 from functools import partial
-from typing import Any, Dict, List, NamedTuple, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
+import numpy as np
 import pandas as pd
 
-from evaluate.ood_evaluation import (
-    OOD,
-    score_splits_with_inner_kfold,
-    summarize_generalization_gap,
-    summarize_model_comparison,
-    summarize_runs_across_splits,
-)
+from evaluate.metrics import METRICS, FoldScores, build_result_rows, compute_metrics
+from evaluate.ood_summaries import ID_PAIRED, ID_RANDOM, OOD
+from predict.fitting import fit_models
 from loaddata.splits import (
     Split,
     build_group_splits,
@@ -234,55 +231,156 @@ def build_size_matched_controls(
     return controls
 
 
-def _score_scenario(
-    scenario: str,
-    splits: List[Split],
-    seeds: Sequence[int],
-    n_samples: int,
-    size_matched_control: bool,
-    score,
-) -> Tuple[List[pd.DataFrame], List[pd.DataFrame]]:
-    """Score one scenario's splits across all seeds.
+def _empty_scores(specs: Sequence[ModelSpec]) -> FoldScores:
+    return {spec.name: {metric: [] for metric in METRICS} for spec in specs}
+
+
+def _mean_over_folds(scores: FoldScores) -> FoldScores:
+    """Collapse each metric's per-fold values to their mean, as one observation per split.
+
+    The inner folds all score the same fixed test set, so their spread is sensitivity to the training subsample, not
+    test-set uncertainty; one number per split is what the paired comparisons need.
+    """
+    return {model: {metric: [float(np.mean(values))] for metric, values in per_metric.items()}
+            for model, per_metric in scores.items()}
+
+
+def heldout_label(split_id: str) -> str:
+    """Extract what a split holds out from its id, or "" when the split holds out no named thing.
+
+    Membership splits are named `E=Fe`, `P=4`, `G=8`, `C=3`; the sparsity families are named `SparseX_top10pct` and
+    hold out a *fraction*, not a target, so they have no label to extract.
+    """
+    return split_id.split("=", 1)[1] if "=" in split_id else ""
+
+
+def _score_fold_models(
+    X: pd.DataFrame,
+    y: pd.Series,
+    train_idx: np.ndarray,
+    test_idx: np.ndarray,
+    specs: Sequence[ModelSpec],
+    *,
+    inner_splits: Sequence[Split],
+    score_inner: bool,
+    hyperparameter_tuning: bool,
+    model_random_state: int,
+    tune_cv_folds: int,
+    tune_n_iter: int,
+) -> Tuple[FoldScores, Optional[FoldScores]]:
+    """Fit one model per inner fold and score it on the split's fixed test set.
+
+    The inner splits exist to average over training subsamples, not to select anything: no fold's score feeds back
+    into fitting.
+
+    Args:
+        score_inner: Also score every fold model on the inner validation fold it held out. Free — the models are
+            already fitted — and it is the only reference trained on exactly the same rows as the OOD score.
 
     Returns:
-        (splits_summary_frames, metrics_frames) — one pair of tables per seed.
+        (test_scores, inner_scores); inner_scores is None when score_inner is False.
     """
-    frames: Tuple[List, List] = ([], [])
-    for seed in seeds:
-        controls = (
-            build_size_matched_controls(splits, n_samples, int(seed), scenario)
-            if size_matched_control else None
+    X_train_full, y_train_full = X.iloc[train_idx], y.iloc[train_idx]
+    X_test, y_test = X.iloc[test_idx], y.iloc[test_idx]
+
+    test_scores = _empty_scores(specs)
+    inner_scores = _empty_scores(specs) if score_inner else None
+
+    for _, fit_idx, inner_idx in inner_splits:
+        X_fit, y_fit = X_train_full.iloc[fit_idx], y_train_full.iloc[fit_idx]
+        X_inner, y_inner = X_train_full.iloc[inner_idx], y_train_full.iloc[inner_idx]
+
+        fitted = fit_models(
+            X_fit, y_fit, specs,
+            hyperparameter_tuning=hyperparameter_tuning,
+            model_random_state=model_random_state,
+            tune_cv_folds=tune_cv_folds,
+            tune_n_iter=tune_n_iter,
         )
-        tables = score(splits, scenario=scenario, seed=int(seed), controls=controls)
-        for collected, table in zip(frames, tables):
-            collected.append(table)
-    return frames
+
+        for spec in specs:
+            model = fitted[spec.key]
+            for metric, value in compute_metrics(y_test, model.predict(X_test)).items():
+                test_scores[spec.name][metric].append(value)
+            if score_inner:
+                for metric, value in compute_metrics(y_inner, model.predict(X_inner)).items():
+                    inner_scores[spec.name][metric].append(value)
+
+    return test_scores, inner_scores
 
 
-def _warn_on_skip(scenario: str):
-    """Return an on_skip callback that names the scenario a skipped split came from."""
-    def _on_skip(split_id: str, reason: str) -> None:
-        warnings.warn(f"Skipping split {split_id} in {scenario}: {reason}")
+def score_splits_with_inner_kfold(
+    X: pd.DataFrame,
+    y: pd.Series,
+    splits: Sequence[Split],
+    specs: Sequence[ModelSpec],
+    *,
+    scenario: str,
+    seed: int,
+    inner_folds: int,
+    inner_shuffle: bool,
+    hyperparameter_tuning: bool,
+    model_random_state: int = 0,
+    tune_cv_folds: int = 3,
+    tune_n_iter: int = 20,
+    controls: Optional[Mapping[str, Split]] = None,
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """Score every split of one scenario for one seed, each beside its in-distribution references.
 
-    return _on_skip
+    Args:
+        X, y: The whole pool.
+        splits: The shifted splits to score.
+        specs: Resolved model specifications.
+        scenario: Name carried into the output rows.
+        seed: Seeds the inner folds; carried into the output rows.
+        inner_folds, inner_shuffle: The inner K-fold over each split's training rows.
+        hyperparameter_tuning, tune_cv_folds, tune_n_iter: The search, as in `fit_models`.
+        model_random_state: Seed for model construction and the search.
+        controls: Size-matched random split per split_id, scored under ID_RANDOM when present.
 
-
-class OODTables(NamedTuple):
-    """The five tables an out-of-distribution run produces.
-
-    Attributes:
-        splits_summary: One row per split — what it held out and how many rows ended up on each side.
-        metrics_by_model: Per split, per model, per split type; the mean and standard deviation over inner folds.
-        comparison_significance: Paired comparison of two models across shifted splits, empty when none was asked for.
-        combined_comparison: The same metrics pooled across splits, one row per scenario and split type.
-        generalization_gap: The shifted drop decomposed into a test-side shift and a smaller-training-pool part.
+    Returns:
+        (splits, results): one row per split describing what it held out and how many rows ended up on each side,
+        and the long-form result rows — one value per (split, split_type, model, metric), the mean over inner folds.
     """
+    split_rows: List[Dict] = []
+    result_frames: List[pd.DataFrame] = []
 
-    splits_summary: pd.DataFrame
-    metrics_by_model: pd.DataFrame
-    comparison_significance: pd.DataFrame
-    combined_comparison: pd.DataFrame
-    generalization_gap: pd.DataFrame
+    def rows(split_id: str, split_type: str, scores: FoldScores) -> pd.DataFrame:
+        return build_result_rows(
+            _mean_over_folds(scores), scenario=scenario, split_type=split_type, split_ids=[split_id], seed=seed,
+        )
+
+    for split_id, train_idx, test_idx in splits:
+        inner_splits = build_kfold_splits(len(train_idx), inner_folds, inner_shuffle, seed)
+        if not inner_splits:
+            warnings.warn(f"Skipping split {split_id} in {scenario}: n_train={len(train_idx)} leaves no inner folds")
+            continue
+
+        score = partial(
+            _score_fold_models,
+            X, y, specs=specs,
+            inner_splits=inner_splits,
+            hyperparameter_tuning=hyperparameter_tuning,
+            model_random_state=model_random_state,
+            tune_cv_folds=tune_cv_folds, tune_n_iter=tune_n_iter,
+        )
+
+        ood_scores, id_paired_scores = score(train_idx, test_idx, score_inner=True)
+        split_rows.append(dict(
+            scenario=scenario, split_id=split_id, heldout_label=heldout_label(split_id),
+            n_train=len(train_idx), n_test=len(test_idx), seed=seed,
+        ))
+        result_frames.append(rows(split_id, OOD, ood_scores))
+        result_frames.append(rows(split_id, ID_PAIRED, id_paired_scores))
+
+        control = (controls or {}).get(split_id)
+        if control is not None:
+            _, control_train_idx, control_test_idx = control
+            control_scores, _ = score(control_train_idx, control_test_idx, score_inner=False)
+            result_frames.append(rows(split_id, ID_RANDOM, control_scores))
+
+    results = pd.concat(result_frames, ignore_index=True) if result_frames else pd.DataFrame()
+    return pd.DataFrame(split_rows), results
 
 
 def run_ood_evaluation(
@@ -299,13 +397,11 @@ def run_ood_evaluation(
     tune_cv_folds: int = 3,
     tune_n_iter: int = 20,
     model_random_state: int = 0,
-    compare: Optional[Tuple[str, str]] = None,
     logger: Logger = SILENT,
-) -> OODTables:
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """Score every scenario's splits against their in-distribution references.
 
-    Each split is fitted on its own training rows through an inner K-fold, so the spread reported per split measures
-    sensitivity to the training subsample rather than test-set noise. Each is scored twice more: on the inner
+    Each split is fitted on its own training rows through an inner K-fold. Each is scored twice more: on the inner
     validation fold it already held out, and — when `size_matched_control` is on — on a random split of the same two
     sizes. That is what turns "the model got worse" into "the model got worse *because of the shift*".
 
@@ -320,11 +416,10 @@ def run_ood_evaluation(
         hyperparameter_tuning: Search inside every inner fold.
         tune_cv_folds, tune_n_iter: That search's budget.
         model_random_state: Seed for model construction and the search.
-        compare: Two model *names* to significance-test across shifted splits, or None to skip.
         logger: Where progress goes while the run is still going.
 
     Returns:
-        The five result tables, as an `OODTables`.
+        (splits, results): what every split held out, and the long-form result rows for every scenario and seed.
 
     Raises:
         ValueError: If `scenarios` is empty, since the run would otherwise write empty tables and exit cleanly.
@@ -340,35 +435,23 @@ def run_ood_evaluation(
     for name, splits in scenarios:
         logger.write(f"         {name}: {len(splits)} split(s) — {[s[0] for s in splits]}\n")
 
-    collected: Tuple[List, List] = ([], [])
+    split_frames: List[pd.DataFrame] = []
+    result_frames: List[pd.DataFrame] = []
     for scenario, splits in scenarios:
-        score = partial(
-            score_splits_with_inner_kfold,
-            X, y, specs=specs,
-            inner_splitter=lambda n_train, seed: build_kfold_splits(n_train, inner_folds, inner_shuffle, seed),
-            hyperparameter_tuning=hyperparameter_tuning, best_hyperparams=None,
-            model_random_state=model_random_state,
-            tune_cv_folds=tune_cv_folds, tune_n_iter=tune_n_iter,
-            on_skip=_warn_on_skip(scenario),
-        )
-        scenario_frames = _score_scenario(scenario, splits, seeds, len(X), size_matched_control, score)
-        for target, frames in zip(collected, scenario_frames):
-            target.extend(frames)
+        for seed in seeds:
+            controls = (
+                build_size_matched_controls(splits, len(X), int(seed), scenario) if size_matched_control else None
+            )
+            split_frame, result_frame = score_splits_with_inner_kfold(
+                X, y, splits, specs,
+                scenario=scenario, seed=int(seed),
+                inner_folds=inner_folds, inner_shuffle=inner_shuffle,
+                hyperparameter_tuning=hyperparameter_tuning,
+                model_random_state=model_random_state,
+                tune_cv_folds=tune_cv_folds, tune_n_iter=tune_n_iter,
+                controls=controls,
+            )
+            split_frames.append(split_frame)
+            result_frames.append(result_frame)
 
-    splits_summary, metrics_by_model = (
-        pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
-        for frames in collected
-    )
-
-    comparison_significance = pd.DataFrame()
-    if compare is not None:
-        comparison_significance = summarize_model_comparison(metrics_by_model, *compare, split_type=OOD)
-
-    combined_comparison = summarize_runs_across_splits(metrics_by_model)
-    return OODTables(
-        splits_summary=splits_summary,
-        metrics_by_model=metrics_by_model,
-        comparison_significance=comparison_significance,
-        combined_comparison=combined_comparison,
-        generalization_gap=summarize_generalization_gap(combined_comparison),
-    )
+    return pd.concat(split_frames, ignore_index=True), pd.concat(result_frames, ignore_index=True)
