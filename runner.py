@@ -337,19 +337,8 @@ def run_data_visualization(*, cfg: RunConfig) -> None:
     """Plot the target's distribution across the transition-metal subsets.
 
     Args:
-        cfg: The resolved run configuration; `dataset_path` must be set, and `plots_output_dir` names where the
-            figures go.
-
-    Raises:
-        ValueError: If the config names no `dataset_path`, which OOD configs do not because they name a train and a
-            test file instead.
+        cfg: The resolved run configuration; `plots_output_dir` names where the figures go.
     """
-    if not cfg.dataset_path:
-        raise ValueError(
-            "enable_data_visualization needs dataset_path, but this config sets none. OOD configs name "
-            "train_dataset_path and test_dataset_path instead; point dataset_path at the table you want plotted."
-        )
-
     plots_dir = Path(cfg.plots_output_dir)
     plots_dir.mkdir(parents=True, exist_ok=True)
 
@@ -398,17 +387,17 @@ def _ood_scenarios(cfg: RunConfig, X, y, metadata):
     )
     return build_scenarios(
         X, y, elements_per_row, element_to_group, element_to_period,
-        mode=cfg.ood.ood_mode,
+        mode=cfg.ood.mode,
         min_train=cfg.ood.min_train,
         min_test=cfg.ood.min_test,
-        max_splits=cfg.ood.ood_max_splits,
+        max_splits=cfg.ood.max_splits,
         elements=cfg.ood.elements,
         periods=cfg.ood.periods,
         groups=cfg.ood.groups,
         period_strict=cfg.ood.period_strict,
         group_strict=cfg.ood.group_strict,
-        n_clusters=cfg.ood.ood_k,
-        cluster_seed=cfg.ood.ood_seed,
+        n_clusters=cfg.ood.k,
+        cluster_seed=cfg.ood.cluster_seed,
         fractions=cfg.ood.fractions,
         sparsex_neighbors=cfg.ood.sparsex_neighbors,
         sparsey_center=cfg.ood.sparsey_center,
@@ -424,7 +413,7 @@ def run_ood(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
     """
     specs = resolve_models(registry, cfg.models)
     X, y, metadata = load_feature_table(
-        [cfg.train_dataset_path, cfg.test_dataset_path],
+        cfg.dataset_path,
         target_column=cfg.target_column,
         formula_column=cfg.formula_column,
         feature_columns=cfg.feature_columns,

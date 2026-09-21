@@ -1,0 +1,13 @@
+# @package _global_
+# One random 80/20 split per seed, with the interpretation figures — the case-study configuration.
+evaluation_mode: random_split
+
+models: [rf, xgb, ridge]
+
+kfold:
+  folds: 5
+
+interpret:
+  enabled: true
+  explain_models: [rf]
+  case_study_models: [rf, xgb, ridge]

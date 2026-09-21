@@ -1,0 +1,14 @@
+# @package _global_
+# Interval calibration for one model, in distribution and under every shifted scenario. Five seeds, because a single
+# seed moves coverage by more than the effects being compared.
+evaluation_mode: uncertainty
+
+models: [rf]
+
+kfold:
+  folds: 10
+ood:
+  mode: all
+uncertainty:
+  model: rf
+  seeds: [0, 1, 2, 3, 4]

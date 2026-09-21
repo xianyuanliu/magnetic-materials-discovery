@@ -1,0 +1,13 @@
+# @package _global_
+# Every shifted split family, each split scored beside its in-distribution references. Two seeds: the inner folds
+# and the size-matched controls are drawn again per seed, and the spread between them is part of the result.
+evaluation_mode: ood
+
+models: [ridge, rf, xgb, svr, mlp]
+compare_models: [rf, xgb]
+
+kfold:
+  folds: 10
+ood:
+  mode: all
+  seeds: [0, 1]

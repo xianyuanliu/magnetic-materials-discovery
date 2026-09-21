@@ -1,23 +1,27 @@
-"""CLI entry point: run one evaluation mode against a YAML run config."""
+"""CLI entry point: compose a run config with Hydra and dispatch on its evaluation mode.
 
-import argparse
+    python main.py dataset=novamag mode=ood
+    python main.py dataset=mp mode=cross_validation tuning.enabled=false kfold.seeds=[0]
 
-from config import load_run_config
+The first two arguments pick a file from configs/dataset/ and configs/mode/; anything else overrides one key of the
+composed config. Hydra checks the result against the schema in config.py before this file sees it.
+"""
+
+from typing import cast
+
+import hydra
+from omegaconf import DictConfig, OmegaConf
+
 import runner
+from config import RunConfig, validate
 from predict.sklearn_models import MODEL_REGISTRY
 
 
-def parse_args() -> argparse.Namespace:
-    """Parse the --config CLI flag."""
-    parser = argparse.ArgumentParser(description="Train and evaluate ML models for material property prediction")
-    parser.add_argument("--config", type=str, default="./configs/novamag.yaml", help="Path to YAML configuration file")
-    return parser.parse_args()
-
-
-def main() -> None:
-    """Run one predict, random_split, cross_validation, ood or uncertainty job, per the --config file."""
-    args = parse_args()
-    cfg = load_run_config(args.config)
+@hydra.main(version_base=None, config_path="configs", config_name="config")
+def main(composed: DictConfig) -> None:
+    """Run one predict, random_split, cross_validation, ood or uncertainty job."""
+    cfg = cast(RunConfig, OmegaConf.to_object(composed))
+    validate(cfg)
 
     if cfg.evaluation_mode == "predict":
         runner.run_predict(cfg=cfg, registry=MODEL_REGISTRY)

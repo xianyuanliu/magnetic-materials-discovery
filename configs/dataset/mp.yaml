@@ -1,0 +1,15 @@
+# @package _global_
+dataset: mp
+dataset_path: data/mp-magnetism.csv
+
+# Fewer cross-validation repeats than Novamag: 2051 rows across eight tuned models is hours per seed.
+kfold:
+  seeds: [0, 5]
+
+ood:
+  output_dir: ./results/mp_ood
+uncertainty:
+  output_dir: ./results/mp_uncertainty
+predict:
+  model_path: ./models/mp_rf.joblib
+  output_path: ./results/mp_predictions.csv

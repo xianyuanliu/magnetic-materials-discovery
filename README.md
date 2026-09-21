@@ -12,35 +12,44 @@ them by calling them with different arguments. `runner.py` is this study's use o
 ## Quick Start
 
 ```bash
-pip install -U numpy pandas scikit-learn matplotlib seaborn shap xgboost pymatgen
+pip install -U numpy pandas scikit-learn matplotlib seaborn shap xgboost pymatgen hydra-core
 
 python build_feature_tables.py            # once, and again whenever sources or features change
-python main.py --config configs/novamag.yaml
+python main.py dataset=novamag mode=cross_validation
 ```
 
 `build_feature_tables.py` writes `data/novamag-magnetism.csv` (327 compositions) and
 `data/mp-magnetism.csv` (2051). Results go to the console, `plots/` and `results/`.
 
-## Evaluation Modes
+## Running
 
-`evaluation_mode` in the config picks one:
+A run is one dataset and one mode. Hydra composes `configs/config.yaml` with `configs/dataset/<name>.yaml`
+and `configs/mode/<name>.yaml`; anything else on the command line overrides one key:
 
-| Mode | What it answers | Config |
-| --- | --- | --- |
-| `cross_validation` | How good is this model? | `configs/novamag.yaml` |
-| `random_split` | Same, from repeated 80/20 draws | `configs/novamag_case_study.yaml` |
-| `ood` | How much worse under composition shift, and why? | `configs/novamag_ood.yaml` |
-| `uncertainty` | Are the model's own error bars earned? | `configs/novamag_uncertainty.yaml` |
-| `predict` | What is this material's magnetization? | `configs/novamag_predict.yaml` |
+```bash
+python main.py dataset=mp mode=ood
+python main.py dataset=novamag mode=cross_validation tuning.enabled=false 'kfold.seeds=[0]'
+python main.py dataset=novamag mode=ood ood.mode=element 'ood.elements=[Fe,Co]'
+```
 
-`enable_hyperparameter_tuning`, `enable_interpretation` and `enable_data_visualization` turn on
-the optional stages. `save_results` and `print_results` control saving and printing separately.
+| `mode=` | What it answers |
+| --- | --- |
+| `cross_validation` | How good is this model? |
+| `random_split` | Same, from repeated 80/20 draws, with the interpretation figures |
+| `ood` | How much worse under composition shift, and why? |
+| `uncertainty` | Are the model's own error bars earned? |
+| `predict` | What is this material's magnetization? |
+
+`tuning.enabled`, `interpret.enabled` and `enable_data_visualization` turn on the optional stages.
+`save_results` and `print_results` control saving and printing separately. A key the schema does not
+declare, or a value of the wrong type, is refused with its full path before anything runs.
 
 ## Layout
 
 ```
-main.py              CLI: parse --config, dispatch on evaluation_mode
-config.py  configs/  the run config, as frozen dataclasses; unknown keys are rejected
+main.py              CLI: compose the config with Hydra, dispatch on evaluation_mode
+config.py            the schema, as dataclasses: every key, its type and its default
+configs/             config.yaml (shared keys) + dataset/ + mode/; a run is one of each
 runner.py            the only module that reads a config: it turns config values into the
                      arguments pipeline/ takes, then saves and prints what the config asks for
 case_study_references.py   this study's literature measurements, passed to the case-study figure
@@ -66,7 +75,7 @@ so there is no learned representation yet.
 
 **Naming the model inputs.** `feature_columns` lists them explicitly. Leaving it out falls back
 to "every column that is not the target or the formula", which promotes any stray column into a
-model input. The shipped configs name them.
+model input. `configs/config.yaml` names them.
 
 **OOD tables.** A shifted score alone says the model got worse, not why: holding out Fe on
 Novamag also takes 57% of the training data with it. So every split is scored three ways, under
