@@ -93,8 +93,8 @@ a `split_type` column:
 | `ID-random` | a random subset of the same size | a random test set of the same size |
 
 `OOD − ID-paired` is the test-side shift alone; `ID-paired − ID-random` is what an unmatched
-comparison would charge to the shift instead of to the smaller training pool. Table 5 reports
-both. `ood_size_matched_control: false` skips the second pass.
+comparison would charge to the shift instead of to the smaller training pool. `generalization_gap.csv`
+reports both. `ood_size_matched_control: false` skips the second pass.
 
 **Seeds.** Three independent sources of randomness:
 
