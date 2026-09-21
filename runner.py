@@ -400,6 +400,7 @@ def _ood_scenarios(cfg: RunConfig, X, y, metadata):
         elements=cfg.ood.elements,
         periods=cfg.ood.periods,
         groups=cfg.ood.groups,
+        systems=[tuple(system.split("-")) for system in cfg.ood.systems],
         period_strict=cfg.ood.period_strict,
         group_strict=cfg.ood.group_strict,
         n_clusters=cfg.ood.k,

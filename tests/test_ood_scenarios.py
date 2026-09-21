@@ -27,12 +27,21 @@ def toy_dataset(n_rows: int = 60):
 class BuildScenariosTests(unittest.TestCase):
     def test_every_scenario_builds_by_default(self):
         names = [name for name, _ in build_scenarios(*toy_dataset(), min_train=5, min_test=5)]
-        self.assertEqual(names, ["LOEO", "LOPO", "LOGO", "LOCO(k=5)", "SparseX", "SparseY"])
+        self.assertEqual(names, ["LOEO", "LOPO", "LOGO", "LOCO(k=5)", "SparseX", "SparseY"])  # no systems named
 
     def test_a_subset_builds_only_those(self):
         built = build_scenarios(*toy_dataset(), scenarios=("sparsey", "element"), min_train=5, min_test=5)
         names = [name for name, _ in built]
         self.assertEqual(names, ["LOEO", "SparseY"])
+
+    def test_a_system_holds_out_every_compound_containing_all_its_elements(self):
+        X, y, elements, group, period = toy_dataset()
+        (split,) = build_scenarios(X, y, elements, group, period, scenarios=("system",), systems=(("Fe", "Co"),),
+                                   min_train=5, min_test=5)[0][1]
+        split_id, train_idx, test_idx = split
+        self.assertEqual(split_id, "S=Fe-Co")
+        self.assertTrue(all({"Fe", "Co"} <= set(elements[i]) for i in test_idx))
+        self.assertTrue(all(not {"Fe", "Co"} <= set(elements[i]) for i in train_idx))
 
     def test_an_empty_selection_builds_nothing(self):
         self.assertEqual(build_scenarios(*toy_dataset(), scenarios=(), min_train=5, min_test=5), [])

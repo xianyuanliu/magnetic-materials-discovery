@@ -7,7 +7,7 @@ from hydra.core.config_store import ConfigStore
 
 EVALUATION_MODES = ("predict", "random_split", "cross_validation", "ood", "uncertainty")
 
-OOD_SCENARIOS = ("element", "period", "group", "cluster", "sparsex", "sparsey")
+OOD_SCENARIOS = ("element", "period", "group", "system", "cluster", "sparsex", "sparsey")
 
 
 @dataclass
@@ -53,6 +53,7 @@ class OODConfig:
         k: KMeans clusters for the LOCO scenario.
         max_splits: Maximum number of splits.
         elements, periods, groups: Hold-out targets.
+        systems: Element sets held out together, written "Fe-Co".
         fractions: Held-out fractions for SparseX and SparseY.
         size_matched_control: Score a random split of the same sizes beside each shifted split.
     """
@@ -65,10 +66,11 @@ class OODConfig:
     elements: Optional[Tuple[str, ...]] = None
     periods: Optional[Tuple[int, ...]] = None
     groups: Optional[Tuple[int, ...]] = None
+    systems: Tuple[str, ...] = ()
     fractions: Tuple[float, ...] = (0.1, 0.2)
     sparsex_neighbors: int = 5
     sparsey_center: str = "median"
-    min_test: int = 10
+    min_test: int = 20
     min_train: int = 50
     period_strict: bool = False
     group_strict: bool = False

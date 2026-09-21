@@ -34,6 +34,7 @@ from loaddata.splits import (
     build_size_matched_split,
     build_sparsex_splits,
     build_sparsey_splits,
+    build_system_splits,
 )
 from prepdata.composition import get_elements_per_row, get_group_period_maps
 from utils.registry import ModelSpec
@@ -113,6 +114,7 @@ def build_scenarios(
     elements: Optional[Sequence[str]] = None,
     periods: Optional[Sequence[int]] = None,
     groups: Optional[Sequence[int]] = None,
+    systems: Sequence[Sequence[str]] = (),
     period_strict: bool = False,
     group_strict: bool = False,
     n_clusters: int = 5,
@@ -135,6 +137,7 @@ def build_scenarios(
             named. Targets are taken most-frequent-first, so a capped run keeps the largest held-out sets rather
             than an arbitrary sample.
         elements, periods, groups: Explicit hold-out targets per family; None picks the most frequent ones.
+        systems: Element sets to hold out together, e.g. (("Fe", "Co"),); the `system` scenario needs them named.
         period_strict, group_strict: Hold out a sample if *every* element belongs to the period/group, rather than any.
         n_clusters, cluster_seed: k and the seed for the k-means cluster family (LOCO).
         fractions: Held-out fraction per split for the two sparsity families.
@@ -179,6 +182,9 @@ def build_scenarios(
                 strict=group_strict, **sizes,
             ),
         ))
+
+    if selected("system"):
+        built.append(("LOSO", build_system_splits(elements_per_row, systems, **sizes)))
 
     if selected("cluster"):
         built.append((

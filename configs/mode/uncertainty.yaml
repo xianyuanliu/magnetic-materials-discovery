@@ -9,7 +9,8 @@ models: [rf]
 kfold:
   folds: 10
 ood:
-  scenarios: [element, period, group, cluster, sparsex, sparsey]
+  scenarios: [element, period, group, system, cluster, sparsex, sparsey]
+  systems: [Fe-Co, Fe-Al, Fe-Cr]
 uncertainty:
   model: rf
   seeds: [0, 1, 2, 3, 4]

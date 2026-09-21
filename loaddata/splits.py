@@ -147,6 +147,38 @@ def build_loeo_splits(
     return splits
 
 
+def build_system_splits(
+    elements_per_sample: Sequence[Sequence[str]],
+    systems: Sequence[Sequence[str]],
+    min_train: int = 1,
+    min_test: int = 1,
+) -> List[Split]:
+    """Leave-One-System-Out: test = samples containing every element of the system, train = the rest.
+
+    A system is a set of elements, typically a pair such as Fe-Co. Ternaries and beyond that contain the whole set
+    count as members, so the question asked is whether a model that has seen Fe and Co separately can predict what
+    happens when they meet — the combination is what is held out, not either element.
+    """
+    splits: List[Split] = []
+
+    for system in systems:
+        wanted = set(system)
+        test_mask = np.array([wanted <= set(els) for els in elements_per_sample], dtype=bool)
+
+        split = _finalize_split(
+            f"S={'-'.join(system)}",
+            np.where(~test_mask)[0],
+            np.where(test_mask)[0],
+            min_train=min_train,
+            min_test=min_test,
+        )
+
+        if split is not None:
+            splits.append(split)
+
+    return splits
+
+
 # ============================================================ Leave-One-Period-Out (LOPO) / Leave-One-Group-Out (LOGO)
 # ============================================================
 
