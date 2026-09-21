@@ -109,7 +109,7 @@ def build_scenarios(
     element_to_group: Dict[str, int],
     element_to_period: Dict[str, int],
     *,
-    mode: str = "all",
+    scenarios: Sequence[str] = ("element", "period", "group", "cluster", "sparsex", "sparsey"),
     min_train: int = 1,
     min_test: int = 1,
     max_splits: Optional[int] = None,
@@ -124,7 +124,7 @@ def build_scenarios(
     sparsex_neighbors: int = 5,
     sparsey_center: str = "median",
 ) -> List[Tuple[str, List[Split]]]:
-    """Build every split family `mode` selects.
+    """Build the selected split families.
 
     Args:
         X: Feature matrix, used by the geometry-based families (LOCO, SparseX).
@@ -132,7 +132,7 @@ def build_scenarios(
         elements_per_row: Parsed element symbols per sample.
         element_to_group: Element symbol to periodic-table group.
         element_to_period: Element symbol to periodic-table period.
-        mode: One family name, or "all" for every one of them.
+        scenarios: Which to build. They are built in a fixed order regardless of the order given here.
         min_train, min_test: A split with fewer rows than these on either side is dropped rather than scored.
         max_splits: Cap on the splits kept per family, and on how many hold-out targets are chosen when none are
             named. Targets are taken most-frequent-first, so a capped run keeps the largest held-out sets rather
@@ -149,10 +149,10 @@ def build_scenarios(
         minimum-size filters.
     """
     sizes = dict(min_train=min_train, min_test=min_test)
-    scenarios: List[Tuple[str, List[Split]]] = []
+    built: List[Tuple[str, List[Split]]] = []
 
     def selected(name: str) -> bool:
-        return mode in {name, "all"}
+        return name in scenarios
 
     def targets_for(configured, element_to_attr=None) -> List[Any]:
         """Explicit targets from the config, else the most frequent ones."""
@@ -161,10 +161,10 @@ def build_scenarios(
         return _ranked_targets(_counts_by_attr(elements_per_row, element_to_attr), max_splits)
 
     if selected("element"):
-        scenarios.append(("LOEO", build_loeo_splits(elements_per_row, targets_for(elements), **sizes)))
+        built.append(("LOEO", build_loeo_splits(elements_per_row, targets_for(elements), **sizes)))
 
     if selected("period"):
-        scenarios.append((
+        built.append((
             "LOPO",
             build_period_splits(
                 elements_per_row, element_to_period,
@@ -174,7 +174,7 @@ def build_scenarios(
         ))
 
     if selected("group"):
-        scenarios.append((
+        built.append((
             "LOGO",
             build_group_splits(
                 elements_per_row, element_to_group,
@@ -184,24 +184,24 @@ def build_scenarios(
         ))
 
     if selected("cluster"):
-        scenarios.append((
+        built.append((
             f"LOCO(k={n_clusters})",
             build_kmeans_cluster_splits(X, k=n_clusters, seed=cluster_seed, **sizes),
         ))
 
     if selected("sparsex"):
-        scenarios.append((
+        built.append((
             "SparseX",
             build_sparsex_splits(X, fractions=fractions, n_neighbors=sparsex_neighbors, **sizes),
         ))
 
     if selected("sparsey"):
-        scenarios.append((
+        built.append((
             "SparseY",
             build_sparsey_splits(y, fractions=fractions, center=sparsey_center, **sizes),
         ))
 
-    return [(name, _capped(splits, max_splits)) for name, splits in scenarios if splits]
+    return [(name, _capped(splits, max_splits)) for name, splits in built if splits]
 
 
 def build_size_matched_controls(
@@ -325,7 +325,13 @@ def run_ood_evaluation(
 
     Returns:
         The five result tables, as an `OODTables`.
+
+    Raises:
+        ValueError: If `scenarios` is empty, since the run would otherwise write empty tables and exit cleanly.
     """
+    if not scenarios:
+        raise ValueError("No scenario has a split; nothing to score.")
+
     logger.write(
         f"\n[INFO] OOD run: {len(scenarios)} scenario(s), "
         f"{sum(len(s) for _, s in scenarios)} split(s), {len(seeds)} seed(s), "

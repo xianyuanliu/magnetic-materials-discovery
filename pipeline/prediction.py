@@ -13,6 +13,7 @@ from typing import List, Tuple
 
 import pandas as pd
 
+from evaluate.cross_validation import fit_models
 from prepdata.alloy_descriptors import add_engineered_features
 from utils.persistence import TRAINING_FINGERPRINT, ModelBundle, align_features, fingerprint_training_data
 from utils.registry import ModelSpec
@@ -28,6 +29,9 @@ def fit_bundle(
     *,
     target_column: str,
     dataset: str,
+    hyperparameter_tuning: bool = False,
+    tune_cv_folds: int = 3,
+    tune_n_iter: int = 20,
     model_random_state: int = 0,
 ) -> ModelBundle:
     """Fit `spec` on every row given and wrap it with the contract needed to apply it later.
@@ -41,14 +45,21 @@ def fit_bundle(
         spec: The model specification to fit.
         target_column: Name of the property being predicted, carried for the output table's benefit.
         dataset: Name of the dataset fitted on, carried so a loaded bundle can say where it came from.
-        model_random_state: Seed for model construction.
+        hyperparameter_tuning, tune_cv_folds, tune_n_iter: The search, as in `fit_models`.
+        model_random_state: Seed for model construction and the search.
 
     Returns:
         The fitted model with its feature columns, target, provenance and training-set size.
     """
-    model = spec.train(X, y, hyperparams=None, random_state=model_random_state)
+    fitted = fit_models(
+        X, y, [spec],
+        hyperparameter_tuning=hyperparameter_tuning,
+        model_random_state=model_random_state,
+        tune_cv_folds=tune_cv_folds,
+        tune_n_iter=tune_n_iter,
+    )
     return ModelBundle(
-        model=model,
+        model=fitted[spec.key],
         model_key=spec.key,
         model_name=spec.name,
         feature_columns=tuple(X.columns),

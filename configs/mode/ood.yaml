@@ -1,13 +1,13 @@
 # @package _global_
-# Every shifted split family, each split scored beside its in-distribution references. Two seeds: the inner folds
-# and the size-matched controls are drawn again per seed, and the spread between them is part of the result.
+# Out-of-distribution evaluation configuration
+# This mode aims to evaluate model performance on out-of-distribution data, using various hold-out strategies.
+
 evaluation_mode: ood
 
 models: [ridge, rf, xgb, svr, mlp]
-compare_models: [rf, xgb]
 
 kfold:
   folds: 10
 ood:
-  mode: all
+  scenarios: [element, period, group, cluster, sparsex, sparsey]
   seeds: [0, 1]

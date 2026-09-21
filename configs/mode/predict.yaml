@@ -1,11 +1,10 @@
 # @package _global_
-# Fit on the whole dataset, or load the saved bundle, and predict the compositions listed here.
+# Predictive evaluation configuration
+# This mode aims to generate predictions given material formulas.
+
 evaluation_mode: predict
 
-models: [rf]
-
 predict:
-  model: rf
   retrain: false
   formulas: [Fe3Co, Fe2Ni, FeCoNi, Fe16N2, Nd2Fe14B]
   # input_path: data/candidates.csv    # a CSV with the formula column, instead of the list above

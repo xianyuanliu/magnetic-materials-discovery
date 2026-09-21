@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 
 from config import RunConfig
-from evaluate.metrics import METRICS, results_to_scores, wide_table_to_results
+from evaluate.metrics import METRICS, best_model, results_to_scores, wide_table_to_results
 from case_study_references import CASE_STUDIES
 from interpret.alloy_series import build_series_panels
 from interpret.reference_comparison import plot_predictions_against_measurements
@@ -87,6 +87,24 @@ def _compared_names(cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> Option
     return name_a, name_b
 
 
+def _save_best_model(cfg: RunConfig, specs, summary, X, y) -> None:
+    """Refit the model the summary ranks first on every row, and save it where `mode=predict` loads from."""
+    winner = best_model(summary)
+    (spec,) = [spec for spec in specs if spec.name == winner]
+    bundle = fit_bundle(
+        X, y, spec,
+        target_column=cfg.target_column,
+        dataset=cfg.dataset,
+        hyperparameter_tuning=cfg.tuning.enabled,
+        tune_cv_folds=cfg.tuning.cv_folds,
+        tune_n_iter=cfg.tuning.n_iter,
+        model_random_state=cfg.model_random_state,
+    )
+    saved = save_model_bundle(cfg.predict.model_path, bundle)
+    if cfg.print_results:
+        print(f"\nBest model by MSE: {spec.name}. Refitted on all {len(X)} row(s) and saved to {saved}")
+
+
 def run_cross_validation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
     """Load what the config names, run repeated K-fold, then save and print what it asks for.
 
@@ -124,6 +142,8 @@ def run_cross_validation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -
         print_summary(summary, f"Cross-Validation Metrics across {len(cfg.kfold.seeds)} seed(s) (mean ± std):")
     if directory is not None and cfg.print_results:
         print(f"\nSaved cross-validation results to: {directory.resolve()}")
+    if cfg.save_results:
+        _save_best_model(cfg, specs, summary, X, y)
 
 
 def _plot_interpretation(
@@ -211,6 +231,9 @@ def run_random_split(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> No
                 test_train_ratio=(1.0 - cfg.random_split.train_size) / cfg.random_split.train_size,
             ), end="")
 
+    if cfg.save_results:
+        _save_best_model(cfg, specs, summary, X, y)
+
     if not cfg.interpret.enabled:
         return
 
@@ -277,12 +300,16 @@ def _resolve_bundle(cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> ModelB
             check_bundle_matches(bundle, *training)
         return bundle
 
+    if cfg.predict.model is None:
+        raise ValueError(
+            f"No saved model at {path!r}. Run mode=cross_validation or mode=random_split first, which saves the best "
+            f"model there, or set predict.model to fit one now."
+        )
     (spec,) = resolve_models(registry, [cfg.predict.model])
     training = _load_training_table(cfg)
     if training is None:
         raise ValueError(
-            f"Fitting a model needs training data, but dataset_path is {cfg.dataset_path!r} and no such file exists. "
-            f"Point predict_model_path at a saved bundle to skip fitting, or set dataset_path."
+            f"Fitting a model needs training data, but dataset_path is {cfg.dataset_path!r} and no such file exists."
         )
 
     X, y = training
@@ -291,13 +318,12 @@ def _resolve_bundle(cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> ModelB
         X, y, spec,
         target_column=cfg.target_column,
         dataset=cfg.dataset,
+        hyperparameter_tuning=cfg.tuning.enabled,
+        tune_cv_folds=cfg.tuning.cv_folds,
+        tune_n_iter=cfg.tuning.n_iter,
         model_random_state=cfg.model_random_state,
     )
-
-    if path:
-        print(f"Saved model to {save_model_bundle(path, bundle)}")
-    else:
-        print("[INFO] No 'predict_model_path' set, so this model is not saved and " "the next run will refit it.")
+    print(f"Saved model to {save_model_bundle(path, bundle)}")
     return bundle
 
 
@@ -381,13 +407,13 @@ OOD_TABLE_FILENAMES = (
 
 
 def _ood_scenarios(cfg: RunConfig, X, y, metadata):
-    """Turn the config's OOD settings into the split families it selects."""
+    """Turn the config's OOD settings into the scenarios it selects."""
     elements_per_row, element_to_group, element_to_period = resolve_split_elements(
         metadata, cfg.formula_column, load_periodic_table(cfg.pt_path),
     )
     return build_scenarios(
         X, y, elements_per_row, element_to_group, element_to_period,
-        mode=cfg.ood.mode,
+        scenarios=cfg.ood.scenarios,
         min_train=cfg.ood.min_train,
         min_test=cfg.ood.min_test,
         max_splits=cfg.ood.max_splits,
@@ -405,7 +431,7 @@ def _ood_scenarios(cfg: RunConfig, X, y, metadata):
 
 
 def run_ood(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
-    """Build the split families the config selects, score them, then save and print the tables.
+    """Build the scenarios the config selects, score them, then save and print the tables.
 
     Args:
         cfg: The resolved run configuration.

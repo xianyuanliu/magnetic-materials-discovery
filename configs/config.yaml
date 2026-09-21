@@ -1,33 +1,25 @@
-# The run config. Hydra merges this file, then one dataset/ file, then one mode/ file, onto the schema in config.py,
-# and rejects any key the schema does not declare.
-#
-#   python main.py dataset=novamag mode=ood
-#   python main.py dataset=mp mode=cross_validation tuning.enabled=false
-#
-# Defaults the schema already sets (ood.k, ood.min_train, tuning.n_iter, ...) are not repeated here.
+# Base configuration. This file sets up the default parameters and paths for the dataset, model configurations, and feature columns. 
 
 defaults:
   - schema
   - _self_
   - dataset: novamag
   - mode: cross_validation
-  - override hydra/job_logging: disabled
-  - override hydra/hydra_logging: disabled
-
-# Hydra's own output — a timestamped directory per run with a copy of the config and a log — is turned off. Every run
-# writes only to results/ and plots/, and does so from the repository root.
-hydra:
-  run:
-    dir: .
-  output_subdir: null
-  job:
-    chdir: false
 
 pt_path: data/Periodic-table/periodic_table.xlsx
 mm_path: data/Miedema-model/Miedema-model-reduced.xlsx
 target_column: saturation magnetization
 formula_column: chemical formula
 model_random_state: 0
+compare_models: [rf, xgb]
+
+ood:
+  output_dir: results/${dataset}_ood
+uncertainty:
+  output_dir: results/${dataset}_uncertainty
+predict:
+  model_path: models/${dataset}.joblib
+  output_path: results/${dataset}_predictions.csv
 
 feature_columns:
   - compoundradix

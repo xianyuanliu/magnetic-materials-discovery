@@ -151,6 +151,19 @@ def results_to_scores(results: pd.DataFrame) -> Dict[str, Dict[str, List[float]]
     }
 
 
+def best_model(summary: pd.DataFrame, metric: str = "mse") -> str:
+    """Return the model name with the best mean of `metric` in a summary table.
+
+    Raises:
+        ValueError: If the summary has no rows for `metric`.
+    """
+    rows = summary[summary["metric"] == metric]
+    if rows.empty:
+        raise ValueError(f"No {metric!r} rows in the summary; metrics present: {sorted(summary['metric'].unique())}")
+    ranked = rows.sort_values("mean", ascending=metric not in HIGHER_IS_BETTER)
+    return str(ranked.iloc[0]["model"])
+
+
 def summarize_scores(results: pd.DataFrame, by: Sequence[str] = SUMMARY_GROUPS) -> pd.DataFrame:
     """Average a long-form result table into one row per group.
 

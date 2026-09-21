@@ -1,18 +1,15 @@
 # @package _global_
-# Repeated K-fold over every model, with the nested hyperparameter search on. The seeds come from the dataset file,
-# because how many repeats a dataset can afford is a property of its size.
+# Cross-validation configuration
+# This mode aims to evaluate model performance using K-fold cross-validation.
+
 evaluation_mode: cross_validation
 
 models: [linear, ridge, lasso, elasticnet, rf, xgb, svr, mlp]
-compare_models: [rf, xgb]
 
 kfold:
   folds: 10
+  seeds: [0, 5, 10, 15, 20]
 tuning:
   enabled: true
 
 enable_data_visualization: true
-interpret:
-  enabled: true
-  explain_models: [rf]
-  case_study_models: [rf, xgb, ridge]

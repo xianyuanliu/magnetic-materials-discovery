@@ -1,6 +1,7 @@
 # @package _global_
-# Interval calibration for one model, in distribution and under every shifted scenario. Five seeds, because a single
-# seed moves coverage by more than the effects being compared.
+# Uncertainty evaluation configuration
+# This mode aims to evaluate the model's predictive uncertainty using multiple random seeds and K-fold cross-validation.
+
 evaluation_mode: uncertainty
 
 models: [rf]
@@ -8,7 +9,7 @@ models: [rf]
 kfold:
   folds: 10
 ood:
-  mode: all
+  scenarios: [element, period, group, cluster, sparsex, sparsey]
 uncertainty:
   model: rf
   seeds: [0, 1, 2, 3, 4]

@@ -40,7 +40,8 @@ class ShippedConfigTests(unittest.TestCase):
                 cfg = composed(f"dataset={dataset}", f"mode={mode}")
                 validate(cfg)
                 self.assertEqual(cfg.evaluation_mode, mode)
-                self.assertTrue(cfg.models, "a mode must name at least one model")
+                if mode != "predict":
+                    self.assertTrue(cfg.models, "an evaluation mode must name at least one model")
 
     def test_every_evaluation_mode_has_a_mode_file(self):
         """A mode main.py can dispatch to but no file selects is unreachable from the command line."""
@@ -65,9 +66,13 @@ class BrokenConfigTests(unittest.TestCase):
             composed("dataset=mp", "mode=ood", "kfold.folds=ten")
         self.assertIn("kfold.folds", str(caught.exception))
 
-    def test_an_unsupported_ood_mode_is_rejected(self):
+    def test_an_unknown_ood_scenario_is_rejected(self):
         with self.assertRaises(ValueError):
-            validate(composed("dataset=mp", "mode=ood", "ood.mode=elemnt"))
+            validate(composed("dataset=mp", "mode=ood", "ood.scenarios=[element,elemnt]"))
+
+    def test_a_subset_of_scenarios_can_be_chosen(self):
+        cfg = composed("dataset=mp", "mode=ood", "ood.scenarios=[element,period]")
+        self.assertEqual(list(cfg.ood.scenarios), ["element", "period"])
 
     def test_an_override_reaches_the_nested_field(self):
         """The whole point of the layout: a run varies one key without a new file."""

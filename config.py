@@ -1,8 +1,4 @@
-"""The run config schema: every key a config file may set, with its type and default.
-
-Hydra composes `configs/` against these dataclasses and rejects an unknown key or a wrong type with its full path.
-Not frozen: OmegaConf cannot merge YAML onto a read-only schema.
-"""
+"""The configuration schema for the magnetic materials discovery experiments."""
 
 from dataclasses import dataclass, field
 from typing import Optional, Tuple
@@ -11,7 +7,7 @@ from hydra.core.config_store import ConfigStore
 
 EVALUATION_MODES = ("predict", "random_split", "cross_validation", "ood", "uncertainty")
 
-OOD_MODES = ("element", "period", "group", "cluster", "sparsex", "sparsey", "all")
+OOD_SCENARIOS = ("element", "period", "group", "cluster", "sparsex", "sparsey")
 
 
 @dataclass
@@ -54,14 +50,14 @@ class OODConfig:
     """Build the out-of-distribution splits.
 
     Attributes:
-        k: KMeans clusters for the LOCO family.
+        k: KMeans clusters for the LOCO scenario.
         max_splits: Maximum number of splits.
         elements, periods, groups: Hold-out targets.
         fractions: Held-out fractions for SparseX and SparseY.
         size_matched_control: Score a random split of the same sizes beside each shifted split.
     """
 
-    mode: str = "all"
+    scenarios: Tuple[str, ...] = OOD_SCENARIOS
     k: int = 10
     cluster_seed: int = 0
     seeds: Tuple[int, ...] = (0,)
@@ -102,11 +98,12 @@ class PredictConfig:
     """Load one model and predict new compositions.
 
     Attributes:
+        model: Model to fit when `model_path` has no bundle; None uses the one an evaluation run saved.
         retrain: Refit even if `model_path` exists.
         input_path, formulas: A CSV with the formula column, or an inline list.
     """
 
-    model: str = "rf"
+    model: Optional[str] = None
     model_path: Optional[str] = None
     retrain: bool = False
     input_path: Optional[str] = None
@@ -165,8 +162,9 @@ def validate(cfg: RunConfig) -> None:
     """Check the invalid configuration values."""
     if cfg.evaluation_mode not in EVALUATION_MODES:
         raise ValueError(f"Invalid evaluation_mode {cfg.evaluation_mode!r}. Choose one of {sorted(EVALUATION_MODES)}.")
-    if cfg.ood.mode not in OOD_MODES:
-        raise ValueError(f"Invalid ood.mode {cfg.ood.mode!r}. Choose one of {sorted(OOD_MODES)}.")
+    unknown = [scenario for scenario in cfg.ood.scenarios if scenario not in OOD_SCENARIOS]
+    if unknown:
+        raise ValueError(f"Invalid ood.scenarios {unknown}. Choose from {list(OOD_SCENARIOS)}.")
     if cfg.compare_models is not None and len(cfg.compare_models) != 2:
         raise ValueError(f"compare_models must name exactly two models, got {list(cfg.compare_models)}.")
 

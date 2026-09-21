@@ -221,7 +221,13 @@ def run_uncertainty_evaluation(
 
     Returns:
         The three tables, or None when no split left enough rows to both fit and calibrate.
+
+    Raises:
+        ValueError: If `scenarios` is empty, since the run would otherwise write empty tables and exit cleanly.
     """
+    if not scenarios:
+        raise ValueError("No scenario has a split; nothing to score.")
+
     logger.write(
         f"\n[INFO] Uncertainty run: {spec.name}, {len(scenarios)} OOD scenario(s), "
         f"{sum(len(s) for _, s in scenarios)} split(s), {len(seeds)} seed(s), "

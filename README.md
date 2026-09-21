@@ -42,7 +42,8 @@ python main.py dataset=novamag mode=ood ood.mode=element 'ood.elements=[Fe,Co]'
 
 `tuning.enabled`, `interpret.enabled` and `enable_data_visualization` turn on the optional stages.
 `save_results` and `print_results` control saving and printing separately. A key the schema does not
-declare, or a value of the wrong type, is refused with its full path before anything runs.
+declare, or a value of the wrong type, is refused with its full path before anything runs. Each run's
+resolved config and overrides are recorded under `outputs/<date>/<time>/.hydra/`.
 
 ## Layout
 
@@ -106,11 +107,12 @@ before it starts.
 
 ## Saved Models
 
-`predict` mode fits on the whole dataset — the model is going to be used, not scored — and saves
-the estimator with the feature columns in training order. It also records a fingerprint of the
-rows it was fitted on, and refuses to load a bundle whose fingerprint no longer matches the
-configured dataset: a stale model returns entirely plausible numbers, so nothing else would say
-anything was wrong. `predict_retrain: true` refits.
+`cross_validation` and `random_split` end by refitting the model with the best mean MSE on every
+row — it is going to be used, not scored — and saving it to `models/<dataset>.joblib`. `predict`
+loads that bundle; `predict.model=xgb` fits a named model instead, and `predict.retrain=true`
+refits. The bundle carries the feature columns in training order and a fingerprint of the rows it
+was fitted on, and is refused when the fingerprint no longer matches the configured dataset: a
+stale model returns entirely plausible numbers, so nothing else would say anything was wrong.
 
 ## Where the Reasoning Lives
 
