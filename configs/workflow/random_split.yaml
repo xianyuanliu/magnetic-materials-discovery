@@ -1,6 +1,6 @@
 # @package _global_
 
-evaluation_mode: random_split
+workflow: random_split
 
 models: [rf, xgb, ridge]
 

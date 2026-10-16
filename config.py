@@ -5,7 +5,7 @@ from typing import Optional, Tuple
 
 from hydra.core.config_store import ConfigStore
 
-EVALUATION_MODES = ("predict", "random_split", "cross_validation", "ood", "uncertainty")
+WORKFLOWS = ("predict", "random_split", "cross_validation", "ood", "uncertainty")
 
 OOD_SCENARIOS = ("element", "period", "group", "system", "cluster", "sparsex", "sparsey")
 
@@ -38,7 +38,7 @@ class TuningConfig:
 
 @dataclass
 class InterpretConfig:
-    """Model-explanation and case-study figures (random_split mode)."""
+    """Model-explanation and case-study figures (random_split workflow)."""
 
     enabled: bool = False
     explain_models: Tuple[str, ...] = ()
@@ -98,17 +98,17 @@ class PredictConfig:
 
 @dataclass
 class RunConfig:
-    """Dataset, evaluation mode and settings for one run.
+    """Dataset, workflow and settings for one run.
 
     `dataset_path` is a prepared feature table; `feature_columns` gives model input order.
     `models` and `compare_models` use registry keys. `model_random_state` seeds model fitting and tuning.
-    Evaluation modes save the best model to `model_dir/<dataset>_<mode>.joblib`.
+    Evaluation workflows save the best model to `model_dir/<dataset>_<workflow>.joblib`.
     Omitted reference-table paths use the packaged spreadsheets.
     """
 
     dataset: str
     dataset_path: str
-    evaluation_mode: str
+    workflow: str
     feature_columns: Tuple[str, ...]
     periodic_table_path: Optional[str] = None
     miedema_path: Optional[str] = None
@@ -142,9 +142,9 @@ class RunConfig:
 
 
 def validate(cfg: RunConfig) -> None:
-    """Validate mode names, OOD scenarios and the model-comparison pair."""
-    if cfg.evaluation_mode not in EVALUATION_MODES:
-        raise ValueError(f"Invalid evaluation_mode {cfg.evaluation_mode!r}. Choose one of {sorted(EVALUATION_MODES)}.")
+    """Validate workflow names, OOD scenarios and the model-comparison pair."""
+    if cfg.workflow not in WORKFLOWS:
+        raise ValueError(f"Invalid workflow {cfg.workflow!r}. Choose one of {sorted(WORKFLOWS)}.")
     unknown = [scenario for scenario in cfg.ood.scenarios if scenario not in OOD_SCENARIOS]
     if unknown:
         raise ValueError(f"Invalid ood.scenarios {unknown}. Choose from {list(OOD_SCENARIOS)}.")

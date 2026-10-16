@@ -11,26 +11,27 @@ composition shift, and on their uncertainty.
 pip install -r requirements.txt
 
 python build_dataset.py
-python main.py dataset=novamag mode=cross_validation
+python main.py dataset=novamag workflow=cross_validation
 ```
 
 `build_dataset.py` writes `data/novamag-magnetism.csv` (327 compositions) and
-`data/mp-magnetism.csv` (2051). Each run writes `results/<dataset>_<mode>/results.csv`, one row per
+`data/mp-magnetism.csv` (2051). Each run writes `results/<dataset>_<workflow>/results.csv`, one row per
 (scenario, split_type, split_id, seed, model, metric), and `summary.csv`, its mean and standard
 deviation. Figures go to `plots/`.
 
 ## Running
 
-A run is one dataset and one mode. Hydra composes `configs/config.yaml` with `configs/dataset/<name>.yaml`
-and `configs/mode/<name>.yaml`; other arguments override single keys:
+A run is one dataset and one workflow. Hydra composes `configs/config.yaml` with
+`configs/dataset/<name>.yaml` and `configs/workflow/<name>.yaml`; other arguments
+override single keys:
 
 ```bash
-python main.py dataset=materials_project mode=ood
-python main.py dataset=novamag mode=cross_validation tuning.enabled=false 'kfold.seeds=[0]'
-python main.py dataset=novamag mode=ood 'ood.scenarios=[element]' 'ood.elements=[Fe,Co]'
+python main.py dataset=materials_project workflow=ood
+python main.py dataset=novamag workflow=cross_validation tuning.enabled=false 'kfold.seeds=[0]'
+python main.py dataset=novamag workflow=ood 'ood.scenarios=[element]' 'ood.elements=[Fe,Co]'
 ```
 
-| `mode=` | Purpose |
+| `workflow=` | Purpose |
 | --- | --- |
 | `cross_validation` | Repeated K-fold evaluation |
 | `random_split` | Repeated 80/20 splits, with interpretation figures |
@@ -43,7 +44,7 @@ python main.py dataset=novamag mode=ood 'ood.scenarios=[element]' 'ood.elements=
 ```
 main.py              CLI entry point
 config.py            config schema
-configs/             config.yaml + dataset/ + mode/
+configs/             config.yaml + dataset/ + workflow/
 runner.py            turns a config into kalematerials calls, saves and prints results
 build_dataset.py     builds the feature tables from the raw sources
 case_study_references.py   literature measurements for the case-study figure
@@ -55,7 +56,7 @@ kalematerials/
   predict/           models, fitting, conformal uncertainty
   evaluate/          metrics, significance, calibration, OOD summaries
   interpret/         figures
-  pipeline/          one workflow per mode, plus the feature-table build
+  pipeline/          one module per workflow, plus the feature-table build
   utils/             model registry, persistence, reporting
   resources/         periodic-table and Miedema spreadsheets
 ```
@@ -76,6 +77,6 @@ Each OOD split is scored three ways, under `split_type`:
 ## Saved Models
 
 `cross_validation` and `random_split` refit the model with the best mean MSE on all rows and save
-it to `models/<dataset>_<mode>.joblib`. `predict` loads `models/<dataset>_cross_validation.joblib`;
+it to `models/<dataset>_<workflow>.joblib`. `predict` loads `models/<dataset>_cross_validation.joblib`;
 `predict.model=<key>` fits a named model instead and `predict.retrain=true` refits. A bundle whose
 training-data fingerprint does not match the configured dataset is refused.

@@ -1,6 +1,6 @@
 # @package _global_
 
-evaluation_mode: uncertainty
+workflow: uncertainty
 
 kfold:
   folds: 10

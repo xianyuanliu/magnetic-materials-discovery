@@ -1,6 +1,6 @@
 # @package _global_
 
-evaluation_mode: predict
+workflow: predict
 
 predict:
   retrain: false

@@ -57,7 +57,7 @@ def _compared_names(cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> Option
 
 
 def _save_best_model(cfg: RunConfig, specs, summary, X, y) -> None:
-    """Refit the best model by MSE on all rows and save it to `model_dir/<dataset>_<mode>.joblib`."""
+    """Refit the best model by MSE on all rows and save it to `model_dir/<dataset>_<workflow>.joblib`."""
     winner = best_model(summary)
     (spec,) = [spec for spec in specs if spec.name == winner]
     bundle = fit_bundle(
@@ -71,7 +71,7 @@ def _save_best_model(cfg: RunConfig, specs, summary, X, y) -> None:
         tune_n_iter=cfg.tuning.n_iter,
         model_random_state=cfg.model_random_state,
     )
-    saved = save_model_bundle(Path(cfg.model_dir) / f"{cfg.file_prefix}_{cfg.evaluation_mode}.joblib", bundle)
+    saved = save_model_bundle(Path(cfg.model_dir) / f"{cfg.file_prefix}_{cfg.workflow}.joblib", bundle)
     if cfg.print_results:
         print(f"\nBest model by MSE: {spec.name}. Refitted on all {len(X)} row(s) and saved to {saved}")
 
@@ -239,7 +239,7 @@ def _resolve_bundle(cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> ModelB
         return bundle
 
     if cfg.predict.model is None:
-        raise ValueError(f"No saved model at {path!r}; run an evaluation mode first or set predict.model.")
+        raise ValueError(f"No saved model at {path!r}; run an evaluation workflow first or set predict.model.")
     (spec,) = resolve_models(registry, [cfg.predict.model])
     training = _load_training_table(cfg)
     if training is None:

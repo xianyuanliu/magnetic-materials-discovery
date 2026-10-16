@@ -1,9 +1,9 @@
 """Run an experiment with Hydra configuration overrides.
 
-    python main.py dataset=novamag mode=ood
-    python main.py dataset=materials_project mode=cross_validation tuning.enabled=false kfold.seeds=[0]
+    python main.py dataset=novamag workflow=ood
+    python main.py dataset=materials_project workflow=cross_validation tuning.enabled=false kfold.seeds=[0]
 
-`dataset` and `mode` select config files; other arguments override individual settings.
+`dataset` and `workflow` select config files; other arguments override individual settings.
 """
 
 from typing import cast
@@ -26,15 +26,15 @@ def main(composed: DictConfig) -> None:
     cfg = cast(RunConfig, OmegaConf.to_object(composed))
     validate(cfg)
 
-    if cfg.evaluation_mode == "predict":
+    if cfg.workflow == "predict":
         runner.run_predict(cfg=cfg, registry=MODEL_REGISTRY)
         return
 
-    if cfg.evaluation_mode == "cross_validation":
+    if cfg.workflow == "cross_validation":
         runner.run_cross_validation(cfg=cfg, registry=MODEL_REGISTRY)
-    elif cfg.evaluation_mode == "ood":
+    elif cfg.workflow == "ood":
         runner.run_ood(cfg=cfg, registry=MODEL_REGISTRY)
-    elif cfg.evaluation_mode == "uncertainty":
+    elif cfg.workflow == "uncertainty":
         runner.run_uncertainty(cfg=cfg, registry=MODEL_REGISTRY)
     else:
         runner.run_random_split(cfg=cfg, registry=MODEL_REGISTRY)
