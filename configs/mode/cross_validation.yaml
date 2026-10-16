@@ -1,6 +1,4 @@
 # @package _global_
-# Cross-validation configuration
-# This mode aims to evaluate model performance using K-fold cross-validation.
 
 evaluation_mode: cross_validation
 
@@ -11,5 +9,3 @@ kfold:
   seeds: [0, 5, 10, 15, 20]
 tuning:
   enabled: true
-
-enable_data_visualization: true

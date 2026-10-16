@@ -1,6 +1,4 @@
 # @package _global_
-# Out-of-distribution evaluation configuration
-# This mode aims to evaluate model performance on out-of-distribution data, using various hold-out strategies.
 
 evaluation_mode: ood
 

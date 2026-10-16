@@ -1,10 +1,6 @@
 # @package _global_
-# Uncertainty evaluation configuration
-# This mode aims to evaluate the model's predictive uncertainty using multiple random seeds and K-fold cross-validation.
 
 evaluation_mode: uncertainty
-
-models: [rf]
 
 kfold:
   folds: 10

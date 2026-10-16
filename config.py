@@ -1,4 +1,4 @@
-"""The configuration schema for the magnetic materials discovery experiments."""
+"""Run configuration registered with Hydra as "schema"."""
 
 from dataclasses import dataclass, field
 from typing import Optional, Tuple
@@ -12,7 +12,7 @@ OOD_SCENARIOS = ("element", "period", "group", "system", "cluster", "sparsex", "
 
 @dataclass
 class KFoldConfig:
-    """Partition the rows into K folds."""
+    """K-fold cross-validation."""
 
     folds: int = 5
     shuffle: bool = True
@@ -21,7 +21,7 @@ class KFoldConfig:
 
 @dataclass
 class RandomSplitConfig:
-    """Draw one random train/valid split per seed."""
+    """Random train/validation splits, one per seed."""
 
     seeds: Tuple[int, ...] = (0,)
     train_size: float = 0.8
@@ -29,7 +29,7 @@ class RandomSplitConfig:
 
 @dataclass
 class TuningConfig:
-    """Search hyperparameters inside every fold."""
+    """Nested hyperparameter search."""
 
     enabled: bool = False
     cv_folds: int = 3
@@ -38,7 +38,7 @@ class TuningConfig:
 
 @dataclass
 class InterpretConfig:
-    """Choose the models to be interpreted and compared in the case studies."""
+    """Model-explanation and case-study figures (random_split mode)."""
 
     enabled: bool = False
     explain_models: Tuple[str, ...] = ()
@@ -47,19 +47,13 @@ class InterpretConfig:
 
 @dataclass
 class OODConfig:
-    """Build the out-of-distribution splits.
+    """Out-of-distribution split settings; see pipeline.ood.build_scenarios.
 
-    Attributes:
-        k: KMeans clusters for the LOCO scenario.
-        max_splits: Maximum number of splits.
-        elements, periods, groups: Hold-out targets.
-        systems: Element sets held out together, written "Fe-Co".
-        fractions: Held-out fractions for SparseX and SparseY.
-        size_matched_control: Score a random split of the same sizes beside each shifted split.
+    `systems` uses labels such as "Fe-Co". `size_matched_control` adds a random control per OOD split.
     """
 
     scenarios: Tuple[str, ...] = OOD_SCENARIOS
-    k: int = 10
+    n_clusters: int = 10
     cluster_seed: int = 0
     seeds: Tuple[int, ...] = (0,)
     max_splits: Optional[int] = None
@@ -79,13 +73,7 @@ class OODConfig:
 
 @dataclass
 class UncertaintyConfig:
-    """Calibrate the prediction intervals of one model.
-
-    Attributes:
-        model: One of pipeline.uncertainty.ENSEMBLE_STD_MODELS.
-        alpha: Nominal miscoverage; 0.05 asks for 95% intervals.
-        calibration_fraction: Share of each training set withheld to calibrate the conformal intervals.
-    """
+    """Prediction-interval calibration settings."""
 
     model: str = "rf"
     alpha: float = 0.05
@@ -95,12 +83,10 @@ class UncertaintyConfig:
 
 @dataclass
 class PredictConfig:
-    """Load one model and predict new compositions.
+    """Predict formulas from `input_path` (CSV) or an inline `formulas` list.
 
-    Attributes:
-        model: Model to fit when `model_path` has no bundle; None uses the one an evaluation run saved.
-        retrain: Refit even if `model_path` exists.
-        input_path, formulas: A CSV with the formula column, or an inline list.
+    Load `model_path`, defaulting to an evaluation bundle under `model_dir`.
+    `model` selects a model to fit when needed; `retrain` forces refitting.
     """
 
     model: Optional[str] = None
@@ -112,32 +98,30 @@ class PredictConfig:
 
 @dataclass
 class RunConfig:
-    """Setup and run a complete experiment.
+    """Dataset, evaluation mode and settings for one run.
 
-    Attributes:
-        dataset: Dataset name in the lowercase.
-        pt_path, mm_path: Paths to the periodic-table and Miedema reference spreadsheets.
-        feature_columns: Column names to use in the experiment.
-        compare_models: The models to be compared.
-        model_random_state: Random state for model construction and tuning.
+    `dataset_path` is a prepared feature table; `feature_columns` gives model input order.
+    `models` and `compare_models` use registry keys. `model_random_state` seeds model fitting and tuning.
+    Evaluation modes save the best model to `model_dir/<dataset>_<mode>.joblib`.
+    Omitted reference-table paths use the packaged spreadsheets.
     """
 
     dataset: str
     dataset_path: str
     evaluation_mode: str
-    pt_path: str
-    mm_path: str
+    feature_columns: Tuple[str, ...]
+    periodic_table_path: Optional[str] = None
+    miedema_path: Optional[str] = None
+    model_dir: str = "./models"
 
     target_column: str = "saturation magnetization"
     formula_column: str = "chemical formula"
-    feature_columns: Optional[Tuple[str, ...]] = None
 
     models: Tuple[str, ...] = ()
     compare_models: Optional[Tuple[str, str]] = None
 
-    enable_data_visualization: bool = False
     model_random_state: int = 0
-    plots_output_dir: str = "./plots"
+    plots_dir: str = "./plots"
     output_dir: str = "./results"
     save_results: bool = True
     print_results: bool = True
@@ -151,14 +135,14 @@ class RunConfig:
     predict: PredictConfig = field(default_factory=PredictConfig)
 
     @property
-    def prefix(self) -> str:
-        """Turn the dataset name into a filename prefix."""
+    def file_prefix(self) -> str:
+        """The dataset name as a filename prefix."""
         cleaned = "".join(c if c.isalnum() else "_" for c in self.dataset.lower())
         return cleaned.strip("_") or "dataset"
 
 
 def validate(cfg: RunConfig) -> None:
-    """Check the invalid configuration values."""
+    """Validate mode names, OOD scenarios and the model-comparison pair."""
     if cfg.evaluation_mode not in EVALUATION_MODES:
         raise ValueError(f"Invalid evaluation_mode {cfg.evaluation_mode!r}. Choose one of {sorted(EVALUATION_MODES)}.")
     unknown = [scenario for scenario in cfg.ood.scenarios if scenario not in OOD_SCENARIOS]

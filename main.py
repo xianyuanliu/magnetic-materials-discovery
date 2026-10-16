@@ -1,25 +1,28 @@
-"""CLI entry point: compose a run config with Hydra and dispatch on its evaluation mode.
+"""Run an experiment with Hydra configuration overrides.
 
     python main.py dataset=novamag mode=ood
-    python main.py dataset=mp mode=cross_validation tuning.enabled=false kfold.seeds=[0]
+    python main.py dataset=materials_project mode=cross_validation tuning.enabled=false kfold.seeds=[0]
 
-The first two arguments pick a file from configs/dataset/ and configs/mode/; anything else overrides one key of the
-composed config. Hydra checks the result against the schema in config.py before this file sees it.
+`dataset` and `mode` select config files; other arguments override individual settings.
 """
 
 from typing import cast
 
-import hydra
-from omegaconf import DictConfig, OmegaConf
+import matplotlib
 
+matplotlib.use("Agg")
+
+import hydra
 import runner
 from config import RunConfig, validate
-from predict.sklearn_models import MODEL_REGISTRY
+from omegaconf import DictConfig, OmegaConf
+
+from kalematerials.predict.sklearn_models import MODEL_REGISTRY
 
 
 @hydra.main(version_base=None, config_path="configs", config_name="config")
 def main(composed: DictConfig) -> None:
-    """Run one predict, random_split, cross_validation, ood or uncertainty job."""
+    """Run the configured evaluation or prediction job."""
     cfg = cast(RunConfig, OmegaConf.to_object(composed))
     validate(cfg)
 
@@ -35,9 +38,6 @@ def main(composed: DictConfig) -> None:
         runner.run_uncertainty(cfg=cfg, registry=MODEL_REGISTRY)
     else:
         runner.run_random_split(cfg=cfg, registry=MODEL_REGISTRY)
-
-    if cfg.enable_data_visualization:
-        runner.run_data_visualization(cfg=cfg)
 
 
 if __name__ == "__main__":

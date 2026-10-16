@@ -1,10 +1,8 @@
 # @package _global_
-# Predictive evaluation configuration
-# This mode aims to generate predictions given material formulas.
 
 evaluation_mode: predict
 
 predict:
   retrain: false
   formulas: [Fe3Co, Fe2Ni, FeCoNi, Fe16N2, Nd2Fe14B]
-  # input_path: data/candidates.csv    # a CSV with the formula column, instead of the list above
+  # input_path: data/candidates.csv  # Overrides formulas. This CSV file needs a formula column.

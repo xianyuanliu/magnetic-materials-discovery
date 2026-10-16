@@ -1,17 +1,26 @@
-# Python bytecode
+# Python
 __pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.coverage
+coverage.xml
 
-# Editor settings
+# Editors
 .vscode/
 .idea/
 .codex
 
-# Local experiment outputs (do not commit)
-results/
+# Local datasets
+examples/*/data/
 
-# results
-*.csv
+# Run outputs
+results/
+outputs/
 plots/
 models/
 temp/
-outputs/
+paper/

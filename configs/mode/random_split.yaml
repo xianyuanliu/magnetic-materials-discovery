@@ -1,13 +1,8 @@
 # @package _global_
-# Random split configuration
-# This mode aims to evaluate model performance and variability across multiple random seeds.
 
 evaluation_mode: random_split
 
 models: [rf, xgb, ridge]
-
-kfold:
-  folds: 5
 
 interpret:
   enabled: true
