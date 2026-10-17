@@ -1,11 +1,12 @@
 """Fit model bundles and predict new compositions."""
 
 import warnings
-from typing import List, Tuple
+from typing import List, Sequence, Tuple
 
 import pandas as pd
 
 from kalematerials.embed.composition_descriptors import add_engineered_features
+from kalematerials.evaluate.metrics import best_model
 from kalematerials.predict.fitting import fit_models
 from kalematerials.utils.persistence import align_features, fingerprint_training_data, ModelBundle, TRAINING_FINGERPRINT
 from kalematerials.utils.registry import ModelSpec
@@ -50,6 +51,36 @@ def fit_bundle(
             "model_random_state": model_random_state,
             TRAINING_FINGERPRINT: fingerprint_training_data(X, y),
         },
+    )
+
+
+def fit_best_bundle(
+    X: pd.DataFrame,
+    y: pd.Series,
+    specs: Sequence[ModelSpec],
+    summary: pd.DataFrame,
+    *,
+    target_column: str,
+    dataset: str,
+    metric: str = "mse",
+    hyperparameter_tuning: bool = False,
+    tune_cv_folds: int = 3,
+    tune_n_iter: int = 20,
+    model_random_state: int = 0,
+) -> ModelBundle:
+    """Refit the spec with the best mean `metric` in `summary` on all rows and bundle it, as in `fit_bundle`."""
+    winner = best_model(summary, metric=metric)
+    (spec,) = [spec for spec in specs if spec.name == winner]
+    return fit_bundle(
+        X,
+        y,
+        spec,
+        target_column=target_column,
+        dataset=dataset,
+        hyperparameter_tuning=hyperparameter_tuning,
+        tune_cv_folds=tune_cv_folds,
+        tune_n_iter=tune_n_iter,
+        model_random_state=model_random_state,
     )
 
 

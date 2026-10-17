@@ -8,29 +8,21 @@ import pandas as pd
 from case_study_references import CASE_STUDIES
 from config import RunConfig
 
-from kalematerials.evaluate.metrics import best_model, results_to_scores, wide_table_to_results
-from kalematerials.evaluate.ood_summaries import summarize_generalization_gap, summarize_model_comparison
 from kalematerials.loaddata.element_tables import load_element_properties, load_periodic_table
 from kalematerials.loaddata.feature_table import load_feature_table
-from kalematerials.loaddata.splits import build_random_split, OOD
+from kalematerials.loaddata.splits import build_random_split
 from kalematerials.pipeline.cross_validation import cross_validate
 from kalematerials.pipeline.interpretation import plot_interpretation
 from kalematerials.pipeline.ood import build_scenarios, resolve_split_elements, run_ood_evaluation
-from kalematerials.pipeline.prediction import check_bundle_matches, fit_bundle, predict_formulas
+from kalematerials.pipeline.prediction import check_bundle_matches, fit_best_bundle, fit_bundle, predict_formulas
 from kalematerials.pipeline.random_split import evaluate_random_splits
-from kalematerials.pipeline.uncertainty import (
-    resolve_uncertainty_model,
-    run_uncertainty_evaluation,
-    UNCERTAINTY_METRICS,
-)
+from kalematerials.pipeline.uncertainty import resolve_uncertainty_model, run_uncertainty_evaluation
 from kalematerials.utils.persistence import load_model_bundle, ModelBundle, save_model_bundle, save_results, save_tables
 from kalematerials.utils.registry import ModelSpec, resolve_models, resolve_trained_models
 from kalematerials.utils.reporting import (
-    format_comparisons,
     Logger,
     print_ood_tables,
     print_predictions,
-    print_summary,
     print_uncertainty_report,
     SILENT,
 )
@@ -56,12 +48,11 @@ def _compared_names(cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> Option
 
 def _save_best_model(cfg: RunConfig, specs, summary, X, y) -> None:
     """Refit the best model by MSE on all rows and save it to `model_dir/<dataset>_<workflow>.joblib`."""
-    winner = best_model(summary)
-    (spec,) = [spec for spec in specs if spec.name == winner]
-    bundle = fit_bundle(
+    bundle = fit_best_bundle(
         X,
         y,
-        spec,
+        specs,
+        summary,
         target_column=cfg.target_column,
         dataset=cfg.dataset,
         hyperparameter_tuning=cfg.tuning.enabled,
@@ -71,7 +62,7 @@ def _save_best_model(cfg: RunConfig, specs, summary, X, y) -> None:
     )
     saved = save_model_bundle(Path(cfg.model_dir) / f"{cfg.file_prefix}_{cfg.workflow}.joblib", bundle)
     if cfg.print_results:
-        print(f"\nBest model by MSE: {spec.name}. Refitted on all {len(X)} row(s) and saved to {saved}")
+        print(f"\nBest model by MSE: {bundle.model_name}. Refitted on all {len(X)} row(s) and saved to {saved}")
 
 
 def run_cross_validation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
@@ -80,7 +71,7 @@ def run_cross_validation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -
     X, y, _ = _load_features(cfg)
     compared = _compared_names(cfg, registry)
 
-    results = cross_validate(
+    results, summary = cross_validate(
         X,
         y,
         specs,
@@ -95,9 +86,7 @@ def run_cross_validation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -
         logger=_logger(cfg),
     )
 
-    summary, directory = save_results(results, cfg.output_dir, enabled=cfg.save_results)
-    if cfg.print_results and len(cfg.kfold.seeds) > 1:
-        print_summary(summary, f"Cross-Validation Metrics across {len(cfg.kfold.seeds)} seed(s) (mean ± std):")
+    directory = save_results(results, summary, cfg.output_dir, enabled=cfg.save_results)
     if directory is not None and cfg.print_results:
         print(f"\nSaved cross-validation results to: {directory.resolve()}")
     if cfg.save_results:
@@ -140,7 +129,7 @@ def run_random_split(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> No
     specs = resolve_models(registry, cfg.models)
     X, y, _ = _load_features(cfg)
 
-    results, first_split_models = evaluate_random_splits(
+    results, summary, first_split_models = evaluate_random_splits(
         X,
         y,
         specs,
@@ -150,25 +139,13 @@ def run_random_split(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> No
         tune_cv_folds=cfg.tuning.cv_folds,
         tune_n_iter=cfg.tuning.n_iter,
         model_random_state=cfg.model_random_state,
+        compare=_compared_names(cfg, registry),
         logger=_logger(cfg),
     )
 
-    summary, directory = save_results(results, cfg.output_dir, enabled=cfg.save_results)
+    directory = save_results(results, summary, cfg.output_dir, enabled=cfg.save_results)
     if directory is not None and cfg.print_results:
         print(f"\nSaved random-split results to: {directory.resolve()}")
-
-    if cfg.print_results and len(cfg.random_split.seeds) > 1:
-        print_summary(summary, f"Random-Split Metrics across {len(cfg.random_split.seeds)} seed(s) (mean ± std):")
-        compared = _compared_names(cfg, registry)
-        if compared is not None:
-            print(
-                format_comparisons(
-                    results_to_scores(results),
-                    *compared,
-                    test_train_ratio=(1.0 - cfg.random_split.train_size) / cfg.random_split.train_size,
-                ),
-                end="",
-            )
 
     if cfg.save_results:
         _save_best_model(cfg, specs, summary, X, y)
@@ -313,7 +290,7 @@ def run_ood(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
     specs = resolve_models(registry, cfg.models)
     X, y, metadata = _load_features(cfg)
 
-    splits, results = run_ood_evaluation(
+    ood = run_ood_evaluation(
         X,
         y,
         specs,
@@ -326,24 +303,23 @@ def run_ood(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
         tune_cv_folds=cfg.tuning.cv_folds,
         tune_n_iter=cfg.tuning.n_iter,
         model_random_state=cfg.model_random_state,
+        compare=_compared_names(cfg, registry),
         logger=_logger(cfg),
     )
 
-    summary, directory = save_results(results, cfg.output_dir, enabled=cfg.save_results)
-
-    compared = _compared_names(cfg, registry)
-    significance = (
-        summarize_model_comparison(results, *compared, split_type=OOD) if compared is not None else pd.DataFrame()
-    )
-    generalization_gap = summarize_generalization_gap(summary)
+    directory = save_results(ood.results, ood.summary, cfg.output_dir, enabled=cfg.save_results)
     save_tables(
-        {"splits.csv": splits, "significance.csv": significance, "generalization_gap.csv": generalization_gap},
+        {
+            "splits.csv": ood.splits,
+            "significance.csv": ood.significance,
+            "generalization_gap.csv": ood.generalization_gap,
+        },
         cfg.output_dir,
         enabled=cfg.save_results,
     )
 
     if cfg.print_results:
-        print_ood_tables(splits, summary, significance, generalization_gap)
+        print_ood_tables(ood.splits, ood.summary, ood.significance, ood.generalization_gap)
         if directory is not None:
             print(f"\nSaved OOD results to: {directory.resolve()}")
 
@@ -364,25 +340,17 @@ def run_uncertainty(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> Non
         inner_folds=cfg.kfold.folds,
         inner_shuffle=cfg.kfold.shuffle,
         size_matched_control=cfg.ood.size_matched_control,
+        hyperparameter_tuning=cfg.tuning.enabled,
+        tune_cv_folds=cfg.tuning.cv_folds,
+        tune_n_iter=cfg.tuning.n_iter,
         model_random_state=cfg.model_random_state,
         logger=_logger(cfg),
     )
     if tables is None:
         return
 
-    # Here `model` labels the interval method; uncertainty.model selects the estimator.
-    results = wide_table_to_results(
-        tables.by_split,
-        {metric: metric for metric in UNCERTAINTY_METRICS},
-        identifiers={
-            "scenario": "scenario",
-            "split_type": "split_type",
-            "split_id": "split_id",
-            "seed": "seed",
-            "model": "method",
-        },
-    )
-    _, directory = save_results(results, cfg.output_dir, enabled=cfg.save_results)
+    # In tables.results, `model` labels the interval method; uncertainty.model selects the estimator.
+    directory = save_results(tables.results, tables.summary, cfg.output_dir, enabled=cfg.save_results)
     save_tables(
         {"pooled_by_seed.csv": tables.pooled_by_seed, "across_seeds.csv": tables.across_seeds},
         cfg.output_dir,

@@ -6,12 +6,13 @@ Fit one model per split, apply the three interval methods in predict.uncertainty
 from __future__ import annotations
 
 import warnings
-from typing import List, Mapping, NamedTuple, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, NamedTuple, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
 
 from kalematerials.evaluate.calibration import summarize_across_seeds, summarize_calibration
+from kalematerials.evaluate.metrics import summarize_scores, wide_table_to_results
 from kalematerials.loaddata.splits import (
     build_kfold_splits,
     build_size_matched_controls,
@@ -20,6 +21,7 @@ from kalematerials.loaddata.splits import (
     OOD,
     Split,
 )
+from kalematerials.predict.fitting import fit_models
 from kalematerials.predict.uncertainty import (
     CONFORMAL,
     CONFORMAL_NORM,
@@ -43,16 +45,17 @@ def _fit_and_predict(
     y: pd.Series,
     train_idx: np.ndarray,
     test_idx: np.ndarray,
-    train_model,
+    spec: ModelSpec,
     *,
     calibration_fraction: float,
     alpha: float,
     seed: int,
-    model_random_state: int,
+    fit_options: Mapping[str, Any],
 ) -> Optional[pd.DataFrame]:
     """Fit and calibrate on separate parts of `train_idx`, then predict `test_idx`.
 
-    Return one row per test sample and interval method, or None if the training set is too small.
+    `fit_options` are keyword arguments for `fit_models`. Return one row per test sample and interval
+    method, or None if the training set is too small.
     """
     rng = np.random.default_rng(seed)
     shuffled = rng.permutation(np.asarray(train_idx))
@@ -62,7 +65,7 @@ def _fit_and_predict(
 
     cal_idx, fit_idx = shuffled[:n_calibration], shuffled[n_calibration:]
 
-    model = train_model(X.iloc[fit_idx], y.iloc[fit_idx], hyperparams=None, random_state=model_random_state)
+    model = fit_models(X.iloc[fit_idx], y.iloc[fit_idx], [spec], **fit_options)[spec.key]
 
     sigma_cal = rf_tree_std(model, X.iloc[cal_idx])
     y_cal = y.iloc[cal_idx].to_numpy(dtype=float)
@@ -93,12 +96,12 @@ def _collect_samples(
     X: pd.DataFrame,
     y: pd.Series,
     scenario_splits: Sequence[Tuple[str, str, List[Split]]],
-    train_model,
+    spec: ModelSpec,
     *,
     seed: int,
     calibration_fraction: float,
     alpha: float,
-    model_random_state: int,
+    fit_options: Mapping[str, Any],
 ) -> pd.DataFrame:
     """Predict every split of every scenario for one seed and stack the per-sample rows."""
     frames = []
@@ -109,11 +112,11 @@ def _collect_samples(
                 y,
                 train_idx,
                 test_idx,
-                train_model,
+                spec,
                 calibration_fraction=calibration_fraction,
                 alpha=alpha,
                 seed=seed,
-                model_random_state=model_random_state,
+                fit_options=fit_options,
             )
             if samples is None:
                 warnings.warn(f"Skipping {scenario} {split_id}: too few training rows to calibrate.")
@@ -144,12 +147,16 @@ def resolve_uncertainty_model(registry: Mapping[str, ModelSpec], model_key: str)
 
 
 class UncertaintyTables(NamedTuple):
-    """Calibration tables at three aggregation levels.
+    """Calibration tables at three aggregation levels, plus `by_split` in long form.
 
     `by_split` groups by seed, split and interval method. `pooled_by_seed` pools samples per seed,
     split type and method. `across_seeds` gives means and standard deviations of `pooled_by_seed`.
+    `results` reshapes `by_split` to evaluate.metrics.RESULT_COLUMNS, with the interval method in
+    `model`; `summary` is its mean/std per group.
     """
 
+    results: pd.DataFrame
+    summary: pd.DataFrame
     by_split: pd.DataFrame
     pooled_by_seed: pd.DataFrame
     across_seeds: pd.DataFrame
@@ -167,6 +174,9 @@ def run_uncertainty_evaluation(
     inner_folds: int = 5,
     inner_shuffle: bool = True,
     size_matched_control: bool = True,
+    hyperparameter_tuning: bool = False,
+    tune_cv_folds: int = 3,
+    tune_n_iter: int = 20,
     model_random_state: int = 0,
     logger: Logger = SILENT,
 ) -> Optional[UncertaintyTables]:
@@ -175,6 +185,7 @@ def run_uncertainty_evaluation(
     `scenarios` contains (scenario_name, splits) pairs; each seed runs one repeat. `alpha` is nominal
     miscoverage (0.05 gives 95% intervals). Reserve `calibration_fraction` of training rows for calibration.
     `inner_folds` and `inner_shuffle` define the ID reference; `size_matched_control` adds random controls.
+    Models are fitted on the non-calibration rows with `fit_models`, which also takes the tuning settings.
     Return UncertaintyTables, or None if no split has enough training rows.
     """
     if not scenarios:
@@ -186,6 +197,12 @@ def run_uncertainty_evaluation(
         f"{calibration_fraction:.0%} of each training set held out for conformal calibration.\n"
     )
 
+    fit_options: Dict[str, Any] = dict(
+        hyperparameter_tuning=hyperparameter_tuning,
+        model_random_state=model_random_state,
+        tune_cv_folds=tune_cv_folds,
+        tune_n_iter=tune_n_iter,
+    )
     per_seed_frames = []
     for seed in seeds:
         scenario_splits: List[Tuple[str, str, List[Split]]] = [
@@ -202,11 +219,11 @@ def run_uncertainty_evaluation(
                 X,
                 y,
                 scenario_splits,
-                spec.train,
+                spec,
                 seed=seed,
                 calibration_fraction=calibration_fraction,
                 alpha=alpha,
-                model_random_state=model_random_state,
+                fit_options=fit_options,
             )
         )
 
@@ -218,7 +235,20 @@ def run_uncertainty_evaluation(
 
     by_split = summarize_calibration(samples, ("seed", "split_type", "scenario", "split_id", "method"), alpha)
     pooled_by_seed = summarize_calibration(samples, ("seed", "split_type", "method"), alpha)
+    results = wide_table_to_results(
+        by_split,
+        {metric: metric for metric in UNCERTAINTY_METRICS},
+        identifiers={
+            "scenario": "scenario",
+            "split_type": "split_type",
+            "split_id": "split_id",
+            "seed": "seed",
+            "model": "method",
+        },
+    )
     return UncertaintyTables(
+        results=results,
+        summary=summarize_scores(results),
         by_split=by_split,
         pooled_by_seed=pooled_by_seed,
         across_seeds=summarize_across_seeds(pooled_by_seed, ("split_type", "method")),

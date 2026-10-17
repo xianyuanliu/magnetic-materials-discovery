@@ -1,14 +1,23 @@
 """Repeated random train/validation splits."""
 
-from typing import Dict, Sequence, Tuple
+from typing import Dict, NamedTuple, Optional, Sequence, Tuple
 
 import pandas as pd
 
-from kalematerials.evaluate.metrics import build_result_rows, compute_metrics
+from kalematerials.evaluate.formatting import format_comparisons, format_split_results, format_summary
+from kalematerials.evaluate.metrics import build_result_rows, compute_metrics, results_to_scores, summarize_scores
 from kalematerials.loaddata.splits import build_random_split, ID_RANDOM
 from kalematerials.predict.fitting import fit_models
 from kalematerials.utils.registry import ModelSpec
-from kalematerials.utils.reporting import format_split_results, Logger, SILENT
+from kalematerials.utils.reporting import Logger, SILENT
+
+
+class RandomSplitResult(NamedTuple):
+    """Result rows, their summary, and the first seed's models keyed by registry key."""
+
+    results: pd.DataFrame
+    summary: pd.DataFrame
+    first_split_models: Dict[str, object]
 
 
 def evaluate_random_splits(
@@ -22,13 +31,14 @@ def evaluate_random_splits(
     tune_cv_folds: int = 3,
     tune_n_iter: int = 20,
     model_random_state: int = 0,
+    compare: Optional[Tuple[str, str]] = None,
     logger: Logger = SILENT,
-) -> Tuple[pd.DataFrame, Dict[str, object]]:
+) -> RandomSplitResult:
     """Evaluate a random train/validation split per seed.
 
     `seeds` control splits; `model_random_state` controls models and tuning. Tuning uses only each
-    split's training rows, with search settings from `fit_models`.
-    Return (results, models): long-form results for all seeds and the first seed's models keyed by registry key.
+    split's training rows, with search settings from `fit_models`. With several seeds, `compare`
+    optionally names two models for a significance test across seeds.
     """
     collected = []
     first_split_models: Dict[str, object] = {}
@@ -67,4 +77,16 @@ def evaluate_random_splits(
         if not first_split_models:
             first_split_models = trained
 
-    return pd.concat(collected, ignore_index=True), first_split_models
+    results = pd.concat(collected, ignore_index=True)
+    summary = summarize_scores(results)
+    if len(seeds) > 1:
+        logger.write(format_summary(summary, f"Random-Split Metrics across {len(seeds)} seed(s) (mean ± std):"))
+        if compare is not None:
+            logger.write(
+                format_comparisons(
+                    results_to_scores(results),
+                    *compare,
+                    test_train_ratio=(1.0 - train_size) / train_size,
+                )
+            )
+    return RandomSplitResult(results=results, summary=summary, first_split_models=first_split_models)

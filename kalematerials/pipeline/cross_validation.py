@@ -1,20 +1,22 @@
 """Repeated K-fold evaluation."""
 
-from typing import Optional, Sequence, Tuple
+from typing import NamedTuple, Optional, Sequence, Tuple
 
 import pandas as pd
 
-from kalematerials.evaluate.metrics import compute_metrics, FoldScores, METRICS, scores_to_results
+from kalematerials.evaluate.formatting import format_comparisons, format_cross_validation_results, format_summary
+from kalematerials.evaluate.metrics import compute_metrics, FoldScores, METRICS, scores_to_results, summarize_scores
 from kalematerials.loaddata.splits import build_kfold_splits, Split
 from kalematerials.predict.fitting import fit_models
 from kalematerials.utils.registry import ModelSpec
-from kalematerials.utils.reporting import (
-    format_comparisons,
-    format_cross_validation_results,
-    format_search_budget,
-    Logger,
-    SILENT,
-)
+from kalematerials.utils.reporting import format_search_budget, Logger, SILENT
+
+
+class CrossValidationResult(NamedTuple):
+    """Long-form result rows and their mean/std summary (evaluate.metrics.summarize_scores)."""
+
+    results: pd.DataFrame
+    summary: pd.DataFrame
 
 
 def score_models_on_splits(
@@ -70,8 +72,8 @@ def cross_validate(
     model_random_state: int = 0,
     compare: Optional[Tuple[str, str]] = None,
     logger: Logger = SILENT,
-) -> pd.DataFrame:
-    """Run K-fold cross-validation once per seed and return long-form result rows.
+) -> CrossValidationResult:
+    """Run K-fold cross-validation once per seed and return result rows with their summary.
 
     `seeds` control fold shuffling; `model_random_state` controls models and tuning. Tuning uses only
     each fold's training rows, with search settings from `fit_models`. `compare` optionally names
@@ -101,4 +103,8 @@ def cross_validate(
         if compare is not None:
             logger.write(format_comparisons(results, *compare, test_train_ratio=1.0 / (folds - 1)))
 
-    return pd.concat(collected, ignore_index=True)
+    results = pd.concat(collected, ignore_index=True)
+    summary = summarize_scores(results)
+    if len(seeds) > 1:
+        logger.write(format_summary(summary, f"Cross-Validation Metrics across {len(seeds)} seed(s) (mean ± std):"))
+    return CrossValidationResult(results=results, summary=summary)

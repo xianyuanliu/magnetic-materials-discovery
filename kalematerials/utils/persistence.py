@@ -9,8 +9,6 @@ import joblib
 import numpy as np
 import pandas as pd
 
-from kalematerials.evaluate.metrics import summarize_scores, SUMMARY_GROUPS
-
 # Increment for incompatible bundle-format changes.
 BUNDLE_FORMAT_VERSION = 1
 
@@ -114,22 +112,20 @@ def save_tables(
 
 def save_results(
     results: pd.DataFrame,
+    summary: pd.DataFrame,
     output_dir: Optional[str],
     *,
-    by: Sequence[str] = SUMMARY_GROUPS,
     enabled: bool = True,
-) -> Tuple[pd.DataFrame, Optional[Path]]:
-    """Summarize long-form results by `by` and save results.csv and summary.csv.
+) -> Optional[Path]:
+    """Save long-form results and their summary as results.csv and summary.csv.
 
-    Return (summary, directory). If saving is disabled or no directory is set, return (summary, None).
+    Return the output directory, or None if saving is disabled or no directory is set.
     """
-    summary = summarize_scores(results, by=by)
-
     if not enabled or not output_dir:
-        return summary, None
+        return None
 
     directory = Path(output_dir)
     directory.mkdir(parents=True, exist_ok=True)
     results.to_csv(directory / RESULTS_FILENAME, index=False)
     summary.to_csv(directory / SUMMARY_FILENAME, index=False)
-    return summary, directory
+    return directory
