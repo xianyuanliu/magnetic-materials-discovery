@@ -2,7 +2,7 @@
 
 import warnings
 from pathlib import Path
-from typing import Mapping, Optional, Sequence, Tuple
+from typing import Dict, Mapping, Optional, Sequence, Tuple
 
 import pandas as pd
 from case_study_references import CASE_STUDIES
@@ -10,13 +10,11 @@ from config import RunConfig
 
 from kalematerials.evaluate.metrics import best_model, results_to_scores, wide_table_to_results
 from kalematerials.evaluate.ood_summaries import summarize_generalization_gap, summarize_model_comparison
-from kalematerials.interpret.alloy_series import build_series_panels
-from kalematerials.interpret.model_explanations import plot_model_explanations
-from kalematerials.interpret.reference_comparison import plot_predictions_against_measurements
 from kalematerials.loaddata.element_tables import load_element_properties, load_periodic_table
 from kalematerials.loaddata.feature_table import load_feature_table
 from kalematerials.loaddata.splits import build_random_split, OOD
 from kalematerials.pipeline.cross_validation import cross_validate
+from kalematerials.pipeline.interpretation import plot_interpretation
 from kalematerials.pipeline.ood import build_scenarios, resolve_split_elements, run_ood_evaluation
 from kalematerials.pipeline.prediction import check_bundle_matches, fit_bundle, predict_formulas
 from kalematerials.pipeline.random_split import evaluate_random_splits
@@ -110,42 +108,31 @@ def _plot_interpretation(
     cfg: RunConfig,
     registry: Mapping[str, ModelSpec],
     trained: Mapping[str, object],
-    feature_columns: Sequence[str],
     X_train,
     X_valid,
     y_valid,
 ) -> None:
     """Save the requested model-explanation and case-study figures."""
-    plots_dir = Path(cfg.plots_dir)
-    plots_dir.mkdir(parents=True, exist_ok=True)
 
-    if cfg.interpret.explain_models:
-        specs = resolve_trained_models(registry, trained, cfg.interpret.explain_models)
-        plot_model_explanations(
-            {spec.name: trained[spec.key] for spec in specs},
-            X_train,
-            X_valid,
-            y_valid,
-            save_dir=plots_dir,
-            prefix=f"{cfg.file_prefix}_",
-            random_state=cfg.model_random_state,
-        )
+    def by_name(keys: Sequence[str]) -> Dict[str, object]:
+        if not keys:
+            return {}
+        return {spec.name: trained[spec.key] for spec in resolve_trained_models(registry, trained, keys)}
 
-    if cfg.interpret.case_study_models:
-        specs = resolve_trained_models(registry, trained, cfg.interpret.case_study_models)
-        periodic_table, miedema = load_element_properties(cfg.periodic_table_path, cfg.miedema_path)
-        panels = build_series_panels(
-            CASE_STUDIES,
-            feature_columns,
-            {spec.name: trained[spec.key] for spec in specs},
-            periodic_table,
-            miedema,
-        )
-        plot_predictions_against_measurements(
-            panels,
-            y_label=cfg.target_column,
-            save_path=plots_dir / f"{cfg.file_prefix}_case_studies.png",
-        )
+    plot_interpretation(
+        X_train,
+        X_valid,
+        y_valid,
+        explain_models=by_name(cfg.interpret.explain_models),
+        case_study_models=by_name(cfg.interpret.case_study_models),
+        case_studies=CASE_STUDIES,
+        target_column=cfg.target_column,
+        plots_dir=Path(cfg.plots_dir),
+        prefix=f"{cfg.file_prefix}_",
+        periodic_table_path=cfg.periodic_table_path,
+        miedema_path=cfg.miedema_path,
+        random_state=cfg.model_random_state,
+    )
 
 
 def run_random_split(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
@@ -194,7 +181,6 @@ def run_random_split(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> No
         cfg,
         registry,
         first_split_models,
-        list(X.columns),
         X.iloc[train_idx],
         X.iloc[valid_idx],
         y.iloc[valid_idx],

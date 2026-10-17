@@ -1,12 +1,18 @@
-"""Select records, merge equivalent compositions and compute features."""
+"""Select records, merge equivalent compositions, compute features and describe the result."""
 
 import warnings
-from typing import Iterable, List, Optional, Tuple
+from pathlib import Path
+from typing import Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
 
 from kalematerials.embed.composition_descriptors import add_engineered_features, ENGINEERED_FEATURE_COLUMNS
+from kalematerials.interpret.dataset_distributions import (
+    count_compounds_by_radix,
+    plot_target_distribution_by_element,
+    plot_target_violin_by_element,
+)
 from kalematerials.prepdata.composition import formula_contains_elements, get_composition_key
 
 # Optional element exclusions.
@@ -142,3 +148,43 @@ def build_feature_table(
     kept = data.loc[~incomplete].set_index(formula_column)
     carried = [column for column in PROVENANCE_COLUMNS if column in kept.columns]
     return kept[[target_column] + feature_columns + carried], feature_columns
+
+
+def describe_feature_table(
+    table: pd.DataFrame,
+    name: str,
+    plots_dir: Path,
+    *,
+    target_column: str,
+    formula_column: str,
+    target_label: str,
+    elements: Sequence[str],
+    bins: Sequence[float],
+) -> pd.Series:
+    """Save the target-distribution figures for one table and return its compound counts by radix.
+
+    `table` is indexed by formula, as `build_feature_table` returns it. `bins` is (min, max, step) in
+    target units; figures are named after `name` in `plots_dir`.
+    """
+    plots_dir = Path(plots_dir)
+    plots_dir.mkdir(parents=True, exist_ok=True)
+    data = table.reset_index()
+
+    plot_target_distribution_by_element(
+        data,
+        target_column=target_column,
+        elements=elements,
+        formula_column=formula_column,
+        bins=np.arange(*bins),
+        save_path=plots_dir / f"{name}_ms_distribution_by_tm.png",
+    )
+    plot_target_violin_by_element(
+        data,
+        target_column=target_column,
+        elements=elements,
+        formula_column=formula_column,
+        target_label=target_label,
+        title=f"{name.upper()} Violin Plot",
+        save_path=plots_dir / f"{name}_violin_ms_by_tm.png",
+    )
+    return count_compounds_by_radix(data, formula_column=formula_column)

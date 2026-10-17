@@ -5,25 +5,20 @@ Rerun after changes to raw data, features or selection.
 
 import argparse
 from pathlib import Path
-from typing import Iterable, Optional, Sequence
+from typing import Iterable, Optional
 
 import matplotlib
 
 matplotlib.use("Agg")
 
-import numpy as np
 import pandas as pd
 
-from kalematerials.interpret.dataset_distributions import (
-    count_compounds_by_radix,
-    plot_target_distribution_by_element,
-    plot_target_violin_by_element,
-)
 from kalematerials.loaddata.element_tables import load_element_properties
 from kalematerials.loaddata.materials_project import load_materials_project
 from kalematerials.loaddata.novamag import load_novamag
 from kalematerials.pipeline.feature_table import (
     build_feature_table,
+    describe_feature_table,
     NON_COMMERCIAL_ELEMENTS,
     RARE_EARTH_ELEMENTS,
 )
@@ -112,36 +107,19 @@ def _build_table(
     return table
 
 
-def _describe_table(
-    table: pd.DataFrame,
-    name: str,
-    plots_dir: Path,
-    *,
-    elements: Sequence[str],
-    bins: Sequence[float],
-) -> None:
+def _describe_table(table: pd.DataFrame, name: str, args: argparse.Namespace) -> None:
     """Save the target-distribution figures for one table and print its compound counts."""
-    plots_dir.mkdir(parents=True, exist_ok=True)
-    data = table.reset_index()
-
-    plot_target_distribution_by_element(
-        data,
+    counts = describe_feature_table(
+        table,
+        name,
+        args.plots_dir,
         target_column=TARGET_COLUMN,
-        elements=elements,
-        formula_column=FORMULA_COLUMN,
-        bins=np.arange(*bins),
-        save_path=plots_dir / f"{name}_ms_distribution_by_tm.png",
-    )
-    plot_target_violin_by_element(
-        data,
-        target_column=TARGET_COLUMN,
-        elements=elements,
         formula_column=FORMULA_COLUMN,
         target_label="Saturation Magnetization (T)",
-        title=f"{name.upper()} Violin Plot",
-        save_path=plots_dir / f"{name}_violin_ms_by_tm.png",
+        elements=args.distribution_elements,
+        bins=args.bins,
     )
-    print_compound_counts(count_compounds_by_radix(data, formula_column=FORMULA_COLUMN))
+    print_compound_counts(counts)
 
 
 def main() -> None:
@@ -164,7 +142,7 @@ def main() -> None:
             excluded_elements=args.exclude_elements,
         )
         if not args.no_plots:
-            _describe_table(table, "novamag", args.plots_dir, elements=args.distribution_elements, bins=args.bins)
+            _describe_table(table, "novamag", args)
 
     if args.dataset in ("all", "materials_project"):
         print("Processing Materials Project dataset...")
@@ -181,9 +159,7 @@ def main() -> None:
             magnetic_only=not args.materials_project_include_nonmagnetic,
         )
         if not args.no_plots:
-            _describe_table(
-                table, "materials_project", args.plots_dir, elements=args.distribution_elements, bins=args.bins
-            )
+            _describe_table(table, "materials_project", args)
 
 
 if __name__ == "__main__":

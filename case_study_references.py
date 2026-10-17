@@ -2,7 +2,7 @@
 
 from typing import Tuple
 
-from kalematerials.interpret.alloy_series import AlloySeries
+from kalematerials.pipeline.interpretation import AlloySeries
 
 FEAL_FORMULAS = [
     "Fe98Al2",

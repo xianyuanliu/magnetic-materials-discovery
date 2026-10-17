@@ -56,7 +56,7 @@ kalematerials/
   predict/           models, fitting, conformal uncertainty
   evaluate/          metrics, significance, calibration, OOD summaries
   interpret/         figures
-  pipeline/          one module per workflow, plus the feature-table build
+  pipeline/          one module per workflow, plus the feature-table build and the figures
   utils/             model registry, persistence, reporting
   resources/         periodic-table and Miedema spreadsheets
 ```

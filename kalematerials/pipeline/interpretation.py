@@ -1,11 +1,18 @@
-"""Build prediction and measurement panels for binary alloy series."""
+"""Featurize case-study alloy series and save model-explanation and case-study figures."""
 
-from typing import Any, Dict, List, Mapping, NamedTuple, Sequence, Tuple
+from pathlib import Path
+from typing import Any, Dict, List, Mapping, NamedTuple, Optional, Sequence, Tuple
 
 import pandas as pd
 
 from kalematerials.embed.composition_descriptors import add_engineered_features
-from kalematerials.interpret.reference_comparison import ComparisonPanel, panel_from_series
+from kalematerials.interpret.model_explanations import plot_model_explanations
+from kalematerials.interpret.reference_comparison import (
+    ComparisonPanel,
+    panel_from_series,
+    plot_predictions_against_measurements,
+)
+from kalematerials.loaddata.element_tables import load_element_properties
 from kalematerials.prepdata.composition import get_atomic_fraction_array, get_stoich_array
 from kalematerials.utils.persistence import align_features
 
@@ -72,3 +79,48 @@ def build_series_panels(
     if not models:
         raise ValueError("A case study needs at least one fitted model.")
     return [build_series_panel(series, feature_columns, models, periodic_table, miedema) for series in all_series]
+
+
+def plot_interpretation(
+    X_train: pd.DataFrame,
+    X_valid: pd.DataFrame,
+    y_valid: pd.Series,
+    *,
+    explain_models: Mapping[str, Any],
+    case_study_models: Mapping[str, Any],
+    case_studies: Sequence[AlloySeries],
+    target_column: str,
+    plots_dir: Path,
+    prefix: str = "",
+    periodic_table_path: Optional[str] = None,
+    miedema_path: Optional[str] = None,
+    random_state: int = 0,
+) -> None:
+    """Save explanation figures for `explain_models` and a case-study figure for `case_study_models`.
+
+    Both map display names to fitted estimators; an empty mapping skips that figure. Explanations use the
+    validation rows with `X_train` as the SHAP background. Case studies are featurized with the element
+    tables at the given paths (packaged tables when omitted) and saved as `<prefix>case_studies.png`.
+    """
+    plots_dir = Path(plots_dir)
+    plots_dir.mkdir(parents=True, exist_ok=True)
+
+    if explain_models:
+        plot_model_explanations(
+            explain_models,
+            X_train,
+            X_valid,
+            y_valid,
+            save_dir=plots_dir,
+            prefix=prefix,
+            random_state=random_state,
+        )
+
+    if case_study_models:
+        periodic_table, miedema = load_element_properties(periodic_table_path, miedema_path)
+        panels = build_series_panels(case_studies, list(X_train.columns), case_study_models, periodic_table, miedema)
+        plot_predictions_against_measurements(
+            panels,
+            y_label=target_column,
+            save_path=plots_dir / f"{prefix}case_studies.png",
+        )
