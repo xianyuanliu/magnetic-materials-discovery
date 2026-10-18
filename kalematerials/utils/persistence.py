@@ -76,6 +76,45 @@ def load_model_bundle(path: str) -> ModelBundle:
     return bundle
 
 
+EXPLANATION_FILENAME = "explanation_models.joblib"
+
+
+@dataclass
+class ExplanationModels:
+    """Models fitted on one split, kept so explanation figures can be redrawn from a saved run.
+
+    `models` maps registry keys to estimators fitted on rows `train_idx`, explained on rows `valid_idx`.
+    `training_fingerprint` identifies the full (X, y) the row positions refer to.
+    """
+
+    models: Dict[str, Any]
+    train_idx: np.ndarray
+    valid_idx: np.ndarray
+    training_fingerprint: str
+    format_version: int = BUNDLE_FORMAT_VERSION
+
+
+def save_explanation_models(directory: str, explanation: ExplanationModels) -> Path:
+    """Write `explanation` to EXPLANATION_FILENAME in `directory`; returns the resolved path."""
+    destination = Path(directory) / EXPLANATION_FILENAME
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(explanation, destination)
+    return destination.resolve()
+
+
+def load_explanation_models(directory: str) -> Optional[ExplanationModels]:
+    """Load the ExplanationModels saved in `directory`, or None if the run saved none."""
+    source = Path(directory) / EXPLANATION_FILENAME
+    if not source.exists():
+        return None
+    explanation = joblib.load(source)
+    if not isinstance(explanation, ExplanationModels):
+        raise ValueError(f"{source} does not contain ExplanationModels (got {type(explanation).__name__}).")
+    if explanation.format_version > BUNDLE_FORMAT_VERSION:
+        raise ValueError(f"{source} uses format v{explanation.format_version}; this code reads v{BUNDLE_FORMAT_VERSION}.")
+    return explanation
+
+
 def align_features(features, feature_columns: Sequence[str], source: Optional[str] = None):
     """Select features in training-column order; `source` labels errors for missing columns."""
     missing = [c for c in feature_columns if c not in features.columns]

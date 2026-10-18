@@ -56,6 +56,12 @@ The interpret step then derives, from those files alone, whatever the results su
 | --- | --- |
 | `significance.csv` | `compare_models` names two models: a paired test per scenario, split type and metric |
 | `generalization_gap.csv` | the results contain OOD and ID-reference rows (the `ood` workflow) |
+| `plots/<run>_mse_by_model.png` | always: per-split MSE by scenario and model, one panel per split type |
+| `plots/<run>_generalization_gap.png` | with `generalization_gap.csv` |
+
+`<run>` is the results directory name, e.g. `novamag_ood`. `random_split` also saves the first seed's
+models as `explanation_models.joblib`, so `workflow=interpret` with `interpret.explain_models` or
+`interpret.case_study_models` redraws the explanation and case-study figures without refitting.
 
 K-fold and random-split comparisons pair every (seed, split) and correct the variance by
 `1/n + n_test/n_train` (Nadeau and Bengio), so repeated K-fold pools all seeds into one test.

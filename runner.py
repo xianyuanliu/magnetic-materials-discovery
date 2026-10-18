@@ -12,16 +12,20 @@ from kalematerials.loaddata.element_tables import load_element_properties, load_
 from kalematerials.loaddata.feature_table import load_feature_table
 from kalematerials.loaddata.splits import build_random_split
 from kalematerials.pipeline.cross_validation import cross_validate
-from kalematerials.pipeline.interpretation import analyze_results, plot_interpretation, ResultAnalysis
+from kalematerials.pipeline.interpretation import analyze_results, plot_interpretation, plot_results, ResultAnalysis
 from kalematerials.pipeline.ood import build_scenarios, resolve_split_elements, run_ood_evaluation
 from kalematerials.pipeline.prediction import check_bundle_matches, fit_best_bundle, fit_bundle, predict_formulas
 from kalematerials.pipeline.random_split import evaluate_random_splits
 from kalematerials.pipeline.uncertainty import resolve_uncertainty_model, run_uncertainty_evaluation
 from kalematerials.utils.persistence import (
+    ExplanationModels,
+    fingerprint_training_data,
     GENERALIZATION_GAP_FILENAME,
+    load_explanation_models,
     load_model_bundle,
     load_results,
     ModelBundle,
+    save_explanation_models,
     save_model_bundle,
     save_results,
     save_tables,
@@ -84,7 +88,10 @@ def _save_and_analyze(
     splits: pd.DataFrame,
     output_dir: Optional[str],
 ) -> Tuple[ResultAnalysis, Optional[Path]]:
-    """Save results, summary and split sizes, then derive and save the analysis tables they support."""
+    """Save results, summary and split sizes, then derive the analysis tables and result figures they support.
+
+    Figures go to `plots_dir`, named after the results directory.
+    """
     directory = save_results(results, summary, output_dir, enabled=cfg.save_results)
     analysis = analyze_results(results, summary, splits, compare=_compared_names(cfg, registry))
     save_tables(
@@ -96,6 +103,8 @@ def _save_and_analyze(
         output_dir,
         enabled=cfg.save_results,
     )
+    if directory is not None:
+        plot_results(results, analysis, plots_dir=Path(cfg.plots_dir), prefix=f"{directory.name}_")
     return analysis, directory
 
 
@@ -130,12 +139,12 @@ def run_cross_validation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -
 def _plot_interpretation(
     cfg: RunConfig,
     registry: Mapping[str, ModelSpec],
-    trained: Mapping[str, object],
-    X_train,
-    X_valid,
-    y_valid,
+    explanation: ExplanationModels,
+    X: pd.DataFrame,
+    y: pd.Series,
 ) -> None:
-    """Save the requested model-explanation and case-study figures."""
+    """Save the requested model-explanation and case-study figures for one split's models."""
+    trained = explanation.models
 
     def by_name(keys: Sequence[str]) -> Dict[str, object]:
         if not keys:
@@ -143,9 +152,9 @@ def _plot_interpretation(
         return {spec.name: trained[spec.key] for spec in resolve_trained_models(registry, trained, keys)}
 
     plot_interpretation(
-        X_train,
-        X_valid,
-        y_valid,
+        X.iloc[explanation.train_idx],
+        X.iloc[explanation.valid_idx],
+        y.iloc[explanation.valid_idx],
         explain_models=by_name(cfg.interpret.explain_models),
         case_study_models=by_name(cfg.interpret.case_study_models),
         case_studies=CASE_STUDIES,
@@ -185,18 +194,18 @@ def run_random_split(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> No
     if cfg.save_results:
         _save_best_model(cfg, specs, summary, X, y)
 
-    if not cfg.interpret.enabled:
-        return
-
     _, train_idx, valid_idx = build_random_split(len(X), cfg.random_split.train_size, int(cfg.random_split.seeds[0]))
-    _plot_interpretation(
-        cfg,
-        registry,
-        first_split_models,
-        X.iloc[train_idx],
-        X.iloc[valid_idx],
-        y.iloc[valid_idx],
+    explanation = ExplanationModels(
+        models=dict(first_split_models),
+        train_idx=train_idx,
+        valid_idx=valid_idx,
+        training_fingerprint=fingerprint_training_data(X, y),
     )
+    if directory is not None:
+        save_explanation_models(str(directory), explanation)
+
+    if cfg.interpret.enabled:
+        _plot_interpretation(cfg, registry, explanation, X, y)
 
 
 def _read_formulas(cfg: RunConfig) -> pd.DataFrame:
@@ -349,7 +358,11 @@ def run_ood(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
 
 
 def run_interpret(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
-    """Re-derive the analysis tables from the results saved in `interpret.results_dir`, writing them back there."""
+    """Re-derive analysis tables and figures from the run saved in `interpret.results_dir`.
+
+    Tables are written back to that directory and figures to `plots_dir`. Explanation and case-study
+    figures need the models a random_split run saved, fitted on the configured dataset.
+    """
     source = cfg.interpret.results_dir
     if not source:
         raise ValueError("Set interpret.results_dir to the directory of an evaluation run.")
@@ -361,10 +374,22 @@ def run_interpret(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
         source,
         enabled=cfg.save_results,
     )
+    if directory is not None:
+        plot_results(results, analysis, plots_dir=Path(cfg.plots_dir), prefix=f"{Path(source).name}_")
     if cfg.print_results:
         print_analysis(analysis.significance, analysis.generalization_gap)
         if directory is not None:
             print(f"\nSaved analysis tables to: {directory.resolve()}")
+
+    if not (cfg.interpret.explain_models or cfg.interpret.case_study_models):
+        return
+    explanation = load_explanation_models(source)
+    if explanation is None:
+        raise ValueError(f"{source} has no saved models to explain; rerun random_split with save_results=true.")
+    X, y, _ = _load_features(cfg)
+    if explanation.training_fingerprint != fingerprint_training_data(X, y):
+        raise ValueError(f"The models in {source} were fitted on different data than {cfg.dataset_path}.")
+    _plot_interpretation(cfg, registry, explanation, X, y)
 
 
 def run_uncertainty(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:

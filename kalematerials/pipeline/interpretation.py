@@ -17,6 +17,7 @@ from kalematerials.interpret.reference_comparison import (
     plot_predictions_against_measurements,
 )
 from kalematerials.interpret.result_analysis import summarize_generalization_gap, summarize_model_comparison
+from kalematerials.interpret.result_figures import plot_generalization_gap, plot_metric_by_model
 from kalematerials.loaddata.element_tables import load_element_properties
 from kalematerials.prepdata.composition import get_atomic_fraction_array, get_stoich_array
 from kalematerials.utils.persistence import align_features
@@ -50,6 +51,30 @@ def analyze_results(
         ),
         generalization_gap=summarize_generalization_gap(summary),
     )
+
+
+def plot_results(
+    results: pd.DataFrame,
+    analysis: ResultAnalysis,
+    *,
+    plots_dir: Path,
+    prefix: str = "",
+    metric: str = "mse",
+) -> List[Path]:
+    """Save the result figures the tables support and return their paths.
+
+    Always draws `<prefix><metric>_by_model.png`; draws `<prefix>generalization_gap.png` when the analysis
+    has a generalization-gap table.
+    """
+    plots_dir = Path(plots_dir)
+    plots_dir.mkdir(parents=True, exist_ok=True)
+
+    saved = [plots_dir / f"{prefix}{metric}_by_model.png"]
+    plot_metric_by_model(results, metric=metric, save_path=saved[0])
+    if not analysis.generalization_gap.empty:
+        saved.append(plots_dir / f"{prefix}generalization_gap.png")
+        plot_generalization_gap(analysis.generalization_gap, save_path=saved[-1])
+    return saved
 
 
 class AlloySeries(NamedTuple):
