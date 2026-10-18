@@ -12,15 +12,26 @@ from kalematerials.loaddata.element_tables import load_element_properties, load_
 from kalematerials.loaddata.feature_table import load_feature_table
 from kalematerials.loaddata.splits import build_random_split
 from kalematerials.pipeline.cross_validation import cross_validate
-from kalematerials.pipeline.interpretation import plot_interpretation
+from kalematerials.pipeline.interpretation import analyze_results, plot_interpretation, ResultAnalysis
 from kalematerials.pipeline.ood import build_scenarios, resolve_split_elements, run_ood_evaluation
 from kalematerials.pipeline.prediction import check_bundle_matches, fit_best_bundle, fit_bundle, predict_formulas
 from kalematerials.pipeline.random_split import evaluate_random_splits
 from kalematerials.pipeline.uncertainty import resolve_uncertainty_model, run_uncertainty_evaluation
-from kalematerials.utils.persistence import load_model_bundle, ModelBundle, save_model_bundle, save_results, save_tables
+from kalematerials.utils.persistence import (
+    GENERALIZATION_GAP_FILENAME,
+    load_model_bundle,
+    load_results,
+    ModelBundle,
+    save_model_bundle,
+    save_results,
+    save_tables,
+    SIGNIFICANCE_FILENAME,
+    SPLITS_FILENAME,
+)
 from kalematerials.utils.registry import ModelSpec, resolve_models, resolve_trained_models
 from kalematerials.utils.reporting import (
     Logger,
+    print_analysis,
     print_ood_tables,
     print_predictions,
     print_uncertainty_report,
@@ -65,13 +76,35 @@ def _save_best_model(cfg: RunConfig, specs, summary, X, y) -> None:
         print(f"\nBest model by MSE: {bundle.model_name}. Refitted on all {len(X)} row(s) and saved to {saved}")
 
 
+def _save_and_analyze(
+    cfg: RunConfig,
+    registry: Mapping[str, ModelSpec],
+    results: pd.DataFrame,
+    summary: pd.DataFrame,
+    splits: pd.DataFrame,
+    output_dir: Optional[str],
+) -> Tuple[ResultAnalysis, Optional[Path]]:
+    """Save results, summary and split sizes, then derive and save the analysis tables they support."""
+    directory = save_results(results, summary, output_dir, enabled=cfg.save_results)
+    analysis = analyze_results(results, summary, splits, compare=_compared_names(cfg, registry))
+    save_tables(
+        {
+            SPLITS_FILENAME: splits,
+            SIGNIFICANCE_FILENAME: analysis.significance,
+            GENERALIZATION_GAP_FILENAME: analysis.generalization_gap,
+        },
+        output_dir,
+        enabled=cfg.save_results,
+    )
+    return analysis, directory
+
+
 def run_cross_validation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
-    """Repeated K-fold cross-validation; saves the results and the best model."""
+    """Repeated K-fold cross-validation; saves the results, their analysis and the best model."""
     specs = resolve_models(registry, cfg.models)
     X, y, _ = _load_features(cfg)
-    compared = _compared_names(cfg, registry)
 
-    results, summary = cross_validate(
+    results, summary, splits = cross_validate(
         X,
         y,
         specs,
@@ -82,13 +115,14 @@ def run_cross_validation(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -
         tune_cv_folds=cfg.tuning.cv_folds,
         tune_n_iter=cfg.tuning.n_iter,
         model_random_state=cfg.model_random_state,
-        compare=compared,
         logger=_logger(cfg),
     )
 
-    directory = save_results(results, summary, cfg.output_dir, enabled=cfg.save_results)
-    if directory is not None and cfg.print_results:
-        print(f"\nSaved cross-validation results to: {directory.resolve()}")
+    analysis, directory = _save_and_analyze(cfg, registry, results, summary, splits, cfg.output_dir)
+    if cfg.print_results:
+        print_analysis(analysis.significance, analysis.generalization_gap)
+        if directory is not None:
+            print(f"\nSaved cross-validation results to: {directory.resolve()}")
     if cfg.save_results:
         _save_best_model(cfg, specs, summary, X, y)
 
@@ -125,11 +159,11 @@ def _plot_interpretation(
 
 
 def run_random_split(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
-    """Evaluate random splits, save results and the best model, and optionally plot the first seed's models."""
+    """Evaluate random splits, save results, analysis and the best model, and optionally plot first-seed models."""
     specs = resolve_models(registry, cfg.models)
     X, y, _ = _load_features(cfg)
 
-    results, summary, first_split_models = evaluate_random_splits(
+    results, summary, splits, first_split_models = evaluate_random_splits(
         X,
         y,
         specs,
@@ -139,13 +173,14 @@ def run_random_split(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> No
         tune_cv_folds=cfg.tuning.cv_folds,
         tune_n_iter=cfg.tuning.n_iter,
         model_random_state=cfg.model_random_state,
-        compare=_compared_names(cfg, registry),
         logger=_logger(cfg),
     )
 
-    directory = save_results(results, summary, cfg.output_dir, enabled=cfg.save_results)
-    if directory is not None and cfg.print_results:
-        print(f"\nSaved random-split results to: {directory.resolve()}")
+    analysis, directory = _save_and_analyze(cfg, registry, results, summary, splits, cfg.output_dir)
+    if cfg.print_results:
+        print_analysis(analysis.significance, analysis.generalization_gap)
+        if directory is not None:
+            print(f"\nSaved random-split results to: {directory.resolve()}")
 
     if cfg.save_results:
         _save_best_model(cfg, specs, summary, X, y)
@@ -286,7 +321,7 @@ def _ood_scenarios(cfg: RunConfig, X, y, metadata):
 
 
 def run_ood(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
-    """Run OOD evaluation and save scores, splits, significance tests and generalization gaps."""
+    """Run OOD evaluation and save scores and splits, then their significance tests and generalization gaps."""
     specs = resolve_models(registry, cfg.models)
     X, y, metadata = _load_features(cfg)
 
@@ -303,25 +338,33 @@ def run_ood(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
         tune_cv_folds=cfg.tuning.cv_folds,
         tune_n_iter=cfg.tuning.n_iter,
         model_random_state=cfg.model_random_state,
-        compare=_compared_names(cfg, registry),
         logger=_logger(cfg),
     )
 
-    directory = save_results(ood.results, ood.summary, cfg.output_dir, enabled=cfg.save_results)
-    save_tables(
-        {
-            "splits.csv": ood.splits,
-            "significance.csv": ood.significance,
-            "generalization_gap.csv": ood.generalization_gap,
-        },
-        cfg.output_dir,
-        enabled=cfg.save_results,
-    )
-
+    analysis, directory = _save_and_analyze(cfg, registry, ood.results, ood.summary, ood.splits, cfg.output_dir)
     if cfg.print_results:
-        print_ood_tables(ood.splits, ood.summary, ood.significance, ood.generalization_gap)
+        print_ood_tables(ood.splits, ood.summary, analysis.significance, analysis.generalization_gap)
         if directory is not None:
             print(f"\nSaved OOD results to: {directory.resolve()}")
+
+
+def run_interpret(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:
+    """Re-derive the analysis tables from the results saved in `interpret.results_dir`, writing them back there."""
+    source = cfg.interpret.results_dir
+    if not source:
+        raise ValueError("Set interpret.results_dir to the directory of an evaluation run.")
+    results, summary, splits = load_results(source)
+
+    analysis = analyze_results(results, summary, splits, compare=_compared_names(cfg, registry))
+    directory = save_tables(
+        {SIGNIFICANCE_FILENAME: analysis.significance, GENERALIZATION_GAP_FILENAME: analysis.generalization_gap},
+        source,
+        enabled=cfg.save_results,
+    )
+    if cfg.print_results:
+        print_analysis(analysis.significance, analysis.generalization_gap)
+        if directory is not None:
+            print(f"\nSaved analysis tables to: {directory.resolve()}")
 
 
 def run_uncertainty(*, cfg: RunConfig, registry: Mapping[str, ModelSpec]) -> None:

@@ -38,6 +38,30 @@ python main.py dataset=novamag workflow=ood 'ood.scenarios=[element]' 'ood.eleme
 | `ood` | Evaluation under composition shift |
 | `uncertainty` | Calibration of prediction intervals |
 | `predict` | Predictions for new formulas |
+| `interpret` | Re-derive the analysis tables from a saved run (`interpret.results_dir`) |
+
+## Results
+
+`cross_validation`, `random_split` and `ood` write the same files to `results/<dataset>_<workflow>/`:
+
+| File | Contents |
+| --- | --- |
+| `results.csv` | one row per (scenario, split_type, split_id, seed, model, metric) |
+| `summary.csv` | mean, standard deviation and count per (scenario, split_type, model, metric) |
+| `splits.csv` | `n_train` and `n_test` per split and seed |
+
+The interpret step then derives, from those files alone, whatever the results support:
+
+| File | Written when |
+| --- | --- |
+| `significance.csv` | `compare_models` names two models: a paired test per scenario, split type and metric |
+| `generalization_gap.csv` | the results contain OOD and ID-reference rows (the `ood` workflow) |
+
+K-fold and random-split comparisons pair every (seed, split) and correct the variance by
+`1/n + n_test/n_train` (Nadeau and Bengio), so repeated K-fold pools all seeds into one test.
+OOD comparisons average seeds per held-out set and pair the held-out sets.
+`python main.py dataset=novamag workflow=interpret 'compare_models=[ridge,rf]' interpret.results_dir=results/novamag_ood`
+recomputes them for a saved run.
 
 ## Layout
 
@@ -54,9 +78,9 @@ kalematerials/
   prepdata/          composition parsing, stoichiometry, atomic fractions
   embed/             composition descriptors
   predict/           models, fitting, conformal uncertainty
-  evaluate/          metrics, significance, calibration, OOD summaries
-  interpret/         figures
-  pipeline/          one module per workflow, plus the feature-table build and the figures
+  evaluate/          metrics, calibration, result summaries
+  interpret/         significance tests, generalization gaps, explanations, figures
+  pipeline/          one module per workflow, plus the feature-table build and interpretation
   utils/             model registry, persistence, reporting
   resources/         periodic-table and Miedema spreadsheets
 ```
@@ -72,7 +96,7 @@ Each OOD split is scored three ways, under `split_type`:
 | `ID-random` | a random subset of the same size | a random test set of the same size |
 
 `generalization_gap.csv` reports `OOD − ID-reference` (shift gap) and `ID-reference − ID-random`
-(training-pool gap).
+(training-pool gap), both in MSE.
 
 ## Saved Models
 

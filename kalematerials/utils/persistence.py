@@ -87,6 +87,9 @@ def align_features(features, feature_columns: Sequence[str], source: Optional[st
 
 RESULTS_FILENAME = "results.csv"
 SUMMARY_FILENAME = "summary.csv"
+SPLITS_FILENAME = "splits.csv"
+SIGNIFICANCE_FILENAME = "significance.csv"
+GENERALIZATION_GAP_FILENAME = "generalization_gap.csv"
 
 
 def save_tables(
@@ -129,3 +132,16 @@ def save_results(
     results.to_csv(directory / RESULTS_FILENAME, index=False)
     summary.to_csv(directory / SUMMARY_FILENAME, index=False)
     return directory
+
+
+def load_results(directory: str) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Read (results, summary, splits) saved by an evaluation run; splits is empty if splits.csv is absent."""
+    source = Path(directory)
+    if not (source / RESULTS_FILENAME).exists():
+        raise FileNotFoundError(f"No {RESULTS_FILENAME} in {source.resolve()}; run an evaluation workflow first.")
+    splits_path = source / SPLITS_FILENAME
+    return (
+        pd.read_csv(source / RESULTS_FILENAME),
+        pd.read_csv(source / SUMMARY_FILENAME),
+        pd.read_csv(splits_path) if splits_path.exists() else pd.DataFrame(),
+    )

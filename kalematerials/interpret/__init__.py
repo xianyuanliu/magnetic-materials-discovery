@@ -1,1 +1,1 @@
-"""Model explanations, dataset distributions and case-study plots."""
+"""Analysis of model results: significance tests, generalization gaps, explanations and figures."""

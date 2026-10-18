@@ -1,4 +1,8 @@
-"""Featurize case-study alloy series and save model-explanation and case-study figures."""
+"""Analyze saved results, and save model-explanation and case-study figures.
+
+`analyze_results` reads only the result, summary and split-size tables, so it applies to any evaluation
+workflow and to results saved by an earlier run.
+"""
 
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, NamedTuple, Optional, Sequence, Tuple
@@ -12,9 +16,40 @@ from kalematerials.interpret.reference_comparison import (
     panel_from_series,
     plot_predictions_against_measurements,
 )
+from kalematerials.interpret.result_analysis import summarize_generalization_gap, summarize_model_comparison
 from kalematerials.loaddata.element_tables import load_element_properties
 from kalematerials.prepdata.composition import get_atomic_fraction_array, get_stoich_array
 from kalematerials.utils.persistence import align_features
+
+
+class ResultAnalysis(NamedTuple):
+    """Tables derived from saved results; each is empty when it does not apply.
+
+    `significance` compares the two `compare` models (interpret.result_analysis.summarize_model_comparison).
+    `generalization_gap` needs OOD and ID-reference rows (interpret.result_analysis.summarize_generalization_gap).
+    """
+
+    significance: pd.DataFrame
+    generalization_gap: pd.DataFrame
+
+
+def analyze_results(
+    results: pd.DataFrame,
+    summary: pd.DataFrame,
+    splits: pd.DataFrame,
+    *,
+    compare: Optional[Tuple[str, str]] = None,
+) -> ResultAnalysis:
+    """Derive the significance and generalization-gap tables that the results support.
+
+    `compare` names two models by display name; without it the significance table is empty.
+    """
+    return ResultAnalysis(
+        significance=(
+            summarize_model_comparison(results, splits, *compare) if compare is not None else pd.DataFrame()
+        ),
+        generalization_gap=summarize_generalization_gap(summary),
+    )
 
 
 class AlloySeries(NamedTuple):

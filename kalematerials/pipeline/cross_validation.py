@@ -1,22 +1,23 @@
 """Repeated K-fold evaluation."""
 
-from typing import NamedTuple, Optional, Sequence, Tuple
+from typing import NamedTuple, Sequence
 
 import pandas as pd
 
-from kalematerials.evaluate.formatting import format_comparisons, format_cross_validation_results, format_summary
+from kalematerials.evaluate.formatting import format_cross_validation_results, format_summary
 from kalematerials.evaluate.metrics import compute_metrics, FoldScores, METRICS, scores_to_results, summarize_scores
-from kalematerials.loaddata.splits import build_kfold_splits, Split
+from kalematerials.loaddata.splits import build_kfold_splits, Split, split_sizes
 from kalematerials.predict.fitting import fit_models
 from kalematerials.utils.registry import ModelSpec
 from kalematerials.utils.reporting import format_search_budget, Logger, SILENT
 
 
 class CrossValidationResult(NamedTuple):
-    """Long-form result rows and their mean/std summary (evaluate.metrics.summarize_scores)."""
+    """Long-form result rows, their mean/std summary and the split sizes (loaddata.splits.SPLIT_COLUMNS)."""
 
     results: pd.DataFrame
     summary: pd.DataFrame
+    splits: pd.DataFrame
 
 
 def score_models_on_splits(
@@ -70,19 +71,17 @@ def cross_validate(
     tune_cv_folds: int = 3,
     tune_n_iter: int = 20,
     model_random_state: int = 0,
-    compare: Optional[Tuple[str, str]] = None,
     logger: Logger = SILENT,
 ) -> CrossValidationResult:
-    """Run K-fold cross-validation once per seed and return result rows with their summary.
+    """Run K-fold cross-validation once per seed and return result rows, their summary and split sizes.
 
     `seeds` control fold shuffling; `model_random_state` controls models and tuning. Tuning uses only
-    each fold's training rows, with search settings from `fit_models`. `compare` optionally names
-    two models for a significance test after each repeat.
+    each fold's training rows, with search settings from `fit_models`.
     """
     if hyperparameter_tuning:
         logger.write(format_search_budget(len(seeds), folds, sum(1 for spec in specs if spec.tune is not None)))
 
-    collected = []
+    collected, sizes = [], []
     for run_i, seed in enumerate(seeds, start=1):
         logger.write(f"\n=== CV Run {run_i}/{len(seeds)} (seed={seed}) ===\n")
 
@@ -98,13 +97,12 @@ def cross_validate(
             tune_n_iter=tune_n_iter,
         )
         collected.append(scores_to_results(results, splits, scenario="cross_validation", seed=int(seed)))
+        sizes.append(split_sizes(splits, scenario="cross_validation", seed=int(seed)))
 
         logger.write(format_cross_validation_results(results))
-        if compare is not None:
-            logger.write(format_comparisons(results, *compare, test_train_ratio=1.0 / (folds - 1)))
 
     results = pd.concat(collected, ignore_index=True)
     summary = summarize_scores(results)
     if len(seeds) > 1:
         logger.write(format_summary(summary, f"Cross-Validation Metrics across {len(seeds)} seed(s) (mean ± std):"))
-    return CrossValidationResult(results=results, summary=summary)
+    return CrossValidationResult(results=results, summary=summary, splits=pd.concat(sizes, ignore_index=True))

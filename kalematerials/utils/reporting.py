@@ -73,6 +73,14 @@ def print_ood_tables(
     _print_frame("Generalization gap (MSE), shift vs training-pool", generalization_gap)
 
 
+def print_analysis(significance: pd.DataFrame, generalization_gap: pd.DataFrame) -> None:
+    """Print the nonempty analysis tables."""
+    if not significance.empty:
+        _print_frame("Model comparison significance", significance)
+    if not generalization_gap.empty:
+        _print_frame("Generalization gap (MSE), shift vs training-pool", generalization_gap)
+
+
 def print_uncertainty_report(across_seeds: pd.DataFrame, alpha: float) -> None:
     """Print the calibration table across seeds."""
     nominal = 1.0 - alpha

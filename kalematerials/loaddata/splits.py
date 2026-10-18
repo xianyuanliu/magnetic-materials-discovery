@@ -23,6 +23,17 @@ ID_REFERENCE = "ID-reference"  # held-out inner fold of an OOD split's own train
 ID_RANDOM = "ID-random"  # a random split of the same sizes as an OOD split
 ID_KFOLD = "ID-kfold"  # plain K-fold over the whole pool
 
+# Columns of the split-size table saved as splits.csv.
+SPLIT_COLUMNS = ("scenario", "split_id", "n_train", "n_test", "seed")
+
+
+def split_sizes(splits: Sequence[Split], *, scenario: str, seed: int) -> pd.DataFrame:
+    """Return one SPLIT_COLUMNS row per split, with its training and test sizes."""
+    return pd.DataFrame(
+        [(scenario, split_id, len(train_idx), len(test_idx), seed) for split_id, train_idx, test_idx in splits],
+        columns=list(SPLIT_COLUMNS),
+    )
+
 
 def _standardized(X: pd.DataFrame) -> np.ndarray:
     """Return X as a z-scored array."""

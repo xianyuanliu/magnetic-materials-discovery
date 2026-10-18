@@ -10,7 +10,6 @@ import numpy as np
 import pandas as pd
 
 from kalematerials.evaluate.metrics import build_result_rows, compute_metrics, FoldScores, METRICS, summarize_scores
-from kalematerials.evaluate.ood_summaries import summarize_generalization_gap, summarize_model_comparison
 from kalematerials.loaddata.splits import (
     build_group_splits,
     build_kfold_splits,
@@ -348,18 +347,11 @@ def score_splits_with_inner_kfold(
 
 
 class OODResult(NamedTuple):
-    """OOD evaluation tables.
+    """Result rows, their mean/std summary and the split sizes, as in `score_splits_with_inner_kfold`."""
 
-    `splits` and `results` follow `score_splits_with_inner_kfold`; `summary` is their mean/std per group.
-    `significance` compares the `compare` models on OOD rows (empty when unset), and `generalization_gap`
-    follows evaluate.ood_summaries.summarize_generalization_gap.
-    """
-
-    splits: pd.DataFrame
     results: pd.DataFrame
     summary: pd.DataFrame
-    significance: pd.DataFrame
-    generalization_gap: pd.DataFrame
+    splits: pd.DataFrame
 
 
 def run_ood_evaluation(
@@ -376,14 +368,12 @@ def run_ood_evaluation(
     tune_cv_folds: int = 3,
     tune_n_iter: int = 20,
     model_random_state: int = 0,
-    compare: Optional[Tuple[str, str]] = None,
     logger: Logger = SILENT,
 ) -> OODResult:
     """Evaluate every (scenario_name, splits) pair alongside its in-distribution references.
 
     Repeat per seed, which controls inner folds and size-matched random controls. Tuning runs within each
     inner training fold, using `fit_models` settings. `size_matched_control` enables random controls.
-    `compare` optionally names two models for a paired test across OOD splits.
     """
     if not scenarios:
         raise ValueError("No scenario has a split; nothing to score.")
@@ -422,13 +412,8 @@ def run_ood_evaluation(
             result_frames.append(result_frame)
 
     results = pd.concat(result_frames, ignore_index=True)
-    summary = summarize_scores(results)
     return OODResult(
-        splits=pd.concat(split_frames, ignore_index=True),
         results=results,
-        summary=summary,
-        significance=(
-            summarize_model_comparison(results, *compare, split_type=OOD) if compare is not None else pd.DataFrame()
-        ),
-        generalization_gap=summarize_generalization_gap(summary),
+        summary=summarize_scores(results),
+        splits=pd.concat(split_frames, ignore_index=True),
     )

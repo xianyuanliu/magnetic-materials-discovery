@@ -1,1 +1,1 @@
-"""Metrics, calibration, significance tests and result summaries."""
+"""Metrics, calibration and result summaries."""

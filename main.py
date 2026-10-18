@@ -36,6 +36,8 @@ def main(composed: DictConfig) -> None:
         runner.run_ood(cfg=cfg, registry=MODEL_REGISTRY)
     elif cfg.workflow == "uncertainty":
         runner.run_uncertainty(cfg=cfg, registry=MODEL_REGISTRY)
+    elif cfg.workflow == "interpret":
+        runner.run_interpret(cfg=cfg, registry=MODEL_REGISTRY)
     else:
         runner.run_random_split(cfg=cfg, registry=MODEL_REGISTRY)
 

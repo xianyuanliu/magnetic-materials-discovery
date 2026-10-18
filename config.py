@@ -5,7 +5,7 @@ from typing import Optional, Tuple
 
 from hydra.core.config_store import ConfigStore
 
-WORKFLOWS = ("predict", "random_split", "cross_validation", "ood", "uncertainty")
+WORKFLOWS = ("predict", "random_split", "cross_validation", "ood", "uncertainty", "interpret")
 
 OOD_SCENARIOS = ("element", "period", "group", "system", "cluster", "sparsex", "sparsey")
 
@@ -38,11 +38,16 @@ class TuningConfig:
 
 @dataclass
 class InterpretConfig:
-    """Model-explanation and case-study figures (random_split workflow)."""
+    """Interpretation settings.
+
+    `enabled`, `explain_models` and `case_study_models` control the random_split figures. `results_dir`
+    is the evaluation run the interpret workflow re-analyzes.
+    """
 
     enabled: bool = False
     explain_models: Tuple[str, ...] = ()
     case_study_models: Tuple[str, ...] = ()
+    results_dir: Optional[str] = None
 
 
 @dataclass

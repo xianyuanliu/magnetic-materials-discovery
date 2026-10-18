@@ -1,0 +1,6 @@
+# @package _global_
+
+workflow: interpret
+
+interpret:
+  results_dir: results/${dataset}_cross_validation
